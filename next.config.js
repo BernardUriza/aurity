@@ -6,6 +6,10 @@ const nextConfig = {
   images: {
     domains: [],
   },
+  // Enable standalone output for Docker
+  output: 'standalone',
+  // Disable telemetry
+  telemetry: false,
 }
 
 module.exports = nextConfig

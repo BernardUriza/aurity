@@ -52,8 +52,9 @@ secrets.json
 /aurity/storage/
 /aurity/data/
 
-# Database dumps
+# Database dumps (but allow config files)
 *.sql
+!aurity/config/**/*.sql
 *.dump
 *.backup
 
