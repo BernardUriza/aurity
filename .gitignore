@@ -24,6 +24,9 @@ yarn-error.log*
 
 # Local env files
 .env*.local
+.env
+.env.development
+.env.production
 
 # Vercel
 .vercel
@@ -31,3 +34,81 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# =============================================================================
+# AURITY FRAMEWORK - Additional ignores
+# =============================================================================
+
+# Sensitive data and keys
+/aurity/keys/*.pem
+/aurity/keys/*.key
+*.p12
+*.pfx
+secrets.yaml
+secrets.json
+
+# Storage volumes (local development)
+/volume1/
+/aurity/storage/
+/aurity/data/
+
+# Database dumps
+*.sql
+*.dump
+*.backup
+
+# Logs
+/aurity/logs/
+*.log
+
+# Docker volumes
+/docker/volumes/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary files
+/tmp/
+/temp/
+.cache/
+
+# Test coverage and reports
+/aurity/tests/coverage/
+/aurity/tests/reports/
+
+# Build artifacts
+/aurity/dist/
+/aurity/build/
+
+# PHI data (Protected Health Information) - NEVER COMMIT
+**/phi/**
+**/patient-data/**
+**/consultations/**
+**/audio/**
+**/video/**
+**/documents/**
+**/manifests/**
+
+# Certificates and credentials
+*.crt
+*.cer
+*.der
+credentials.json
+service-account.json
+
+# =============================================================================

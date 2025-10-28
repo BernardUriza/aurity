@@ -1,40 +1,64 @@
-# Aurity
+# AURITY Framework
+## Artificial United Robust Intelligence for Telemedicine Yield
 
-Una aplicación moderna desarrollada con Next.js 14, TypeScript y Tailwind CSS.
+> 🏥 Edge-first telemedicine framework with data sovereignty
 
-## Características
+**Version:** 0.1.0-alpha
+**Sprint:** SPR-2025W44 (2025-10-27 a 2025-11-10)
+**Status:** 🚧 In Active Development
+
+---
+
+## 🎯 Overview
+
+Aurity es un framework de telemedicina que integra **Free Intelligence (FI)** como sistema nervioso técnico local, proporcionando memoria clínica verificable sin dependencia de nubes opacas.
+
+### Key Principles
+
+- 🔐 **Data Sovereignty** - Información sensible bajo control del médico
+- 🏥 **On-Premise First** - Cloud cuando sea necesario
+- 🔍 **Verifiable Memory** - Integridad criptográfica en datos clínicos
+- ⚡ **Progressive Enhancement** - De IoT simple a AI clínica completa
+
+## ⚡ Tech Stack
 
 - ⚡ Next.js 14 con App Router
 - 🔷 TypeScript para type safety
 - 🎨 Tailwind CSS para estilos
 - 📱 Diseño responsive
 - 🌙 Soporte para modo oscuro
-- ✅ ESLint configurado
+- ✅ ESLint + Git hooks configurados
 - 🚀 Optimizado para producción
+- 🐳 Docker ready
 
-## Comenzar
+## 🚀 Quick Start
 
-Primero, instala las dependencias:
+### Prerequisites
 
-```bash
-npm install
-# o
-yarn install
-# o
-pnpm install
-```
+- Node.js 20.x LTS
+- npm 9+ or pnpm
+- Docker & Docker Compose (opcional)
 
-Luego, ejecuta el servidor de desarrollo:
+### Installation
 
-```bash
-npm run dev
-# o
-yarn dev
-# o
-pnpm dev
-```
+1. **Clone and install dependencies**
+   ```bash
+   npm install
+   ```
 
-Abre [http://localhost:3000](http://localhost:3000) en tu navegador para ver el resultado.
+2. **Setup environment**
+   ```bash
+   cp .env.local.example .env.local
+   # Edit .env.local with your configuration
+   ```
+
+3. **Run development server**
+   ```bash
+   npm run dev
+   ```
+
+4. **Open browser**
+   Abre [http://localhost:3000](http://localhost:3000) para ver la aplicación.
 
 ## Scripts Disponibles
 
@@ -44,23 +68,56 @@ Abre [http://localhost:3000](http://localhost:3000) en tu navegador para ver el 
 - `npm run lint` - Ejecuta ESLint
 - `npm run type-check` - Verifica los tipos de TypeScript
 
-## Estructura del Proyecto
+## 📁 Project Structure
 
 ```
-src/
-  app/
-    layout.tsx      # Layout principal
-    page.tsx        # Página de inicio
-    globals.css     # Estilos globales
-  components/
-    Header.tsx      # Componente del header
-  lib/             # Utilidades y helpers
-  types/           # Definiciones de tipos TypeScript
-  styles/          # Archivos de estilos adicionales
+aurity/
+├── src/                    # Next.js application source
+│   ├── app/               # Next.js 14 App Router
+│   ├── components/        # React components
+│   └── lib/               # Utilities and helpers
+│
+├── aurity/                # Aurity Framework modules
+│   ├── core/             # Free Intelligence Core
+│   ├── modules/          # Feature modules (FI-Cold, FI-Entry, etc.)
+│   ├── config/           # Configuration files
+│   ├── scripts/          # Utility scripts
+│   ├── docs/             # Documentation
+│   └── tests/            # Test suites
+│
+├── .env.local            # Local environment (not committed)
+├── .env.local.example    # Environment template
+└── .git/hooks/           # Pre-commit hooks configured
 ```
 
-## Despliegue
+**📖 Documentación detallada:** Ver [aurity/README.md](./aurity/README.md)
 
-La forma más fácil de desplegar tu aplicación Next.js es usar [Vercel](https://vercel.com/new).
+## 🔒 Security
 
-Consulta la [documentación de despliegue de Next.js](https://nextjs.org/docs/deployment) para más detalles.
+### ⚠️ NEVER Commit
+
+- `.env` files with secrets
+- Private keys (`.pem`, `.key`)
+- PHI data (patient information)
+- Database dumps with real data
+
+**Git hooks están configurados** para prevenir commits accidentales.
+
+## ⚙️ Sprint Current
+
+**SPR-2025W44** - Repository & Environment Setup
+- ✅ Project structure
+- ✅ Environment configuration
+- ✅ Git hooks
+- ⏳ Module development (FI-Cold, FI-Entry)
+
+## 📚 Resources
+
+- [AURITY FRAMEWORK.md](./AURITY%20FRAMEWORK.md) - Complete technical specification
+- [Trello Board](https://trello.com/b/77MVRL0t) - Sprint tracking
+- [aurity/README.md](./aurity/README.md) - Module documentation
+
+## 📄 License
+
+**Proprietary** - All rights reserved
+© 2025 Aurity Framework Team
