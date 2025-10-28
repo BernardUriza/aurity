@@ -1,0 +1,244 @@
+# =============================================================================
+# Aurity Framework - Staging Environment
+# =============================================================================
+# Docker Compose configuration for staging deployment
+# Sprint: SPR-2025W44
+# Version: 0.1.0
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Aurity Application
+  # =============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: aurity-staging
+    restart: unless-stopped
+    ports:
+      - "3001:3000"  # Staging on port 3001
+    environment:
+      - NODE_ENV=staging
+      - PORT=3000
+
+      # Database
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=aurity_staging
+      - POSTGRES_USER=fi_staging
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-staging-postgres-change-me}
+
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-staging-redis-change-me}
+
+      # Storage
+      - STORAGE_BASE_DIR=/app/storage
+      - STORAGE_MAX_BUFFER_SIZE=10485760
+      - STORAGE_DEFAULT_TTL=3600
+
+      # MinIO (S3-compatible)
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-staging-minio-access}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-staging-minio-secret-change-me}
+      - MINIO_BUCKET=aurity-staging
+
+      # Vector DB (Qdrant)
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+
+      # Search (Meilisearch)
+      - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY:-staging-meili-master-key-change-me}
+
+      # MQTT (Mosquitto)
+      - MQTT_BROKER_URL=mqtt://mosquitto:1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-staging-mqtt-user}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-staging-mqtt-pass-change-me}
+
+      # Whisper API
+      - WHISPER_API_KEY=${WHISPER_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+      # JWT Secret
+      - JWT_SECRET=${JWT_SECRET:-staging-jwt-secret-change-in-production}
+
+      # Feature Flags
+      - ENABLE_CONVERSATION_CAPTURE=true
+      - ENABLE_TRIAGE_INTAKE=true
+      - ENABLE_DEMO_MODE=true
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - staging-storage:/app/storage
+      - staging-logs:/app/logs
+    networks:
+      - aurity-staging
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =============================================================================
+  # PostgreSQL Database
+  # =============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: aurity-postgres-staging
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=aurity_staging
+      - POSTGRES_USER=fi_staging
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-staging-postgres-change-me}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.utf8
+    volumes:
+      - staging-postgres-data:/var/lib/postgresql/data
+      - ./aurity/config/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - aurity-staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fi_staging -d aurity_staging"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # Redis Cache
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: aurity-redis-staging
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-staging-redis-change-me}
+    volumes:
+      - staging-redis-data:/data
+    networks:
+      - aurity-staging
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # MinIO (S3-compatible Object Storage)
+  # =============================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: aurity-minio-staging
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-staging-minio-access}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-staging-minio-secret-change-me}
+    volumes:
+      - staging-minio-data:/data
+    ports:
+      - "9001:9001"  # MinIO Console
+    networks:
+      - aurity-staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # =============================================================================
+  # Qdrant (Vector Database)
+  # =============================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: aurity-qdrant-staging
+    restart: unless-stopped
+    volumes:
+      - staging-qdrant-data:/qdrant/storage
+    networks:
+      - aurity-staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # Meilisearch (Search Engine)
+  # =============================================================================
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: aurity-meilisearch-staging
+    restart: unless-stopped
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_API_KEY:-staging-meili-master-key-change-me}
+      - MEILI_ENV=production
+    volumes:
+      - staging-meilisearch-data:/meili_data
+    networks:
+      - aurity-staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # Mosquitto (MQTT Broker)
+  # =============================================================================
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: aurity-mosquitto-staging
+    restart: unless-stopped
+    volumes:
+      - staging-mosquitto-data:/mosquitto/data
+      - staging-mosquitto-logs:/mosquitto/log
+    networks:
+      - aurity-staging
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  aurity-staging:
+    name: aurity-staging
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  staging-postgres-data:
+    name: aurity-staging-postgres
+  staging-redis-data:
+    name: aurity-staging-redis
+  staging-minio-data:
+    name: aurity-staging-minio
+  staging-qdrant-data:
+    name: aurity-staging-qdrant
+  staging-meilisearch-data:
+    name: aurity-staging-meilisearch
+  staging-mosquitto-data:
+    name: aurity-staging-mosquitto-data
+  staging-mosquitto-logs:
+    name: aurity-staging-mosquitto-logs
+  staging-storage:
+    name: aurity-staging-storage
+  staging-logs:
+    name: aurity-staging-logs

@@ -36,13 +36,13 @@ ON CONFLICT (name) DO NOTHING;
 CREATE OR REPLACE FUNCTION aurity.health_check()
 RETURNS TABLE (
     status TEXT,
-    timestamp TIMESTAMPTZ,
+    check_timestamp TIMESTAMPTZ,
     version TEXT
 ) AS $$
 BEGIN
     RETURN QUERY SELECT
         'healthy'::TEXT as status,
-        NOW() as timestamp,
+        NOW() as check_timestamp,
         '0.1.0'::TEXT as version;
 END;
 $$ LANGUAGE plpgsql;

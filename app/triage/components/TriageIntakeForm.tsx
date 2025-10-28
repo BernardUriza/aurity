@@ -238,7 +238,7 @@ export function TriageIntakeForm({ darkMode = false }: TriageIntakeFormProps) {
             required
           />
           <p className="form-hint">
-            Example: "Patient experiencing chest pain for 2 hours"
+            Example: &ldquo;Patient experiencing chest pain for 2 hours&rdquo;
           </p>
         </div>
 
@@ -292,7 +292,7 @@ export function TriageIntakeForm({ darkMode = false }: TriageIntakeFormProps) {
           )}
 
           <p className="form-hint">
-            Add individual symptoms (e.g., "fever", "cough", "headache")
+            Add individual symptoms (e.g., &ldquo;fever&rdquo;, &ldquo;cough&rdquo;, &ldquo;headache&rdquo;)
           </p>
         </div>
 
