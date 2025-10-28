@@ -352,15 +352,64 @@ export class AuthManager {
   }
 
   private generateToken(session: AuthSession): string {
-    // Simple JWT-like token (stub)
+    // JWT-like token with HMAC-SHA256 signature
     const payload = {
       sessionId: session.sessionId,
       userId: session.userId,
       role: session.role,
       exp: session.expiresAt.getTime(),
+      iat: Date.now(),
     };
 
-    return Buffer.from(JSON.stringify(payload)).toString('base64');
+    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+
+    // Get secret from environment or use default for development
+    const secret = process.env.JWT_SECRET || 'aurity-dev-secret-change-in-production';
+
+    // Generate HMAC-SHA256 signature
+    const signature = crypto
+      .createHmac('sha256', secret)
+      .update(payloadB64)
+      .digest('base64url');
+
+    return `${payloadB64}.${signature}`;
+  }
+
+  /**
+   * Verify token signature
+   */
+  verifyToken(token: string): { valid: boolean; payload?: any; error?: string } {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 2) {
+        return { valid: false, error: 'Invalid token format' };
+      }
+
+      const [payloadB64, signature] = parts;
+
+      // Verify signature
+      const secret = process.env.JWT_SECRET || 'aurity-dev-secret-change-in-production';
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(payloadB64)
+        .digest('base64url');
+
+      if (signature !== expectedSignature) {
+        return { valid: false, error: 'Invalid signature' };
+      }
+
+      // Decode payload
+      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+
+      // Check expiration
+      if (payload.exp && Date.now() > payload.exp) {
+        return { valid: false, error: 'Token expired' };
+      }
+
+      return { valid: true, payload };
+    } catch (error) {
+      return { valid: false, error: 'Token verification failed' };
+    }
   }
 
   private stubPasswordCheck(password: string, user: User): boolean {
@@ -397,16 +446,35 @@ export class AuthManager {
   }
 }
 
-// Export singleton instance
+// Export singleton instance with thread-safe lazy initialization
 let authManagerInstance: AuthManager | null = null;
+let isInitializing = false;
 
 export function getAuthManager(): AuthManager {
+  // Thread-safe double-check locking pattern
   if (!authManagerInstance) {
-    authManagerInstance = new AuthManager();
+    if (isInitializing) {
+      // Wait for initialization to complete
+      while (isInitializing) {
+        // Busy wait - in production, use proper async/await or locks
+      }
+      return authManagerInstance!;
+    }
+
+    isInitializing = true;
+    try {
+      // Double-check after acquiring lock
+      if (!authManagerInstance) {
+        authManagerInstance = new AuthManager();
+      }
+    } finally {
+      isInitializing = false;
+    }
   }
   return authManagerInstance;
 }
 
 export function resetAuthManager(): void {
   authManagerInstance = null;
+  isInitializing = false;
 }

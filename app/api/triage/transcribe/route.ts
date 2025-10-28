@@ -29,16 +29,16 @@ export async function POST(request: NextRequest) {
     const token = authHeader.replace('Bearer ', '');
     const authManager = getAuthManager();
 
-    let sessionId: string;
-    try {
-      const payload = JSON.parse(Buffer.from(token, 'base64').toString());
-      sessionId = payload.sessionId;
-    } catch {
+    // Verify token signature
+    const tokenVerification = authManager.verifyToken(token);
+    if (!tokenVerification.valid) {
       return NextResponse.json(
-        { error: 'Unauthorized', message: 'Invalid token format' },
+        { error: 'Unauthorized', message: tokenVerification.error || 'Invalid token' },
         { status: 401 }
       );
     }
+
+    const sessionId = tokenVerification.payload.sessionId;
 
     const authContext = await authManager.validateSession(sessionId);
     if (!authContext) {

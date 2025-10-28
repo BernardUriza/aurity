@@ -38,6 +38,7 @@ export class StorageManager {
   private config: StorageConfig;
   private manifest: StorageManifest | null = null;
   private cleanupTimer: NodeJS.Timeout | null = null;
+  private isCleanupRunning: boolean = false;
 
   constructor(config: Partial<StorageConfig> = {}) {
     this.config = {
@@ -219,22 +220,38 @@ export class StorageManager {
    * Cleanup expired buffers
    */
   async cleanup(options: CleanupOptions = {}): Promise<CleanupResult> {
-    const startTime = Date.now();
-    const result: CleanupResult = {
-      buffersRemoved: 0,
-      spaceFreed: 0,
-      errors: [],
-      duration: 0,
-    };
-
-    if (!this.manifest) {
-      return result;
+    // Prevent concurrent cleanup runs to avoid race conditions
+    if (this.isCleanupRunning) {
+      return {
+        buffersRemoved: 0,
+        spaceFreed: 0,
+        errors: ['Cleanup already in progress'],
+        duration: 0,
+      };
     }
 
-    const now = new Date();
-    const cutoffDate = options.olderThan || now;
+    this.isCleanupRunning = true;
 
-    for (const entry of this.manifest.buffers) {
+    try {
+      const startTime = Date.now();
+      const result: CleanupResult = {
+        buffersRemoved: 0,
+        spaceFreed: 0,
+        errors: [],
+        duration: 0,
+      };
+
+      if (!this.manifest) {
+        return result;
+      }
+
+      const now = new Date();
+      const cutoffDate = options.olderThan || now;
+
+      // Create a snapshot of buffers to avoid modification during iteration
+      const buffersSnapshot = [...this.manifest.buffers];
+
+      for (const entry of buffersSnapshot) {
       // Skip if not matching criteria
       if (options.types && !options.types.includes(entry.type)) {
         continue;
@@ -263,8 +280,11 @@ export class StorageManager {
       }
     }
 
-    result.duration = Date.now() - startTime;
-    return result;
+      result.duration = Date.now() - startTime;
+      return result;
+    } finally {
+      this.isCleanupRunning = false;
+    }
   }
 
   /**

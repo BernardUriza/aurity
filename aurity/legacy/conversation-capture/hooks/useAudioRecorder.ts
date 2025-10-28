@@ -187,13 +187,17 @@ export function useAudioRecorder(
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
     setIsRecording(false);
     setIsPaused(false);
     setAudioBlob(null);
     setAudioMetadata(null);
     setError(null);
+
+    // Clear audio chunks to prevent memory leak
     chunksRef.current = [];
+    mediaRecorderRef.current = null;
   }, [isRecording]);
 
   // Cleanup on unmount
@@ -204,7 +208,11 @@ export function useAudioRecorder(
       }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
+      // Clear chunks to prevent memory leak
+      chunksRef.current = [];
+      mediaRecorderRef.current = null;
     };
   }, [isRecording]);
 
