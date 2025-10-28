@@ -12,6 +12,8 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "demo": "ts-node aurity/scripts/demo.ts",
+    "demo:evidence": "ts-node aurity/scripts/export-demo-evidence.ts",
     "docker:build": "docker build -t aurity:latest -t aurity:0.1.0 .",
     "docker:run": "docker run -p 3000:3000 --env-file .env.local aurity:latest",
     "docker:compose:up": "docker-compose up -d",
