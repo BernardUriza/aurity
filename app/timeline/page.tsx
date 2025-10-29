@@ -12,7 +12,7 @@
  * - Refresh and export actions
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SessionHeader } from '@/aurity/modules/fi-timeline';
 import {
   generateMockSessionHeader,
@@ -21,10 +21,13 @@ import {
 import type { SessionHeaderData } from '@/aurity/modules/fi-timeline';
 
 export default function TimelinePage() {
-  const [sessionData, setSessionData] = useState<SessionHeaderData>(
-    generateMockSessionHeader()
-  );
+  const [sessionData, setSessionData] = useState<SessionHeaderData | null>(null);
   const [statusScenario, setStatusScenario] = useState<string>('all-ok');
+
+  // Initialize session data on client only (avoid hydration mismatch)
+  useEffect(() => {
+    setSessionData(generateMockSessionHeader());
+  }, []);
 
   const handleRefresh = () => {
     console.log('[Timeline] Refreshing session data...');
@@ -69,6 +72,18 @@ export default function TimelinePage() {
         setSessionData(generateMockSessionHeader());
     }
   };
+
+  // Loading state while session data initializes
+  if (!sessionData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-950">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading session data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="timeline-page min-h-screen bg-gray-950">
