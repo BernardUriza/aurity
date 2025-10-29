@@ -19,19 +19,79 @@ import {
   generateMockSessionHeaderWithStatus,
 } from '@/aurity/modules/fi-timeline';
 import type { SessionHeaderData } from '@/aurity/modules/fi-timeline';
+import { getSessionSummaries, getSessionDetail } from '@/lib/api/timeline';
 
 export default function TimelinePage() {
   const [sessionData, setSessionData] = useState<SessionHeaderData | null>(null);
   const [statusScenario, setStatusScenario] = useState<string>('all-ok');
+  const [loadTime, setLoadTime] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
+  const [useRealAPI, setUseRealAPI] = useState(true);
 
   // Initialize session data on client only (avoid hydration mismatch)
   useEffect(() => {
-    setSessionData(generateMockSessionHeader());
-  }, []);
+    async function loadSession() {
+      if (!useRealAPI) {
+        setSessionData(generateMockSessionHeader());
+        return;
+      }
+
+      try {
+        const start = performance.now();
+
+        // Fetch first session from backend API
+        const sessions = await getSessionSummaries({ limit: 1 });
+
+        if (sessions.length === 0) {
+          throw new Error('No sessions available from API');
+        }
+
+        const sessionId = sessions[0].metadata.session_id;
+        const detail = await getSessionDetail(sessionId);
+
+        const elapsed = performance.now() - start;
+        setLoadTime(elapsed);
+
+        // Convert backend format to SessionHeaderData
+        setSessionData({
+          metadata: {
+            ...detail.metadata,
+            is_persisted: true,
+          },
+          timespan: detail.timespan,
+          size: {
+            ...detail.size,
+            total_prompts_chars: 0,
+            total_responses_chars: 0,
+          },
+          policy_badges: detail.policy_badges,
+        });
+
+        setError(null);
+        console.log('[Timeline] Loaded from API in', elapsed.toFixed(0), 'ms');
+      } catch (err) {
+        console.error('[Timeline] API error:', err);
+        setError(String(err));
+
+        // Fallback to mock data
+        setSessionData(generateMockSessionHeader());
+        setUseRealAPI(false);
+      }
+    }
+
+    loadSession();
+  }, [useRealAPI]);
 
   const handleRefresh = () => {
     console.log('[Timeline] Refreshing session data...');
-    setSessionData(generateMockSessionHeader());
+    if (useRealAPI) {
+      // Trigger re-fetch from API
+      setSessionData(null);
+      setError(null);
+      // useEffect will reload
+    } else {
+      setSessionData(generateMockSessionHeader());
+    }
   };
 
   const handleExport = () => {
@@ -147,6 +207,48 @@ export default function TimelinePage() {
                       Export Session
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* API Status Card */}
+            <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm">
+              <div className="p-6">
+                <h3 className="text-sm font-semibold text-slate-400 mb-3">API Status</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Data Source</span>
+                    <span className={`inline-flex items-center rounded-xl px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
+                      useRealAPI
+                        ? 'bg-emerald-950/30 text-emerald-300 ring-emerald-900'
+                        : 'bg-amber-950/30 text-amber-300 ring-amber-900'
+                    }`}>
+                      {useRealAPI ? '🟢 API (port 9002)' : '🟡 Mock Data'}
+                    </span>
+                  </div>
+                  {loadTime > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">Load Time</span>
+                      <span className={`inline-flex items-center rounded-xl px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
+                        loadTime < 100
+                          ? 'bg-emerald-950/30 text-emerald-300 ring-emerald-900'
+                          : 'bg-amber-950/30 text-amber-300 ring-amber-900'
+                      }`}>
+                        {loadTime.toFixed(0)}ms {loadTime < 100 ? '✓' : '⚠'}
+                      </span>
+                    </div>
+                  )}
+                  {error && (
+                    <div className="text-xs text-amber-400 bg-amber-950/20 rounded-lg px-3 py-2 border border-amber-900/50">
+                      ⚠️ {error}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setUseRealAPI(!useRealAPI)}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-colors"
+                  >
+                    {useRealAPI ? 'Switch to Mock Data' : 'Try Real API'}
+                  </button>
                 </div>
               </div>
             </div>

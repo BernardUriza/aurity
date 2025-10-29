@@ -9,11 +9,14 @@
  * - Session ID, timespan, size
  * - Policy badges (Hash/Policy/Redaction/Audit)
  * - Refresh and export actions
+ * - Copy-to-clipboard for session ID and owner hash
+ * - Responsive collapse for mobile
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { SessionHeaderProps } from '../types/session';
 import { PolicyBadge } from './PolicyBadge';
+import { copyToClipboard } from '@/lib/utils/clipboard';
 
 export const SessionHeader: React.FC<SessionHeaderProps> = ({
   session,
@@ -22,6 +25,16 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
   onExport,
 }) => {
   const { metadata, timespan, size, policy_badges } = session;
+  const [copied, setCopied] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  const handleCopy = async (text: string, label: string) => {
+    const success = await copyToClipboard(text, label);
+    if (success) {
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    }
+  };
 
   return (
     <header
@@ -32,22 +45,56 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
         {/* Top row: Session ID + Actions */}
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-semibold text-slate-100 font-mono tracking-tight">
-              {metadata.session_id}
-            </h1>
-            {metadata.is_persisted && (
-              <span
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900"
-                title="Session persisted to storage"
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-semibold text-slate-100 font-mono tracking-tight">
+                {metadata.session_id}
+              </h1>
+              <button
+                onClick={() => handleCopy(metadata.session_id, 'session-id')}
+                className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                title="Copy session ID"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                PERSISTED
-              </span>
-            )}
+                {copied === 'session-id' ? (
+                  <span className="text-emerald-400">✓</span>
+                ) : (
+                  <span>📋</span>
+                )}
+              </button>
+              {metadata.is_persisted && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900"
+                  title="Session persisted to storage"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                  PERSISTED
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>Manifest: {metadata.owner_hash.substring(0, 12)}...</span>
+              <button
+                onClick={() => handleCopy(metadata.owner_hash, 'owner-hash')}
+                className="p-0.5 hover:text-slate-300 transition-colors"
+                title="Copy owner hash"
+              >
+                {copied === 'owner-hash' ? (
+                  <span className="text-emerald-400">✓</span>
+                ) : (
+                  <span>📋</span>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="md:hidden p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
+              title={isExpanded ? 'Collapse metrics' : 'Expand metrics'}
+            >
+              {isExpanded ? '▼' : '▶'}
+            </button>
             {onRefresh && (
               <button
                 onClick={onRefresh}
@@ -72,7 +119,9 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
         </div>
 
         {/* Middle row: Timespan + Size metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-sm">
+        <div className={`grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-sm ${
+          isExpanded ? 'grid' : 'hidden md:grid'
+        }`}>
           {/* Timespan */}
           <div className="rounded-xl bg-slate-800/60 px-3 py-2 ring-1 ring-slate-700/50">
             <div className="text-slate-400 text-xs font-medium mb-1">Timespan</div>
