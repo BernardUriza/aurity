@@ -42,6 +42,39 @@ fi-timeline/
 └── README.md                   # This file
 ```
 
+## Setup
+
+### 1. Environment Configuration
+
+Create `.env.local` in `apps/aurity/` with:
+
+```bash
+# Timeline API URL (port 9002)
+NEXT_PUBLIC_TIMELINE_API_URL=http://localhost:9002
+```
+
+**Important**:
+- Variables prefixed with `NEXT_PUBLIC_` are accessible in the browser
+- Changes to `.env.local` require Next.js restart: `pnpm dev`
+- For production, set this to your NAS IP: `http://192.168.X.X:9002`
+- `.env.local` is gitignored and won't be committed
+
+### 2. Backend Timeline API
+
+Ensure Timeline API is running on port 9002:
+
+```bash
+cd /path/to/free-intelligence
+uvicorn backend.timeline_api:app --reload --port 9002 --host 0.0.0.0
+```
+
+Verify API health:
+
+```bash
+curl http://localhost:9002/health
+# Expected: {"status":"healthy","version":"0.1.0"}
+```
+
 ## Usage
 
 ### 1. Import components
