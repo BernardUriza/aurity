@@ -56,8 +56,13 @@ export default function TimelinePage() {
         // Convert backend format to SessionHeaderData
         setSessionData({
           metadata: {
-            ...detail.metadata,
+            session_id: detail.metadata.session_id,
+            thread_id: detail.metadata.thread_id || undefined,
+            owner_hash: detail.metadata.owner_hash || undefined,
+            created_at: detail.metadata.created_at,
             is_persisted: true,
+            last_active: detail.timespan.end || detail.metadata.updated_at || new Date().toISOString(),
+            interaction_count: detail.size.interaction_count,
           },
           timespan: detail.timespan,
           size: {

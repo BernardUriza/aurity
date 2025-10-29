@@ -104,11 +104,13 @@ class EmbeddingsCache {
   public set(key: string, value: any): void {
     // Limpiar cache si excede el tamaño máximo
     if (this.cache.size >= DIARIZATION_CONFIG.cache.maxSize) {
-      const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
-      this.timestamps.delete(oldestKey);
+      const oldestKey = this.cache.keys().next().value as string | undefined;
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+        this.timestamps.delete(oldestKey);
+      }
     }
-    
+
     this.cache.set(key, value);
     this.timestamps.set(key, Date.now());
   }

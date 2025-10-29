@@ -10,8 +10,11 @@
 
 import React, { useState, useCallback } from 'react';
 import Swal from 'sweetalert2';
-import { ConversationCapture } from '@/aurity/legacy/conversation-capture';
-import { ConversationSession, TranscriptionSegment } from '@/aurity/legacy/conversation-capture/types';
+import {
+  SlimConversationCapture,
+  ConversationSession,
+  TranscriptionSegment,
+} from '@/components/SlimConversationCapture';
 import { useAuth } from '@/lib/useAuth';
 
 interface TriageIntakeFormProps {
@@ -210,11 +213,9 @@ export function TriageIntakeForm({ darkMode = false }: TriageIntakeFormProps) {
   if (showRecorder) {
     return (
       <div className="recorder-container">
-        <ConversationCapture
+        <SlimConversationCapture
           onSave={handleConversationSave}
           onCancel={handleConversationCancel}
-          autoTranscribe={false}
-          showLiveTranscription={true}
           darkMode={darkMode}
         />
       </div>

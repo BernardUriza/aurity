@@ -17,7 +17,7 @@ interface UseAudioDenoisingOptions {
   onChunkReady?: (audioData: Float32Array, metadata: ProcessingMetadata) => void;
   chunkSize?: number;
   sampleRate?: number;
-  mode?: 'direct' | 'streaming';
+  mode?: 'direct' | 'streaming' | 'enhanced';
   denoisingEnabled?: boolean;
   environment?: 'consultorio' | 'urgencias' | 'uci' | 'cirugia';
 }
@@ -93,7 +93,7 @@ export function useAudioDenoising({
 
   // Processor de audio con denoising integrado
   const { start: startProcessor, stop: stopProcessor } = useAudioProcessor({
-    onAudioData: (audioData) => {
+    onAudioData: (audioData: Float32Array) => {
       if (!chunkManagerRef.current) return;
       chunkManagerRef.current.addData(audioData);
     },
@@ -168,7 +168,8 @@ export function useAudioDenoising({
       
     } catch (error) {
       console.error(`[AudioDenoising] Error processing chunk #${chunkId}:`, error);
-      setError(`Error processing audio: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setError(`Error processing audio: ${errorMessage}`);
       
       // En caso de error crítico, usar fallback básico
       if (denoisingEnabled) {
@@ -200,7 +201,7 @@ export function useAudioDenoising({
       // Configurar chunk manager con denoising integrado
       chunkManagerRef.current = new AudioChunkManager({
         chunkSize: targetChunkSize,
-        onChunk: async (chunk, id) => {
+        onChunk: async (chunk: Float32Array, id: number) => {
           chunkCountRef.current = id;
           
           // Almacenar chunk para audio final
@@ -226,26 +227,19 @@ export function useAudioDenoising({
       allChunksRef.current = [];
       
       // Inicializar pipeline
-      await audioPipelineIntegration.configure({
-        enableDenoising: denoisingEnabled,
-        environment: environment,
-        enableFallback: true,
-        enableQualityMetrics: true
+      audioPipelineIntegration.configure({
+        denoisingEnabled,
+        environment,
       });
-      
-      const stream = await startProcessor();
-      if (stream) {
-        streamRef.current = stream;
-        setIsRecording(true);
-        console.log(`[UnifiedCapture] Recording started with denoising: ${denoisingEnabled ? 'ENABLED' : 'DISABLED'}`);
-      }
-      
-      return stream;
+
+      startProcessor();
+      setIsRecording(true);
+      console.log(`[UnifiedCapture] Recording started with denoising: ${denoisingEnabled ? 'ENABLED' : 'DISABLED'}`);
       
     } catch (error) {
       console.error('[UnifiedCapture] Error starting audio capture:', error);
-      setError(`Error starting recording: ${error.message}`);
-      return null;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setError(`Error starting recording: ${errorMessage}`);
     }
   }, [isRecording, startProcessor, mode, denoisingEnabled, environment, processChunkWithDenoising]);
 

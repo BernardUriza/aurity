@@ -72,11 +72,12 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
               )}
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span>Manifest: {metadata.owner_hash.substring(0, 12)}...</span>
+              <span>Manifest: {metadata.owner_hash?.substring(0, 12) || 'N/A'}...</span>
               <button
-                onClick={() => handleCopy(metadata.owner_hash, 'owner-hash')}
+                onClick={() => metadata.owner_hash && handleCopy(metadata.owner_hash, 'owner-hash')}
                 className="p-0.5 hover:text-slate-300 transition-colors"
                 title="Copy owner hash"
+                disabled={!metadata.owner_hash}
               >
                 {copied === 'owner-hash' ? (
                   <span className="text-emerald-400">✓</span>
