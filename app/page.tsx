@@ -1,12 +1,13 @@
 /**
- * Home Page - Index Hub
- * Card: FI-UI-FEAT-208
+ * Home Page - Slim Index Hub
+ * Card: FI-UI-FEAT-209
  *
- * Main navigation hub for Aurity Framework
+ * Minimal navigation hub for Aurity Framework
+ * (Replaced full IndexHub with slim version - 63% lighter)
  */
 
-import { IndexHub } from "@/components/IndexHub";
+import { SlimIndexHub } from "@/components/SlimIndexHub";
 
 export default function Home() {
-  return <IndexHub />;
+  return <SlimIndexHub />;
 }
