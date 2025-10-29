@@ -25,22 +25,23 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
 
   return (
     <header
-      className={`session-header bg-gray-900 border-b border-gray-700 ${
-        sticky ? 'sticky top-0 z-10' : ''
+      className={`session-header backdrop-blur border-b bg-slate-900/80 border-slate-800 ${
+        sticky ? 'sticky top-0 z-30' : ''
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 py-4">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
         {/* Top row: Session ID + Actions */}
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold text-white font-mono">
+          <div className="flex items-center gap-3">
+            <h1 className="text-base font-semibold text-slate-100 font-mono tracking-tight">
               {metadata.session_id}
             </h1>
             {metadata.is_persisted && (
               <span
-                className="text-xs px-2 py-0.5 rounded bg-green-900 text-green-300 border border-green-600"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900"
                 title="Session persisted to storage"
               >
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                 PERSISTED
               </span>
             )}
@@ -50,54 +51,56 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
             {onRefresh && (
               <button
                 onClick={onRefresh}
-                className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-600 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-xl border border-slate-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
                 title="Refresh session data"
               >
-                ↻ Refresh
+                <span className="text-base">↻</span>
+                <span className="hidden sm:inline">Refresh</span>
               </button>
             )}
             {onExport && (
               <button
                 onClick={onExport}
-                className="px-3 py-1.5 text-sm bg-blue-900 hover:bg-blue-800 text-blue-200 rounded border border-blue-600 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 rounded-xl border border-slate-600 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
                 title="Export session"
               >
-                ⇣ Export
+                <span className="text-base">⇣</span>
+                <span className="hidden sm:inline">Export</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Middle row: Timespan + Size metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3 text-sm">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-sm">
           {/* Timespan */}
-          <div className="bg-gray-800 rounded px-3 py-2 border border-gray-700">
-            <div className="text-gray-400 text-xs mb-1">Timespan</div>
-            <div className="text-gray-200 font-medium">
+          <div className="rounded-xl bg-slate-800/60 px-3 py-2 ring-1 ring-slate-700/50">
+            <div className="text-slate-400 text-xs font-medium mb-1">Timespan</div>
+            <div className="text-slate-100 font-semibold text-[15px]">
               {timespan.duration_human}
             </div>
-            <div className="text-gray-500 text-xs mt-1">
+            <div className="text-slate-500 text-xs mt-1.5">
               {new Date(timespan.start).toLocaleString()} →{' '}
               {new Date(timespan.end).toLocaleString()}
             </div>
           </div>
 
           {/* Size */}
-          <div className="bg-gray-800 rounded px-3 py-2 border border-gray-700">
-            <div className="text-gray-400 text-xs mb-1">Size</div>
-            <div className="text-gray-200 font-medium">{size.size_human}</div>
-            <div className="text-gray-500 text-xs mt-1">
+          <div className="rounded-xl bg-slate-800/60 px-3 py-2 ring-1 ring-slate-700/50">
+            <div className="text-slate-400 text-xs font-medium mb-1">Size</div>
+            <div className="text-slate-100 font-semibold text-[15px]">{size.size_human}</div>
+            <div className="text-slate-500 text-xs mt-1.5">
               {size.interaction_count} interactions · {size.total_tokens.toLocaleString()} tokens
             </div>
           </div>
 
           {/* Averages */}
-          <div className="bg-gray-800 rounded px-3 py-2 border border-gray-700">
-            <div className="text-gray-400 text-xs mb-1">Averages</div>
-            <div className="text-gray-200 font-medium">
+          <div className="rounded-xl bg-slate-800/60 px-3 py-2 ring-1 ring-slate-700/50">
+            <div className="text-slate-400 text-xs font-medium mb-1">Averages</div>
+            <div className="text-slate-100 font-semibold text-[15px]">
               {size.avg_tokens_per_interaction.toFixed(0)} tokens/interaction
             </div>
-            <div className="text-gray-500 text-xs mt-1">
+            <div className="text-slate-500 text-xs mt-1.5">
               {(size.total_prompts_chars / 1024).toFixed(1)}KB prompts ·{' '}
               {(size.total_responses_chars / 1024).toFixed(1)}KB responses
             </div>
@@ -106,7 +109,7 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
 
         {/* Bottom row: Policy badges */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-400 mr-2">Policy Status:</span>
+          <span className="text-xs text-slate-500 font-medium mr-1">Policy Status:</span>
           <PolicyBadge
             label="Hash"
             status={policy_badges.hash_verified}
