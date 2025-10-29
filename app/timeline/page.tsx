@@ -23,6 +23,7 @@ import { getSessionSummaries, getSessionDetail } from '@/lib/api/timeline';
 
 export default function TimelinePage() {
   const [sessionData, setSessionData] = useState<SessionHeaderData | null>(null);
+  const [sessionEvents, setSessionEvents] = useState<any[]>([]);
   const [statusScenario, setStatusScenario] = useState<string>('all-ok');
   const [loadTime, setLoadTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +68,11 @@ export default function TimelinePage() {
           policy_badges: detail.policy_badges,
         });
 
+        // Store events
+        setSessionEvents(detail.events || []);
+
         setError(null);
-        console.log('[Timeline] Loaded from API in', elapsed.toFixed(0), 'ms');
+        console.log('[Timeline] Loaded from API in', elapsed.toFixed(0), 'ms', `(${detail.events?.length || 0} events)`);
       } catch (err) {
         console.error('[Timeline] API error:', err);
         setError(String(err));
@@ -293,104 +297,76 @@ export default function TimelinePage() {
               </p>
             </div>
 
-            {/* Features Card */}
+            {/* Medical Events Timeline */}
             <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm">
               <div className="p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
                   <h3 className="text-lg font-semibold tracking-tight text-slate-100">
-                    Features Implemented
+                    Session Events ({sessionEvents.length})
                   </h3>
                 </div>
-                <ul className="space-y-2.5 text-[15px] leading-6">
-                  {[
-                    'Session ID display (session_YYYYMMDD_HHMMSS format)',
-                    'Timespan with duration and human-readable format',
-                    'Size metrics (interactions, tokens, chars)',
-                    'Policy badges with 4 states (OK, FAIL, PENDING, N/A)',
-                    'Sticky header on scroll',
-                    'Refresh and export actions',
-                    'Persisted status indicator',
-                  ].map((feature, idx) => (
-                    <li key={idx} className="flex items-start gap-3">
-                      <span className="text-emerald-500 mt-0.5">✓</span>
-                      <span className="text-slate-300">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
 
-            {/* Acceptance Criteria Card */}
-            <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm">
-              <div className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                  <h3 className="text-lg font-semibold tracking-tight text-slate-100">
-                    Acceptance Criteria
-                  </h3>
-                </div>
-                <ul className="space-y-2.5 text-[15px] leading-6">
-                  {[
-                    'Session ID visible with format session_YYYYMMDD_HHMMSS',
-                    'Timespan shows start → end with duration',
-                    'Size shows interactions count and total tokens',
-                    '4 policy badges (Hash/Policy/Redaction/Audit) with color coding',
-                    'Sticky header remains at top on scroll',
-                    'Responsive layout (mobile + desktop)',
-                  ].map((criterion, idx) => (
-                    <li key={idx} className="flex items-start gap-3">
-                      <span className="text-emerald-600 mt-0.5">✓</span>
-                      <span className="text-slate-300">{criterion}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+                {sessionEvents.length > 0 ? (
+                  <div className="space-y-3">
+                    {sessionEvents.map((event, idx) => (
+                      <div
+                        key={event.event_id}
+                        className="rounded-lg bg-slate-800/60 border border-slate-700 p-4 hover:bg-slate-800 transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-slate-500">#{idx + 1}</span>
+                            <span className="text-sm font-medium text-slate-300">
+                              {event.event_type.replace(/_/g, ' ')}
+                            </span>
+                            {event.event_type === 'critical_pattern_detected' && (
+                              <span className="text-red-400 text-lg">⚠️</span>
+                            )}
+                          </div>
+                          <span className="text-xs text-slate-500">
+                            {new Date(event.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
 
-            {/* Spacer for testing sticky header */}
-            <div className="h-screen rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm flex items-center justify-center">
-              <div className="text-center px-6">
-                <div className="mb-4">
-                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 ring-1 ring-slate-700">
-                    <span className="text-2xl">↑</span>
+                        <div className="text-slate-100 mb-2 font-medium">{event.what}</div>
+
+                        {event.summary && event.summary !== event.what && (
+                          <div className="text-sm text-slate-400 mb-3">{event.summary}</div>
+                        )}
+
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-slate-500">by <span className="text-slate-400 font-mono">{event.who}</span></span>
+                          {event.tags && event.tags.length > 0 && (
+                            <div className="flex gap-1 flex-wrap">
+                              {event.tags.map((tag: string) => (
+                                <span
+                                  key={tag}
+                                  className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-400"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {event.causality && event.causality.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-slate-700">
+                            <span className="text-xs text-slate-500">
+                              Triggered by: {event.causality[0].explanation}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                </div>
-                <p className="text-slate-400 text-[15px] leading-6">
-                  Scroll up to see the sticky header behavior
-                </p>
-                <p className="text-sm text-slate-500 mt-2">
-                  SessionHeader should remain fixed at top
-                </p>
+                ) : (
+                  <p className="text-slate-500 text-center py-8">No events loaded yet</p>
+                )}
               </div>
             </div>
 
-            {/* Next Steps Card */}
-            <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm">
-              <div className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-2 w-2 rounded-full bg-amber-500"></div>
-                  <h3 className="text-lg font-semibold tracking-tight text-slate-100">
-                    Next Steps
-                  </h3>
-                </div>
-                <ul className="space-y-2.5 text-[15px] leading-6">
-                  {[
-                    { id: 'FI-UI-FEAT-101', title: 'Chips de Métrica por Interacción' },
-                    { id: 'FI-UI-FEAT-103', title: 'Búsqueda y Filtros en Sesión' },
-                    { id: 'FI-UI-FEAT-104', title: 'Panel de Metadatos Expandible' },
-                    { id: 'FI-UI-FEAT-108', title: 'Virtualización y Budget de Render' },
-                  ].map((step, idx) => (
-                    <li key={idx} className="flex items-start gap-3">
-                      <span className="inline-flex items-center rounded-lg bg-amber-950/30 px-2 py-0.5 text-xs font-medium text-amber-300 ring-1 ring-amber-900 mt-0.5">
-                        {step.id}
-                      </span>
-                      <span className="text-slate-300">{step.title}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
           </main>
         </div>
       </div>
