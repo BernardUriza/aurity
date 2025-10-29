@@ -124,6 +124,82 @@ const failedSession = generateMockSessionHeaderWithStatus(
 );
 ```
 
+### 4. Clipboard Utilities
+
+The module includes clipboard helpers with fallback support:
+
+```tsx
+import { copyToClipboard, copySessionId, copyOwnerHash } from '@/lib/utils/clipboard';
+
+// Copy any text
+await copyToClipboard('text to copy', 'label');  // Optional label for console log
+
+// Copy session ID
+await copySessionId('session_20251029_100000');
+
+// Copy owner hash
+await copyOwnerHash('abc123def456...');
+```
+
+**Features**:
+- Modern Clipboard API (primary)
+- Fallback to `document.execCommand('copy')` for older browsers
+- Console logging with truncated preview
+- Returns `Promise<boolean>` for success/failure
+
+**Browser Support**:
+- Modern API requires HTTPS or localhost (secure context)
+- Fallback works in all browsers
+
+### 5. Error Handling & Fallback
+
+The Timeline page implements graceful degradation:
+
+```tsx
+try {
+  // Fetch from Timeline API
+  const sessions = await getSessionSummaries({ limit: 1 });
+  setSessionData(convertToHeaderFormat(sessions[0]));
+} catch (err) {
+  console.error('[Timeline] API error:', err);
+
+  // Fallback to mock data
+  setSessionData(generateMockSessionHeader());
+  setUseRealAPI(false);
+}
+```
+
+**Error scenarios handled**:
+1. **API Down**: Falls back to mock data, shows warning badge
+2. **404 Not Found**: Catches specific session errors
+3. **CORS Error**: Displays origin mismatch message
+4. **Network Timeout**: Browser default timeout (~300s)
+
+**User Feedback**:
+- API Status card shows data source (API vs Mock)
+- Load time displayed with color coding (<100ms green, else yellow)
+- Error messages shown in warning badge
+
+### 6. Performance Monitoring
+
+The page tracks load performance using `performance.now()`:
+
+```tsx
+const start = performance.now();
+const sessions = await getSessionSummaries({ limit: 1 });
+const elapsed = performance.now() - start;
+setLoadTime(elapsed);  // Displayed in API Status card
+```
+
+**Performance Targets**:
+- **p95 < 100ms** for metadata load
+- **p99 < 100ms** validated in smoke tests (actual: 13.4ms)
+
+**Monitoring in Console**:
+```
+[Timeline] Loaded from API in 44ms (4 events)
+```
+
 ## API Reference
 
 ### `<SessionHeader />`
@@ -152,6 +228,50 @@ interface SessionHeaderData {
 - **FAIL** (red): Verification failed
 - **PENDING** (yellow): Verification in progress
 - **N/A** (gray): Not applicable
+
+## Testing
+
+### Manual Testing
+
+Visit `/timeline` demo page and verify:
+
+1. **Clipboard** (FI-UI-TEST-001):
+   - Click 📋 next to session_id → copies full ID
+   - Click 📋 next to "Manifest:" → copies owner_hash (64 chars)
+   - Icon changes to ✓ for 2 seconds
+   - Console logs: `[Clipboard] Copied session-id: session_...`
+
+2. **Responsive Design** (FI-UI-TEST-002):
+   - Resize to <768px → ▼/▶ button appears
+   - Click button → metrics collapse/expand
+   - Resize to ≥768px → button hidden, metrics always visible
+   - Sticky header works in both modes
+
+3. **Performance** (FI-TEST-FEAT-009):
+   - Check API Status card → load time should be <100ms
+   - Console: `[Timeline] Loaded from API in Xms (Y events)`
+   - Target: p99 < 100ms (validated: 13.4ms)
+
+4. **API Integration** (FI-TEST-FEAT-010):
+   - Happy path: Page loads with real data from API
+   - API down: Stop API (kill port 9002) → fallback to mock data
+   - 404: Invalid session → error message displayed
+   - CORS: Verify no CORS errors in console
+
+### Automated Testing (Future)
+
+```bash
+# Unit tests (clipboard utilities)
+pnpm test lib/utils/clipboard.test.ts
+
+# E2E tests (Playwright)
+pnpm test:e2e tests/e2e/timeline.spec.ts
+```
+
+**Test Coverage Goals**:
+- Unit tests: clipboard, date formatting, mock generators
+- Integration tests: API client, error handling
+- E2E tests: user flows, responsive behavior
 
 ## Demo
 
