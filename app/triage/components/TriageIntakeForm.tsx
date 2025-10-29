@@ -12,6 +12,7 @@ import React, { useState, useCallback } from 'react';
 import Swal from 'sweetalert2';
 import { ConversationCapture } from '@/aurity/legacy/conversation-capture';
 import { ConversationSession, TranscriptionSegment } from '@/aurity/legacy/conversation-capture/types';
+import { useAuth } from '@/lib/useAuth';
 
 interface TriageIntakeFormProps {
   darkMode?: boolean;
@@ -24,6 +25,8 @@ interface TriageFormData {
 }
 
 export function TriageIntakeForm({ darkMode = false }: TriageIntakeFormProps) {
+  const { getToken, isAuthenticated, isLoading: authLoading } = useAuth();
+
   const [formData, setFormData] = useState<TriageFormData>({
     reason: '',
     symptoms: [],
@@ -140,20 +143,18 @@ export function TriageIntakeForm({ darkMode = false }: TriageIntakeFormProps) {
     setIsSubmitting(true);
 
     try {
-      // TODO: Get actual auth token from auth context
-      const mockToken = Buffer.from(
-        JSON.stringify({
-          sessionId: 'demo-session',
-          userId: 'admin-001',
-          role: 'admin',
-        })
-      ).toString('base64');
+      // Get authentication token
+      const token = getToken();
+
+      if (!token) {
+        throw new Error('Not authenticated. Please refresh the page.');
+      }
 
       const response = await fetch('/api/triage/intake', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${mockToken}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           reason: formData.reason,
@@ -216,6 +217,28 @@ export function TriageIntakeForm({ darkMode = false }: TriageIntakeFormProps) {
           showLiveTranscription={true}
           darkMode={darkMode}
         />
+      </div>
+    );
+  }
+
+  // Show loading state while authenticating
+  if (authLoading) {
+    return (
+      <div className="triage-intake-form">
+        <div className="auth-loading" style={{ textAlign: 'center', padding: '2rem' }}>
+          <p>Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if not authenticated after loading
+  if (!isAuthenticated) {
+    return (
+      <div className="triage-intake-form">
+        <div className="auth-error" style={{ textAlign: 'center', padding: '2rem', color: '#ef4444' }}>
+          <p>Authentication failed. Please refresh the page.</p>
+        </div>
       </div>
     );
   }
