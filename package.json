@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=20.10.0 <21.0.0",
+    "node": ">=20.10.0",
     "npm": ">=9.0.0"
   },
   "scripts": {
@@ -21,9 +21,13 @@
     "docker:compose:logs": "docker-compose logs -f"
   },
   "dependencies": {
+    "@types/react-syntax-highlighter": "^15.5.13",
     "next": "14.0.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "sweetalert2": "^11.10.0"
   },
   "devDependencies": {
