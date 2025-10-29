@@ -19,6 +19,21 @@ export default function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
           <a
+            href="/history"
+            className="group rounded-lg border border-emerald-500 bg-emerald-50 px-5 py-4 transition-colors hover:border-emerald-600 hover:bg-emerald-100"
+          >
+            <h2 className="mb-3 text-2xl font-semibold text-emerald-900">
+              Historia Personal ✨{' '}
+              <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+                →
+              </span>
+            </h2>
+            <p className="m-0 max-w-[30ch] text-sm text-emerald-700">
+              FI-UI-FEAT-004: Timeline interactivo - Mis decisiones, conversaciones y evolución
+            </p>
+          </a>
+
+          <a
             href="/timeline"
             className="group rounded-lg border border-blue-500 bg-blue-50 px-5 py-4 transition-colors hover:border-blue-600 hover:bg-blue-100"
           >
