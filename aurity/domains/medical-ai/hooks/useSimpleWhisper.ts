@@ -465,13 +465,12 @@ export function useSimpleWhisper({
       }
       
       // Use denoising gateway for both modes
-      const stream = await startAudioCapture();
-      
-      if (!stream) {
+      await startAudioCapture();
+
+      // Get stream from denoising hook (it manages state internally)
+      if (!isAudioRecording) {
         throw new Error('No se pudo iniciar la captura de audio');
       }
-      
-      setupAudioMonitoring(stream);
       
       // Recording state is now managed by the denoising hook
       // setIsRecording is updated via useEffect

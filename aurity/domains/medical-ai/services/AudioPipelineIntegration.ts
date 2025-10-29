@@ -9,9 +9,15 @@
 
 export interface PipelineConfig {
   denoisingEnabled?: boolean;
+  enableDenoising?: boolean;
   chunkSize?: number;
   sampleRate?: number;
-  environment?: 'consultorio' | 'urgencias' | 'uci' | 'cirugia';
+  environment?: 'consultorio' | 'urgencias' | 'uci' | 'cirugia' | string;
+  enableQualityMetrics?: boolean;
+  enablePersistence?: boolean;
+  fallbackOnError?: boolean;
+  enableFallback?: boolean;
+  logLevel?: string;
 }
 
 export interface PipelineResult {
@@ -22,6 +28,13 @@ export interface PipelineResult {
     denoisingApplied: boolean;
     processingTime: number;
   };
+  usedDenoising?: boolean;
+  qualityMetrics?: any;
+  denoisingResult?: {
+    filters?: string[];
+    activeFilters?: string[];
+  };
+  fallbackMode?: boolean;
 }
 
 class AudioPipelineIntegration {
@@ -83,9 +96,11 @@ class AudioPipelineIntegration {
    */
   async processAudioWithDenoising(
     audioData: Float32Array,
-    enabled: boolean = true
+    options?: Partial<PipelineConfig> | boolean
   ): Promise<PipelineResult> {
     const startTime = performance.now();
+
+    const enabled = typeof options === 'boolean' ? options : (options?.denoisingEnabled ?? true);
 
     // No-op: return input unchanged
     const result: PipelineResult = {
@@ -96,6 +111,10 @@ class AudioPipelineIntegration {
         denoisingApplied: enabled,
         processingTime: performance.now() - startTime,
       },
+      usedDenoising: enabled,
+      qualityMetrics: null,
+      denoisingResult: { filters: [], activeFilters: [] },
+      fallbackMode: false,
     };
 
     return result;

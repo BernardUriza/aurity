@@ -127,10 +127,10 @@ export function useAudioDenoising({
         chunkId: chunkId,
         originalLength: chunk.length,
         processedLength: pipelineResult.processedAudio.length,
-        denoisingUsed: pipelineResult.usedDenoising,
+        denoisingUsed: pipelineResult.usedDenoising ?? false,
         processingTime: processingTime,
         qualityMetrics: pipelineResult.qualityMetrics,
-        activeFilters: pipelineResult.denoisingResult ? Object.keys(pipelineResult.denoisingResult.activeFilters) : [],
+        activeFilters: pipelineResult.denoisingResult?.activeFilters || [],
         fallbackMode: pipelineResult.fallbackMode || false
       };
       
@@ -191,8 +191,8 @@ export function useAudioDenoising({
   }, [environment, denoisingEnabled, onChunkReady]);
 
   // Iniciar captura
-  const start = useCallback(async (): Promise<MediaStream | null> => {
-    if (isRecording) return streamRef.current;
+  const start = useCallback(async (): Promise<void> => {
+    if (isRecording) return;
     
     try {
       console.log(`[UnifiedCapture] Starting ${mode} mode capture with denoising`);

@@ -11,7 +11,7 @@ interface UseWhisperPreloadOptions {
 }
 
 interface UseWhisperPreloadReturn {
-  status: PreloadStatus;
+  status: 'idle' | 'loading' | 'loaded' | 'failed';
   progress: number;
   error: Error | null;
   model: Pipeline | null;
@@ -39,7 +39,7 @@ export function useWhisperPreload(options: UseWhisperPreloadOptions = {}): UseWh
       // Only initialize if not already loaded
       const currentState = whisperPreloadManager.getState();
       if (currentState.status !== 'loaded' && currentState.status !== 'loading') {
-        whisperPreloadManager.initializePreload({ delay, priority });
+        whisperPreloadManager.initializePreload();
       }
     }
 
@@ -57,8 +57,8 @@ export function useWhisperPreload(options: UseWhisperPreloadOptions = {}): UseWh
   return {
     status: state.status,
     progress: state.progress,
-    error: state.error,
-    model: state.model,
+    error: state.error ? new Error(state.error) : null,
+    model: state.model || null,
     isLoading: state.status === 'loading',
     isLoaded: state.status === 'loaded',
     isFailed: state.status === 'failed',

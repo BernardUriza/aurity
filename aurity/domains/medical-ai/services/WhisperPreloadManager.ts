@@ -10,20 +10,24 @@
 export type ModelSize = 'tiny' | 'base' | 'small' | 'medium' | 'large';
 
 export interface PreloadStatus {
+  status: 'idle' | 'loading' | 'loaded' | 'failed';
   isLoading: boolean;
   isReady: boolean;
   progress: number;
   error: string | null;
   modelSize: ModelSize;
+  model?: any;
 }
 
 class WhisperPreloadManager {
   private status: PreloadStatus = {
+    status: 'idle',
     isLoading: false,
     isReady: false,
     progress: 0,
     error: null,
     modelSize: 'base',
+    model: null,
   };
 
   /**
@@ -31,22 +35,26 @@ class WhisperPreloadManager {
    */
   async preload(modelSize: ModelSize = 'base'): Promise<void> {
     this.status = {
+      status: 'loading',
       isLoading: true,
       isReady: false,
       progress: 0,
       error: null,
       modelSize,
+      model: null,
     };
 
     // Simulate loading
     await new Promise(resolve => setTimeout(resolve, 100));
 
     this.status = {
+      status: 'loaded',
       isLoading: false,
       isReady: true,
       progress: 100,
       error: null,
       modelSize,
+      model: {},
     };
   }
 
@@ -69,11 +77,13 @@ class WhisperPreloadManager {
    */
   unload(): void {
     this.status = {
+      status: 'idle',
       isLoading: false,
       isReady: false,
       progress: 0,
       error: null,
       modelSize: 'base',
+      model: null,
     };
   }
 
@@ -94,10 +104,13 @@ class WhisperPreloadManager {
   }
 
   /**
-   * Initialize preload (alias for preload)
+   * Initialize preload with options (compat method)
    */
-  async initializePreload(modelSize: ModelSize = 'base'): Promise<void> {
-    return this.preload(modelSize);
+  async initializePreload(options?: { delay?: number; priority?: string } | ModelSize): Promise<void> {
+    if (typeof options === 'string') {
+      return this.preload(options);
+    }
+    return this.preload();
   }
 
   /**
@@ -115,6 +128,7 @@ class WhisperPreloadManager {
     if (this.status.isLoading) {
       this.status = {
         ...this.status,
+        status: 'failed',
         isLoading: false,
         error: 'Preload cancelled',
       };
