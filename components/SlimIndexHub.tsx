@@ -17,7 +17,7 @@ import { AccessTile } from "./AccessTile";
 export function SlimIndexHub() {
   const router = useRouter();
 
-  // Keyboard shortcuts (1-8 only)
+  // Keyboard shortcuts (1-9)
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Ignore if typing in input/textarea
@@ -25,8 +25,8 @@ export function SlimIndexHub() {
         return;
       }
 
-      // Number shortcuts 1-8
-      if (e.key >= "1" && e.key <= "8") {
+      // Number shortcuts 1-9
+      if (e.key >= "1" && e.key <= "9") {
         const route = getRouteByShortcut(e.key);
         if (route) {
           e.preventDefault();
@@ -128,7 +128,7 @@ export function SlimIndexHub() {
       <footer className="border-t border-slate-800 bg-slate-900/95 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center h-12 text-sm text-slate-400">
-            <span>Shortcuts: 1-8 to navigate</span>
+            <span>Shortcuts: 1-9 to navigate</span>
           </div>
         </div>
       </footer>

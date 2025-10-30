@@ -14,6 +14,8 @@ import {
   Eye,
   FileText,
   Database,
+  Server,
+  Mic,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,12 +31,21 @@ export interface NavRoute {
 
 export const NAV_ROUTES: NavRoute[] = [
   {
+    id: "triage",
+    title: "Triage Intake",
+    description: "Captura de conversación médica",
+    href: "/triage",
+    icon: Mic,
+    shortcut: "1",
+    badge: "Live",
+  },
+  {
     id: "dashboard",
     title: "Dashboard",
     description: "KPIs y métricas del sistema",
     href: "/dashboard",
     icon: LayoutDashboard,
-    shortcut: "1",
+    shortcut: "2",
   },
   {
     id: "sessions",
@@ -42,7 +53,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Explorar todas las sesiones",
     href: "/sessions",
     icon: List,
-    shortcut: "2",
+    shortcut: "3",
   },
   {
     id: "timeline",
@@ -50,7 +61,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Vista cronológica de eventos",
     href: "/timeline",
     icon: Clock,
-    shortcut: "3",
+    shortcut: "4",
   },
   {
     id: "export",
@@ -58,7 +69,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Exportar y verificar integridad",
     href: "/export",
     icon: Download,
-    shortcut: "4",
+    shortcut: "5",
   },
   {
     id: "policy",
@@ -66,7 +77,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Configuración de políticas",
     href: "/policy",
     icon: Shield,
-    shortcut: "5",
+    shortcut: "6",
   },
   {
     id: "viewer",
@@ -74,7 +85,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Vista detallada de interacciones",
     href: "/viewer",
     icon: Eye,
-    shortcut: "6",
+    shortcut: "7",
   },
   {
     id: "audit",
@@ -82,7 +93,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Log de auditoría del sistema",
     href: "/audit",
     icon: FileText,
-    shortcut: "7",
+    shortcut: "8",
   },
   {
     id: "demo",
@@ -90,12 +101,20 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Cargar dataset de demostración",
     href: "/demo",
     icon: Database,
-    shortcut: "8",
+    shortcut: "9",
+  },
+  {
+    id: "nas-installer",
+    title: "NAS Installer",
+    description: "Guía de instalación en NAS / PC",
+    href: "/infra/nas-installer",
+    icon: Server,
+    shortcut: "0",
   },
 ];
 
 /**
- * Get route by shortcut key (1-8)
+ * Get route by shortcut key (1-9)
  */
 export function getRouteByShortcut(key: string): NavRoute | undefined {
   return NAV_ROUTES.find((route) => route.shortcut === key);

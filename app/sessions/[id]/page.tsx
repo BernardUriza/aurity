@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSession } from "../../../ui/lib/apiClient";
 import type { Session } from "../../../ui/types/session";
+import ExportModal from "../../../ui/components/ExportModal";
 
 export default function SessionDetailPage() {
   const params = useParams();
@@ -24,6 +25,7 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   useEffect(() => {
     loadSession();
@@ -131,13 +133,21 @@ export default function SessionDetailPage() {
             </button>
             <h1 className="text-3xl font-bold text-slate-50">Session Detail</h1>
           </div>
-          <span
-            className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusBadge(
-              session.status
-            )}`}
-          >
-            {session.status}
-          </span>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setExportModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+            >
+              Export
+            </button>
+            <span
+              className={`px-3 py-1 text-sm font-semibold rounded-full ${getStatusBadge(
+                session.status
+              )}`}
+            >
+              {session.status}
+            </span>
+          </div>
         </div>
 
         {/* Session Info Cards */}
@@ -219,6 +229,14 @@ export default function SessionDetailPage() {
             </dl>
           </div>
         </div>
+
+        {/* Export Modal */}
+        <ExportModal
+          isOpen={exportModalOpen}
+          onClose={() => setExportModalOpen(false)}
+          sessionId={session.id}
+          sessionPreview={`Session ${session.id.slice(0, 8)}... (${session.status})`}
+        />
       </div>
     </div>
   );

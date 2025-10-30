@@ -179,11 +179,14 @@ export function TriageIntakeForm({ darkMode = false }: TriageIntakeFormProps) {
       // Success
       await Swal.fire({
         icon: 'success',
-        title: 'Submitted Successfully',
+        title: 'Recibido Correctamente',
         html: `
-          <p>Triage intake has been recorded.</p>
-          <p class="text-sm opacity-70 mt-2">Buffer ID: ${result.bufferId}</p>
-          <p class="text-sm opacity-70">Expires: ${new Date(result.expiresAt).toLocaleString()}</p>
+          <p class="mb-2">Triage intake almacenado exitosamente.</p>
+          <div class="text-left bg-slate-100 dark:bg-slate-800 p-3 rounded text-sm font-mono mt-3">
+            <p class="opacity-70"><strong>Buffer ID:</strong> ${result.bufferId}</p>
+            <p class="opacity-70"><strong>Status:</strong> ${result.status}</p>
+            <p class="opacity-70"><strong>Recibido:</strong> ${new Date(result.receivedAt).toLocaleString()}</p>
+          </div>
         `,
         background: darkMode ? '#1f2937' : '#ffffff',
         color: darkMode ? '#f3f4f6' : '#1f2937',
