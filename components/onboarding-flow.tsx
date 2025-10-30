@@ -7,16 +7,57 @@
  * 3-phase onboarding: Identity → First Session → Export Test
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MICROCOPYS } from "@/lib/microcopys";
 
 type Phase = "welcome" | "identity" | "first_session" | "export_test" | "complete";
+
+const STORAGE_KEY = "fi_onboarding_progress";
+
+interface OnboardingState {
+  phase: Phase;
+  identity: string;
+  sessionName: string;
+  firstThought: string;
+}
 
 export function OnboardingFlow() {
   const [phase, setPhase] = useState<Phase>("welcome");
   const [identity, setIdentity] = useState("");
   const [sessionName, setSessionName] = useState("");
   const [firstThought, setFirstThought] = useState("");
+
+  // Load progress from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const state: OnboardingState = JSON.parse(saved);
+        setPhase(state.phase);
+        setIdentity(state.identity || "");
+        setSessionName(state.sessionName || "");
+        setFirstThought(state.firstThought || "");
+      }
+    } catch (error) {
+      console.error("Failed to load onboarding progress:", error);
+    }
+  }, []);
+
+  // Save progress to localStorage whenever state changes
+  useEffect(() => {
+    try {
+      const state: OnboardingState = {
+        phase,
+        identity,
+        sessionName,
+        firstThought,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      console.error("Failed to save onboarding progress:", error);
+      // Handle quota exceeded or other localStorage errors
+    }
+  }, [phase, identity, sessionName, firstThought]);
 
   const renderPhase = () => {
     switch (phase) {
@@ -136,6 +177,19 @@ export function OnboardingFlow() {
         );
 
       case "complete":
+        const clearProgress = () => {
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+            // Reset to initial state
+            setPhase("welcome");
+            setIdentity("");
+            setSessionName("");
+            setFirstThought("");
+          } catch (error) {
+            console.error("Failed to clear onboarding progress:", error);
+          }
+        };
+
         return (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-green-400">
@@ -150,6 +204,12 @@ export function OnboardingFlow() {
               </button>
               <button className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition">
                 {MICROCOPYS.onboarding.complete.ctaSecondary}
+              </button>
+              <button
+                onClick={clearProgress}
+                className="px-4 py-2 text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+              >
+                Clear Progress & Restart
               </button>
             </div>
           </div>

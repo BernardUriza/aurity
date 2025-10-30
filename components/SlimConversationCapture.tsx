@@ -39,7 +39,7 @@ interface SlimConversationCaptureProps {
 export function SlimConversationCapture({
   onSave,
   onCancel,
-  darkMode = false,
+  darkMode = true,
 }: SlimConversationCaptureProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);

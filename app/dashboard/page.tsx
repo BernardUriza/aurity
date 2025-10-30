@@ -69,10 +69,10 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-24">
+      <main className="flex min-h-screen bg-slate-900 flex-col items-center justify-center p-24">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading dashboard...</p>
         </div>
       </main>
     );
@@ -80,11 +80,11 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-24">
+      <main className="flex min-h-screen bg-slate-900 flex-col items-center justify-center p-24">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
-          <p className="text-gray-600">{error}</p>
-          <p className="text-sm text-gray-500 mt-4">
+          <h1 className="text-2xl font-bold text-red-400 mb-4">Error</h1>
+          <p className="text-slate-300">{error}</p>
+          <p className="text-sm text-slate-500 mt-4">
             Make sure the FastAPI backend is running on port 9001
           </p>
         </div>
@@ -93,14 +93,14 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
+    <main className="min-h-screen bg-slate-900 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          <h1 className="text-4xl font-bold text-slate-50 mb-2">
             Free Intelligence Dashboard
           </h1>
-          <p className="text-gray-600">
+          <p className="text-slate-400">
             Local corpus analytics and session timeline
           </p>
         </div>
@@ -108,38 +108,38 @@ export default function DashboardPage() {
         {/* Stats Overview */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-sm font-medium text-slate-400 mb-2">
                 Total Interactions
               </h3>
-              <p className="text-3xl font-bold text-gray-900">
+              <p className="text-3xl font-bold text-emerald-400">
                 {stats.total_interactions.toLocaleString()}
               </p>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-sm font-medium text-slate-400 mb-2">
                 Sessions
               </h3>
-              <p className="text-3xl font-bold text-gray-900">
+              <p className="text-3xl font-bold text-emerald-400">
                 {stats.total_sessions.toLocaleString()}
               </p>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-sm font-medium text-slate-400 mb-2">
                 Total Tokens
               </h3>
-              <p className="text-3xl font-bold text-gray-900">
+              <p className="text-3xl font-bold text-emerald-400">
                 {stats.total_tokens.toLocaleString()}
               </p>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <h3 className="text-sm font-medium text-slate-400 mb-2">
                 Corpus Size
               </h3>
-              <p className="text-3xl font-bold text-gray-900">
+              <p className="text-3xl font-bold text-emerald-400">
                 {(stats.corpus_size_bytes / 1024 / 1024).toFixed(2)} MB
               </p>
             </div>
@@ -147,44 +147,44 @@ export default function DashboardPage() {
         )}
 
         {/* Session Timeline */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900">
+        <div className="bg-slate-800 border border-slate-700 rounded-lg">
+          <div className="p-6 border-b border-slate-700">
+            <h2 className="text-2xl font-bold text-slate-50">
               Session Timeline
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-slate-400 mt-1">
               Recent conversation sessions from your local corpus
             </p>
           </div>
 
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-slate-700">
             {sessions.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
+              <div className="p-8 text-center text-slate-500">
                 No sessions found in corpus
               </div>
             ) : (
               sessions.map((session) => (
                 <div
                   key={session.session_id}
-                  className="p-6 hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="p-6 hover:bg-slate-750 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-mono text-sm text-gray-900 font-medium">
+                      <h3 className="font-mono text-sm text-slate-200 font-medium">
                         {session.session_id}
                       </h3>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-slate-500 mt-1">
                         {new Date(session.first_timestamp).toLocaleString()} -{' '}
                         {new Date(session.last_timestamp).toLocaleString()}
                       </p>
                     </div>
-                    <div className="flex gap-4 text-sm text-gray-600">
+                    <div className="flex gap-4 text-sm text-slate-400">
                       <span>{session.interaction_count} interactions</span>
                       <span>{session.total_tokens.toLocaleString()} tokens</span>
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
+                  <div className="bg-slate-900 rounded p-3 text-sm text-slate-300">
                     <p className="line-clamp-2">{session.preview}</p>
                   </div>
                 </div>
@@ -194,7 +194,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-500">
+        <div className="mt-8 text-center text-sm text-slate-500">
           <p>Sprint: SPR-2025W44 | FI-UI-FEAT-001 | Version: 0.1.0</p>
           <p className="mt-2">Local-first architecture - All data resides on your machine</p>
         </div>
