@@ -1,0 +1,399 @@
+/**
+ * DiarizationJobMonitor Component
+ * File: apps/aurity/components/DiarizationJobMonitor.tsx
+ *
+ * Purpose: Monitor diarization job progress with real-time polling
+ * Philosophy: El proceso respira a través del progreso observado
+ */
+
+'use client';
+
+import { useEffect, useState, useCallback } from 'react';
+import {
+  DiarizationJob,
+  getDiarizationJobStatus,
+  getDiarizationResult,
+  DiarizationResult,
+} from '../lib/api/diarization';
+
+interface DiarizationJobMonitorProps {
+  jobId: string;
+  onComplete?: (result: DiarizationResult) => void;
+  onError?: (error: string) => void;
+  pollInterval?: number;
+  darkMode?: boolean;
+}
+
+interface ProgressPhase {
+  label: string;
+  range: [number, number]; // [min, max] percentage
+}
+
+const PROGRESS_PHASES: ProgressPhase[] = [
+  { label: 'Initializing...', range: [0, 10] },
+  { label: 'Processing audio chunks...', range: [10, 95] },
+  { label: 'Finalizing segments...', range: [95, 100] },
+];
+
+function getPhaseForProgress(progress: number): string {
+  for (const phase of PROGRESS_PHASES) {
+    if (progress >= phase.range[0] && progress <= phase.range[1]) {
+      return phase.label;
+    }
+  }
+  return 'Processing...';
+}
+
+export function DiarizationJobMonitor({
+  jobId,
+  onComplete,
+  onError,
+  pollInterval = 2000,
+  darkMode = false,
+}: DiarizationJobMonitorProps) {
+  const [job, setJob] = useState<DiarizationJob | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(true);
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  // Polling mechanism
+  useEffect(() => {
+    if (!isPolling || !jobId) return;
+
+    const poll = async () => {
+      try {
+        const status = await getDiarizationJobStatus(jobId);
+        setJob(status);
+
+        // Handle completion
+        if (status.status === 'completed') {
+          setIsPolling(false);
+
+          if (onComplete) {
+            // Fetch full result
+            try {
+              const result = await getDiarizationResult(jobId);
+              onComplete(result);
+            } catch (err) {
+              const errorMsg = err instanceof Error ? err.message : 'Failed to load result';
+              setError(errorMsg);
+              if (onError) onError(errorMsg);
+            }
+          }
+        } else if (status.status === 'failed') {
+          setIsPolling(false);
+          const errorMsg = status.error_message || 'Job failed';
+          setError(errorMsg);
+          if (onError) onError(errorMsg);
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Failed to poll job status';
+        setError(errorMsg);
+        setIsPolling(false);
+        if (onError) onError(errorMsg);
+      }
+    };
+
+    // Initial poll
+    poll();
+
+    // Set up interval
+    const intervalId = setInterval(poll, pollInterval);
+
+    return () => clearInterval(intervalId);
+  }, [jobId, isPolling, pollInterval, onComplete, onError]);
+
+  // Elapsed time counter
+  useEffect(() => {
+    if (!job || job.status !== 'in_progress') return;
+
+    const startTime = Date.now();
+    const timerId = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [job?.status]);
+
+  // Calculate estimated time remaining
+  const getEstimatedTimeRemaining = useCallback((): string | null => {
+    if (!job || job.status !== 'in_progress' || job.progress_percent <= 5) return null;
+
+    const elapsedMs = elapsedTime * 1000;
+    const progressRatio = job.progress_percent / 100;
+    const estimatedTotalMs = elapsedMs / progressRatio;
+    const remainingMs = estimatedTotalMs - elapsedMs;
+
+    const remainingSec = Math.floor(remainingMs / 1000);
+
+    if (remainingSec < 60) return `~${remainingSec}s`;
+    if (remainingSec < 3600) return `~${Math.floor(remainingSec / 60)}m ${remainingSec % 60}s`;
+    return `~${Math.floor(remainingSec / 3600)}h`;
+  }, [job, elapsedTime]);
+
+  if (error) {
+    return (
+      <div className={`diarization-monitor error ${darkMode ? 'dark' : ''}`}>
+        <div className="error-icon">⚠️</div>
+        <div className="error-message">
+          <strong>Error:</strong> {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className={`diarization-monitor loading ${darkMode ? 'dark' : ''}`}>
+        <div className="spinner" />
+        <span>Loading job status...</span>
+      </div>
+    );
+  }
+
+  const progress = job.progress_percent;
+  const phase = getPhaseForProgress(progress);
+  const eta = getEstimatedTimeRemaining();
+
+  return (
+    <div className={`diarization-monitor ${darkMode ? 'dark' : ''}`}>
+      {/* Status Badge */}
+      <div className="status-header">
+        <div className={`status-badge ${job.status}`}>
+          {job.status === 'pending' && '⏱️ Pending'}
+          {job.status === 'in_progress' && '⚙️ Processing'}
+          {job.status === 'completed' && '✅ Complete'}
+          {job.status === 'failed' && '❌ Failed'}
+        </div>
+        <div className="job-meta">
+          <span className="job-id">{jobId.slice(0, 8)}</span>
+          {eta && <span className="eta">{eta} remaining</span>}
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      {(job.status === 'in_progress' || job.status === 'pending') && (
+        <>
+          <div className="progress-container">
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${progress}%` }}
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              />
+            </div>
+            <div className="progress-label">{progress}%</div>
+          </div>
+
+          {/* Phase Label */}
+          <div className="progress-phase">{phase}</div>
+
+          {/* Elapsed Time */}
+          {elapsedTime > 0 && (
+            <div className="elapsed-time">
+              Elapsed: {Math.floor(elapsedTime / 60)}m {elapsedTime % 60}s
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Completion Message */}
+      {job.status === 'completed' && (
+        <div className="completion-message">
+          <p>✅ Diarization complete!</p>
+          {job.completed_at && (
+            <p className="timestamp">
+              Completed at {new Date(job.completed_at).toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+      )}
+
+      <style jsx>{`
+        .diarization-monitor {
+          padding: 1.5rem;
+          border-radius: 0.5rem;
+          background: white;
+          border: 1px solid #e5e7eb;
+          font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        .diarization-monitor.dark {
+          background: #1f2937;
+          border-color: #374151;
+          color: #f3f4f6;
+        }
+
+        .diarization-monitor.error {
+          background: #fef2f2;
+          border-color: #fecaca;
+        }
+
+        .diarization-monitor.dark.error {
+          background: #7f1d1d;
+          border-color: #991b1b;
+        }
+
+        .diarization-monitor.loading {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 1rem;
+        }
+
+        .status-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1rem;
+        }
+
+        .status-badge {
+          padding: 0.375rem 0.75rem;
+          border-radius: 0.375rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+        }
+
+        .status-badge.pending {
+          background: #fef3c7;
+          color: #92400e;
+        }
+
+        .status-badge.in_progress {
+          background: #dbeafe;
+          color: #1e40af;
+        }
+
+        .status-badge.completed {
+          background: #d1fae5;
+          color: #065f46;
+        }
+
+        .status-badge.failed {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+
+        .job-meta {
+          display: flex;
+          gap: 0.75rem;
+          font-size: 0.875rem;
+          color: #6b7280;
+        }
+
+        .dark .job-meta {
+          color: #9ca3af;
+        }
+
+        .job-id {
+          font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        .eta {
+          font-weight: 500;
+        }
+
+        .progress-container {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .progress-bar {
+          flex: 1;
+          height: 1.5rem;
+          background: #e5e7eb;
+          border-radius: 0.75rem;
+          overflow: hidden;
+        }
+
+        .dark .progress-bar {
+          background: #374151;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%);
+          transition: width 0.3s ease;
+          border-radius: 0.75rem;
+        }
+
+        .progress-label {
+          font-size: 0.875rem;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+          min-width: 3rem;
+          text-align: right;
+        }
+
+        .progress-phase {
+          font-size: 0.875rem;
+          color: #6b7280;
+          margin-top: 0.5rem;
+        }
+
+        .dark .progress-phase {
+          color: #9ca3af;
+        }
+
+        .elapsed-time {
+          font-size: 0.75rem;
+          color: #9ca3af;
+          margin-top: 0.5rem;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .completion-message {
+          text-align: center;
+          padding: 1rem 0;
+        }
+
+        .completion-message p {
+          margin: 0.25rem 0;
+        }
+
+        .timestamp {
+          font-size: 0.875rem;
+          color: #6b7280;
+        }
+
+        .dark .timestamp {
+          color: #9ca3af;
+        }
+
+        .error-icon {
+          font-size: 2rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .error-message {
+          color: #991b1b;
+        }
+
+        .dark .error-message {
+          color: #fca5a5;
+        }
+
+        .spinner {
+          width: 1rem;
+          height: 1rem;
+          border: 2px solid #e5e7eb;
+          border-top-color: #3b82f6;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}

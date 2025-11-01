@@ -16,6 +16,7 @@ import {
   Database,
   Server,
   Mic,
+  Radio,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,12 +32,21 @@ export interface NavRoute {
 
 export const NAV_ROUTES: NavRoute[] = [
   {
+    id: "diarization",
+    title: "Diarización (ASR+Qwen)",
+    description: "Transcripción + clasificación de hablantes",
+    href: "/diarization",
+    icon: Radio,
+    shortcut: "1",
+    badge: "ASR",
+  },
+  {
     id: "triage",
     title: "Triage Intake",
     description: "Captura de conversación médica",
     href: "/triage",
     icon: Mic,
-    shortcut: "1",
+    shortcut: "2",
     badge: "Live",
   },
   {
@@ -45,7 +55,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "KPIs y métricas del sistema",
     href: "/dashboard",
     icon: LayoutDashboard,
-    shortcut: "2",
+    shortcut: "3",
   },
   {
     id: "sessions",

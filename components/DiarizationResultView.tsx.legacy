@@ -1,0 +1,404 @@
+/**
+ * DiarizationResultView Component
+ * File: apps/aurity/components/DiarizationResultView.tsx
+ *
+ * Purpose: Display diarization segments with speaker labels and export options
+ */
+
+'use client';
+
+import { useState } from 'react';
+import { DiarizationResult, DiarizationSegment, exportDiarizationResult } from '../lib/api/diarization';
+
+interface DiarizationResultViewProps {
+  result: DiarizationResult;
+  jobId: string;
+  darkMode?: boolean;
+}
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function getSpeakerColor(speaker: string): string {
+  switch (speaker) {
+    case 'PACIENTE':
+      return '#3b82f6'; // blue
+    case 'MEDICO':
+      return '#10b981'; // green
+    case 'DESCONOCIDO':
+    default:
+      return '#6b7280'; // gray
+  }
+}
+
+function getSpeakerLabel(speaker: string): string {
+  switch (speaker) {
+    case 'PACIENTE':
+      return '👤 Paciente';
+    case 'MEDICO':
+      return '⚕️ Médico';
+    case 'DESCONOCIDO':
+    default:
+      return '❓ Desconocido';
+  }
+}
+
+export function DiarizationResultView({ result, jobId, darkMode = false }: DiarizationResultViewProps) {
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExport = async (format: 'json' | 'markdown') => {
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      const blob = await exportDiarizationResult(jobId, format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `diarization_${jobId}.${format === 'json' ? 'json' : 'md'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Export failed';
+      setExportError(errorMsg);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const totalSegments = result.segments.length;
+  const speakerCounts = result.segments.reduce(
+    (acc, seg) => {
+      acc[seg.speaker] = (acc[seg.speaker] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  return (
+    <div className={`diarization-result ${darkMode ? 'dark' : ''}`}>
+      {/* Header with metadata */}
+      <div className="result-header">
+        <h3>Diarization Result</h3>
+        <div className="metadata-grid">
+          <div className="metadata-item">
+            <span className="label">Duration:</span>
+            <span className="value">{result.duration_sec.toFixed(1)}s</span>
+          </div>
+          <div className="metadata-item">
+            <span className="label">Segments:</span>
+            <span className="value">{totalSegments}</span>
+          </div>
+          <div className="metadata-item">
+            <span className="label">Language:</span>
+            <span className="value">{result.language.toUpperCase()}</span>
+          </div>
+          <div className="metadata-item">
+            <span className="label">Processing Time:</span>
+            <span className="value">{result.processing_time_sec.toFixed(1)}s</span>
+          </div>
+        </div>
+
+        {/* Speaker distribution */}
+        <div className="speaker-stats">
+          {Object.entries(speakerCounts).map(([speaker, count]) => (
+            <div key={speaker} className="speaker-stat">
+              <span className="speaker-label" style={{ color: getSpeakerColor(speaker) }}>
+                {getSpeakerLabel(speaker)}
+              </span>
+              <span className="speaker-count">{count}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Export buttons */}
+        <div className="export-actions">
+          <button
+            onClick={() => handleExport('json')}
+            disabled={isExporting}
+            className="export-btn"
+          >
+            {isExporting ? 'Exporting...' : '📥 Export JSON'}
+          </button>
+          <button
+            onClick={() => handleExport('markdown')}
+            disabled={isExporting}
+            className="export-btn"
+          >
+            {isExporting ? 'Exporting...' : '📄 Export Markdown'}
+          </button>
+        </div>
+
+        {exportError && <div className="export-error">❌ {exportError}</div>}
+      </div>
+
+      {/* Segments timeline */}
+      <div className="segments-container">
+        {result.segments.map((segment, index) => (
+          <div key={index} className="segment-card">
+            <div className="segment-header">
+              <span
+                className="speaker-badge"
+                style={{ backgroundColor: getSpeakerColor(segment.speaker) }}
+              >
+                {getSpeakerLabel(segment.speaker)}
+              </span>
+              <span className="time-range">
+                {formatTime(segment.start_time)} - {formatTime(segment.end_time)}
+              </span>
+            </div>
+            <div className="segment-text">{segment.text}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Model info footer */}
+      <div className="model-footer">
+        <div className="model-info">
+          <span className="model-label">ASR Model:</span>
+          <span className="model-value">{result.model_asr}</span>
+        </div>
+        <div className="model-info">
+          <span className="model-label">LLM Model:</span>
+          <span className="model-value">{result.model_llm}</span>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .diarization-result {
+          font-family: system-ui, -apple-system, sans-serif;
+          background: white;
+          border-radius: 0.5rem;
+          border: 1px solid #e5e7eb;
+          overflow: hidden;
+        }
+
+        .diarization-result.dark {
+          background: #1f2937;
+          border-color: #374151;
+          color: #f3f4f6;
+        }
+
+        .result-header {
+          padding: 1.5rem;
+          border-bottom: 1px solid #e5e7eb;
+        }
+
+        .dark .result-header {
+          border-color: #374151;
+        }
+
+        .result-header h3 {
+          margin: 0 0 1rem 0;
+          font-size: 1.25rem;
+          font-weight: 600;
+        }
+
+        .metadata-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 1rem;
+          margin-bottom: 1rem;
+        }
+
+        .metadata-item {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .label {
+          font-size: 0.75rem;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .dark .label {
+          color: #9ca3af;
+        }
+
+        .value {
+          font-size: 1rem;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .speaker-stats {
+          display: flex;
+          gap: 1.5rem;
+          margin: 1rem 0;
+          padding: 1rem;
+          background: #f9fafb;
+          border-radius: 0.375rem;
+        }
+
+        .dark .speaker-stats {
+          background: #111827;
+        }
+
+        .speaker-stat {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .speaker-label {
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+
+        .speaker-count {
+          padding: 0.125rem 0.5rem;
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 0.25rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .dark .speaker-count {
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .export-actions {
+          display: flex;
+          gap: 0.75rem;
+          margin-top: 1rem;
+        }
+
+        .export-btn {
+          padding: 0.5rem 1rem;
+          border: 1px solid #d1d5db;
+          background: white;
+          border-radius: 0.375rem;
+          font-size: 0.875rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .export-btn:hover:not(:disabled) {
+          background: #f9fafb;
+          border-color: #9ca3af;
+        }
+
+        .export-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .dark .export-btn {
+          background: #374151;
+          border-color: #4b5563;
+          color: #f3f4f6;
+        }
+
+        .dark .export-btn:hover:not(:disabled) {
+          background: #4b5563;
+        }
+
+        .export-error {
+          margin-top: 0.75rem;
+          padding: 0.75rem;
+          background: #fee2e2;
+          color: #991b1b;
+          border-radius: 0.375rem;
+          font-size: 0.875rem;
+        }
+
+        .segments-container {
+          max-height: 600px;
+          overflow-y: auto;
+          padding: 1rem;
+        }
+
+        .segment-card {
+          margin-bottom: 1rem;
+          padding: 1rem;
+          background: #f9fafb;
+          border-radius: 0.5rem;
+          border-left: 4px solid #e5e7eb;
+        }
+
+        .dark .segment-card {
+          background: #111827;
+          border-left-color: #374151;
+        }
+
+        .segment-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.75rem;
+        }
+
+        .speaker-badge {
+          padding: 0.25rem 0.75rem;
+          border-radius: 0.375rem;
+          color: white;
+          font-size: 0.875rem;
+          font-weight: 600;
+        }
+
+        .time-range {
+          font-size: 0.875rem;
+          font-variant-numeric: tabular-nums;
+          font-family: 'SF Mono', Monaco, monospace;
+          color: #6b7280;
+        }
+
+        .dark .time-range {
+          color: #9ca3af;
+        }
+
+        .segment-text {
+          line-height: 1.6;
+          color: #1f2937;
+        }
+
+        .dark .segment-text {
+          color: #f3f4f6;
+        }
+
+        .model-footer {
+          display: flex;
+          gap: 2rem;
+          padding: 1rem 1.5rem;
+          background: #f9fafb;
+          border-top: 1px solid #e5e7eb;
+          font-size: 0.75rem;
+        }
+
+        .dark .model-footer {
+          background: #111827;
+          border-color: #374151;
+        }
+
+        .model-info {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        .model-label {
+          color: #6b7280;
+        }
+
+        .dark .model-label {
+          color: #9ca3af;
+        }
+
+        .model-value {
+          font-family: 'SF Mono', Monaco, monospace;
+          font-weight: 500;
+        }
+      `}</style>
+    </div>
+  );
+}
