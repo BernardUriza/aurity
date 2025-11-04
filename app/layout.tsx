@@ -9,6 +9,7 @@
 
 import type { Metadata } from 'next';
 import './globals.css';
+import './tailwind.css';
 import { GlobalPolicyBanner } from '@/components/GlobalPolicyBanner';
 import { ThemeProvider } from '@/components/ThemeProvider';
 
