@@ -162,8 +162,9 @@ export async function listDiarizationJobs(
     throw new Error(`Failed to list jobs: ${response.status}`);
   }
 
-  const data = await response.json();
-  return data.jobs || [];
+  const responseData = await response.json();
+  // API returns wrapped response with 'data' field containing the jobs array
+  return responseData.data || [];
 }
 
 /**

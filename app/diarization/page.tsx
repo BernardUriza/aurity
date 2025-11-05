@@ -99,19 +99,19 @@ export default function DiarizationPage() {
   useEffect(() => {
     checkDiarizationHealth()
       .then(health => {
-        // Backend returns 'whisper' and 'llm'
+        // Backend returns 'whisper_available' and 'ollama_available'
         // Whisper (ASR) is REQUIRED for diarization
-        // LLM (speaker classification) is OPTIONAL
-        const whisperOk = (health as any).whisper === true;
-        const llmAvailable = (health as any).llm === true;
+        // Ollama (LLM) is OPTIONAL
+        const whisperOk = (health as any).whisper_available === true;
+        const ollamaAvailable = (health as any).ollama_available === true;
 
-        // Enable upload if Whisper is available (LLM is optional)
+        // Enable upload if Whisper is available (Ollama is optional)
         setHealthOk(whisperOk);
 
         // Log status for debugging
         console.info('Diarization Health:', {
           whisper_available: whisperOk,
-          llm_available: llmAvailable,
+          ollama_available: ollamaAvailable,
           services_ok: whisperOk
         });
       })
@@ -273,11 +273,11 @@ export default function DiarizationPage() {
           </p>
           {healthOk ? (
             <p className="mt-1 text-sm text-green-700 dark:text-green-400 font-medium">
-              ✓ Whisper disponible (ASR) • Clasificación LLM {config.enableLlmClassification ? 'habilitada' : 'deshabilitada'}
+              ✓ Whisper disponible (ASR) • Clasificación Ollama {config.enableLlmClassification ? 'habilitada' : 'deshabilitada'}
             </p>
           ) : (
             <p className="mt-1 text-sm text-red-700 dark:text-red-400 font-medium">
-              ⚠ Whisper no disponible. Backend no está corriendo en puerto 7001.
+              ⚠ Whisper no disponible. Verifica que el backend esté corriendo en puerto 7001.
             </p>
           )}
         </div>
@@ -837,19 +837,47 @@ export default function DiarizationPage() {
                       <div className="bg-white dark:bg-gray-800 p-2 rounded border border-yellow-300 dark:border-yellow-600">
                         <span className="text-gray-600 dark:text-gray-400 block mb-1">Created At:</span>
                         <div className="font-mono text-gray-900 dark:text-gray-100 text-[10px]">
-                          {new Date(job.created_at).toISOString()}
+                          {(() => {
+                            try {
+                              const date = new Date(job.created_at);
+                              return isNaN(date.getTime()) ? job.created_at : date.toISOString();
+                            } catch {
+                              return job.created_at;
+                            }
+                          })()}
                         </div>
                         <div className="text-gray-500 dark:text-gray-400 text-[9px] mt-1">
-                          ({new Date(job.created_at).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })})
+                          {(() => {
+                            try {
+                              const date = new Date(job.created_at);
+                              return isNaN(date.getTime()) ? '' : `(${date.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })})`;
+                            } catch {
+                              return '';
+                            }
+                          })()}
                         </div>
                       </div>
                       <div className="bg-white dark:bg-gray-800 p-2 rounded border border-yellow-300 dark:border-yellow-600">
                         <span className="text-gray-600 dark:text-gray-400 block mb-1">Updated At:</span>
                         <div className="font-mono text-gray-900 dark:text-gray-100 text-[10px]">
-                          {new Date(job.updated_at).toISOString()}
+                          {(() => {
+                            try {
+                              const date = new Date(job.updated_at);
+                              return isNaN(date.getTime()) ? job.updated_at : date.toISOString();
+                            } catch {
+                              return job.updated_at;
+                            }
+                          })()}
                         </div>
                         <div className="text-gray-500 dark:text-gray-400 text-[9px] mt-1">
-                          ({new Date(job.updated_at).toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })})
+                          {(() => {
+                            try {
+                              const date = new Date(job.updated_at);
+                              return isNaN(date.getTime()) ? '' : `(${date.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })})`;
+                            } catch {
+                              return '';
+                            }
+                          })()}
                         </div>
                       </div>
                       <div className="bg-white dark:bg-gray-800 p-2 rounded border border-yellow-300 dark:border-yellow-600">

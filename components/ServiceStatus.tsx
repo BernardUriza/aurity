@@ -10,17 +10,18 @@
 import { CheckCircle, AlertCircle, XCircle } from "lucide-react";
 
 interface ServiceHealth {
-  ok: boolean;
+  ok?: boolean;
   message?: string;
   latency_ms?: number;
+  [key: string]: any;
 }
 
 interface ServiceStatusProps {
   services: {
-    backend?: ServiceHealth;
-    diarization?: ServiceHealth;
-    llm?: ServiceHealth;
-    policy?: ServiceHealth;
+    backend?: ServiceHealth | boolean;
+    diarization?: ServiceHealth | boolean | { whisper?: boolean; ffmpeg?: boolean };
+    llm?: ServiceHealth | boolean | { ollama?: boolean; models?: string[] };
+    policy?: ServiceHealth | boolean;
   };
 }
 
@@ -36,15 +37,41 @@ export function ServiceStatus({ services }: ServiceStatusProps) {
     return <XCircle className="h-4 w-4" />;
   };
 
+  const getHealthStatus = (health: any): { ok: boolean; message?: string } => {
+    // Handle boolean values directly
+    if (typeof health === "boolean") {
+      return { ok: health };
+    }
+    // Handle ServiceHealth objects
+    if (health && typeof health === "object") {
+      // Check for explicit 'ok' property
+      if (health.ok !== undefined) {
+        return { ok: health.ok, message: health.message };
+      }
+      // For diarization: check whisper availability
+      if (health.whisper !== undefined) {
+        return { ok: health.whisper === true, message: health.message };
+      }
+      // For llm: check ollama availability
+      if (health.ollama !== undefined) {
+        return { ok: health.ollama === true, message: health.message };
+      }
+      // Fallback: assume it's healthy if it's an object
+      return { ok: true };
+    }
+    return { ok: false };
+  };
+
   const serviceEntries = Object.entries(services);
 
   return (
     <div className="flex items-center space-x-3">
       {serviceEntries.map(([name, health]) => {
-        if (!health) return null;
+        if (!health && health !== false) return null;
 
-        const color = getStatusColor(health.ok);
-        const icon = getStatusIcon(health.ok);
+        const { ok, message } = getHealthStatus(health);
+        const color = getStatusColor(ok);
+        const icon = getStatusIcon(ok);
 
         return (
           <div
@@ -56,11 +83,11 @@ export function ServiceStatus({ services }: ServiceStatusProps) {
                 ? "bg-red-900/30 text-red-300 border border-red-800/50"
                 : "bg-yellow-900/30 text-yellow-300 border border-yellow-800/50"
             }`}
-            title={health.message || ""}
+            title={message || ""}
           >
             {icon}
             <span className="capitalize">{name}</span>
-            {health.latency_ms !== undefined && health.latency_ms !== null && (
+            {typeof health === "object" && health.latency_ms !== undefined && health.latency_ms !== null && (
               <span className="text-slate-400">
                 ({Math.round(health.latency_ms)}ms)
               </span>
