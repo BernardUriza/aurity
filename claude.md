@@ -1,4 +1,15 @@
 2025-10-25 12:45 - INICIO - Importación de tarjetas desde CSV
+
+## 🎯 Trello CLI v2.2.0 - Intelligent Card Movement Analysis (REQUIRED)
+
+**All card movements must use Trello CLI v2.2.0 with Claude AI analysis:**
+
+```bash
+trello quick-start <card_id>    # Start work + automatic analysis
+trello quick-test <card_id>     # Move to testing + analysis
+trello quick-done <card_id>     # Complete + analysis
+```
+
 2025-10-25 12:46 - Tarjeta P0 creada: [P0][Infra] Crear tablero + listas + labels
 2025-10-25 12:46 - Tarjeta P0 creada: [P0][Backend] Extraer ConversationCapture (symfarmia/dev)
 2025-10-25 12:46 - Tarjeta P0 creada: [P0][UI+Backend] Triage Intake (FI endpoints + whisper npm)
