@@ -112,4 +112,9 @@ Thumbs.db
 credentials.json
 service-account.json
 
+# Auto-generated API clients (regenerate with: npm run generate:api)
+/src/api/public/
+/src/api/internal/
+/src/api/index.ts
+
 # =============================================================================
