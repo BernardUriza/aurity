@@ -22,7 +22,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "./ui/accordion";
+} from "@/ui/accordion";
 
 interface PolicyData {
   sovereignty?: {

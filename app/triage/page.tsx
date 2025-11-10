@@ -9,7 +9,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TriageIntakeForm } from './components/TriageIntakeForm';
+import { TriageIntakeForm } from '../../features/triage/components/TriageIntakeForm';
 import './styles/triage.css';
 
 export default function TriagePage() {

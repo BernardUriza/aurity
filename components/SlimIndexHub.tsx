@@ -116,6 +116,22 @@ export function SlimIndexHub() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Component Showcase Link */}
+        <div className="mb-8 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-800/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-purple-300">Component Showcase</h3>
+              <p className="text-sm text-slate-400 mt-1">Explore all UI components with live examples</p>
+            </div>
+            <a
+              href="/showcase"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
+            >
+              View Showcase →
+            </a>
+          </div>
+        </div>
+
         {/* Navigation Tiles Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {NAV_ROUTES.map((route) => (

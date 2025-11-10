@@ -54,6 +54,14 @@ const formatTimestamp = (timestamp: string): string => {
   return date.toLocaleDateString();
 };
 
+const formatTime = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const seconds = date.getSeconds().toString().padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+};
+
 const extractSessionId = (metadata: string): string | null => {
   try {
     const parsed = JSON.parse(metadata);
@@ -105,7 +113,7 @@ export function AuditTable({ logs, onSelectLog, selectedLog }: AuditTableProps) 
                     <div className="flex flex-col">
                       <span className="font-medium">{formatTimestamp(log.timestamp)}</span>
                       <span className="text-xs text-slate-500">
-                        {new Date(log.timestamp).toLocaleTimeString()}
+                        {formatTime(log.timestamp)}
                       </span>
                     </div>
                   </td>

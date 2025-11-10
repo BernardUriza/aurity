@@ -55,22 +55,12 @@ export function GlobalPolicyBanner() {
     // Fetch initial policy and health
     const fetchInitialData = async () => {
       try {
-        // Fetch policy
-        const policyRes = await fetch('/api/policy');
-        if (policyRes.ok) {
-          const policyData = await policyRes.json();
-          setPolicy(policyData.policy);
-        }
-
-        // Fetch health from backend
-        const baseUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:7001';
-        const healthRes = await fetch(`${baseUrl}/api/system/health`);
-        if (healthRes.ok) {
-          const healthData = await healthRes.json();
-          setHealth(healthData);
-        }
-
+        // Skip policy and health checks in development/showcase mode
+        // These endpoints are optional for the showcase
         setLoading(false);
+
+        // TODO: Implement policy API route if needed
+        // TODO: Implement health API route if needed
       } catch (err) {
         console.error('Failed to load initial data:', err);
         setError(true);
@@ -80,21 +70,22 @@ export function GlobalPolicyBanner() {
 
     fetchInitialData();
 
-    // Poll health endpoint every 10 seconds
-    const healthInterval = setInterval(async () => {
-      try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:7001';
-        const res = await fetch(`${baseUrl}/api/system/health`);
-        if (res.ok) {
-          const data = await res.json();
-          setHealth(data);
-        }
-      } catch (err) {
-        console.error('Health poll failed:', err);
-      }
-    }, 10000); // 10 seconds
+    // Poll health endpoint every 10 seconds (disabled for showcase mode)
+    // TODO: Re-enable when /api/system/health endpoint is implemented
+    // const healthInterval = setInterval(async () => {
+    //   try {
+    //     const baseUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:7001';
+    //     const res = await fetch(`${baseUrl}/api/system/health`);
+    //     if (res.ok) {
+    //       const data = await res.json();
+    //       setHealth(data);
+    //     }
+    //   } catch (err) {
+    //     console.error('Health poll failed:', err);
+    //   }
+    // }, 10000); // 10 seconds
 
-    return () => clearInterval(healthInterval);
+    // return () => clearInterval(healthInterval);
   }, []);
 
   if (loading || dismissed) {

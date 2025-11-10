@@ -12,9 +12,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { SessionsTable } from "../../ui/components/SessionsTable";
-import { getSessions } from "../../ui/lib/apiClient";
-import type { Session } from "../../ui/types/session";
+import { SessionsTable } from "../../components/SessionsTable";
+import { getSessions } from "../../lib/api/apiClient";
+import type { Session } from "../../types/session";
 
 export default function SessionsPage() {
   const router = useRouter();

@@ -9,7 +9,7 @@
  * Updated: 2025-10-30 - Added timeout, retry, cache
  */
 
-import type { Session, SessionsListResponse } from "../types/session";
+import type { Session, SessionsListResponse } from "../../types/session";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:7001";
 const TIMEOUT_MS = 1000; // 1 second timeout
