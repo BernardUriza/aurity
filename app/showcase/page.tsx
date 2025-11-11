@@ -7,7 +7,7 @@
  * Uses real component APIs with mock data.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AccessTile } from "@/components/AccessTile";
 import { AuditTable } from "@/components/AuditTable";
 import { KPICard } from "@/components/KPICard";
@@ -19,6 +19,7 @@ import { SplitView } from "@/components/SplitView";
 import { OnboardingFlow } from "@/components/onboarding-flow";
 import { DemoConfigModal } from "@/components/demo-config-modal";
 import { LANOnlyBanner } from "@/components/lan-only-banner";
+import { JobLogsModal } from "@/components/JobLogsModal";
 import {
   Activity,
   Users,
@@ -31,6 +32,9 @@ import type { DemoConfig } from "@/lib/demo/types";
 import type { NavRoute } from "@/lib/navigation";
 import type { AuditLogEntry } from "@/types/audit";
 import type { Interaction } from "@/types/interaction";
+
+// API Configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7001';
 
 export default function ShowcasePage() {
   const [selectedLog, setSelectedLog] = useState<AuditLogEntry | null>(null);
@@ -66,6 +70,10 @@ export default function ShowcasePage() {
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [loadingJobs, setLoadingJobs] = useState(false);
 
+  // Logs modal state
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
+  const [selectedJobIdForLogs, setSelectedJobIdForLogs] = useState<string>('');
+
   // Backend API Functions
   const loadSampleAudio = async (url: string, fileName: string): Promise<File> => {
     const response = await fetch(url);
@@ -93,7 +101,7 @@ export default function ShowcasePage() {
       const sessionId = crypto.randomUUID();
       console.log('[Transcription] Generated session_id:', sessionId);
 
-      const response = await fetch('http://localhost:7001/api/workflows/aurity/consult', {
+      const response = await fetch(`${API_BASE_URL}/api/workflows/aurity/consult`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -150,7 +158,7 @@ export default function ShowcasePage() {
       const sessionId = crypto.randomUUID();
       console.log('[Diarization] Generated session_id:', sessionId);
 
-      const response = await fetch('http://localhost:7001/api/workflows/aurity/consult', {
+      const response = await fetch(`${API_BASE_URL}/api/workflows/aurity/consult`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -181,7 +189,7 @@ export default function ShowcasePage() {
 
   const pollDiarizationStatus = async (jobId: string) => {
     try {
-      const response = await fetch(`http://localhost:7001/api/workflows/aurity/consult/${jobId}`);
+      const response = await fetch(`${API_BASE_URL}/api/workflows/aurity/consult/${jobId}`);
 
       if (!response.ok) {
         console.error('[Diarization] Status fetch failed:', response.status);
@@ -228,7 +236,7 @@ export default function ShowcasePage() {
   const loadCompletedJobs = async () => {
     setLoadingJobs(true);
     try {
-      const response = await fetch('http://localhost:7001/api/workflows/aurity/consult?status_filter=completed');
+      const response = await fetch(`${API_BASE_URL}/api/workflows/aurity/consult?status_filter=completed`);
       if (response.ok) {
         const jobs = await response.json();
         setCompletedJobs(jobs);
@@ -241,17 +249,19 @@ export default function ShowcasePage() {
     }
   };
 
-  const handleGenerateSOAP = async () => {
+  const handleGenerateSOAP = async (retry: boolean = false) => {
     const jobId = selectedJobId || diarizationJobId;
     if (!jobId) return;
 
-    console.log('[SOAP] Fetching results for job:', jobId);
+    console.log('[SOAP] Fetching results for job:', jobId, { retry });
     setSoapLoading(true);
     setSoapError(null);
     setSoapResult(null);
 
     try {
-      const response = await fetch(`http://localhost:7001/api/workflows/aurity/consult/${jobId}`);
+      // Add retry_soap=true query param if retry requested
+      const url = `${API_BASE_URL}/api/workflows/aurity/consult/${jobId}${retry ? '?retry_soap=true' : ''}`;
+      const response = await fetch(url);
 
       console.log('[SOAP] Response received:', response.status);
 
@@ -262,7 +272,7 @@ export default function ShowcasePage() {
       }
 
       const data = await response.json();
-      console.log('[SOAP] Success:', { hasData: !!data.result_data });
+      console.log('[SOAP] Success:', { hasData: !!data.result_data, soapStage: data.stages?.soap });
 
       if (data.result_data) {
         setSoapResult(data.result_data);
@@ -276,6 +286,22 @@ export default function ShowcasePage() {
       setSoapLoading(false);
     }
   };
+
+  // Keepalive: Auto-refresh completed jobs from HDF5 every 5 seconds
+  useEffect(() => {
+    // Initial load
+    loadCompletedJobs();
+
+    // Set up polling interval
+    const intervalId = setInterval(() => {
+      loadCompletedJobs();
+    }, 5000); // Poll every 5 seconds
+
+    // Cleanup on unmount
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []); // Empty dependency array = run once on mount
 
   // Mock data for AccessTile
   const mockRoutes: NavRoute[] = [
@@ -674,11 +700,20 @@ export default function ShowcasePage() {
 
             {/* SOAP Extraction Block */}
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700 relative">
-              <div className="absolute top-4 right-4 px-3 py-1 text-xs bg-amber-600/20 border border-amber-600/50 text-amber-300 rounded">
-                Auto-enabled
+              <div className="absolute top-4 right-4 flex gap-2">
+                <div className="px-3 py-1 text-xs bg-emerald-600/20 border border-emerald-600/50 text-emerald-300 rounded flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Live (5s)
+                </div>
+                <div className="px-3 py-1 text-xs bg-amber-600/20 border border-amber-600/50 text-amber-300 rounded">
+                  Auto-enabled
+                </div>
               </div>
               <h3 className="text-xl font-semibold mb-4 text-amber-400">SOAP Extraction</h3>
-              <p className="text-sm text-slate-400 mb-4">Generate SOAP note from diarization job</p>
+              <p className="text-sm text-slate-400 mb-4">Generate SOAP note from diarization job • Auto-refreshing every 5s</p>
 
               <div className="space-y-4">
                 {/* Collapsible Job Selector */}
@@ -708,7 +743,9 @@ export default function ShowcasePage() {
                       </button>
                     </div>
 
-                    {completedJobs.length === 0 ? (
+                    {loadingJobs ? (
+                      <p className="text-xs text-slate-400 text-center py-4 animate-pulse">Loading jobs from HDF5...</p>
+                    ) : completedJobs.length === 0 ? (
                       <p className="text-xs text-slate-500 text-center py-4">No completed jobs found</p>
                     ) : (
                       <div className="space-y-2">
@@ -717,40 +754,72 @@ export default function ShowcasePage() {
                           const soapProcessing = job.result_data?.soap_status === 'processing';
 
                           return (
-                            <button
+                            <div
                               key={job.job_id}
-                              onClick={() => setSelectedJobId(job.job_id)}
-                              className={`w-full p-2 text-left rounded border transition-colors ${
+                              className={`p-2 rounded border transition-colors ${
                                 selectedJobId === job.job_id
                                   ? 'bg-amber-900/30 border-amber-600'
                                   : 'bg-slate-800 border-slate-700 hover:border-amber-800'
                               }`}
                             >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-mono text-slate-300">{job.job_id.slice(0, 8)}...</span>
-                                  {hasSoap && (
-                                    <span className="px-2 py-0.5 text-xs bg-green-900/40 text-green-400 border border-green-700/50 rounded">
-                                      ✓ SOAP
-                                    </span>
-                                  )}
-                                  {soapProcessing && (
-                                    <span className="px-2 py-0.5 text-xs bg-yellow-900/40 text-yellow-400 border border-yellow-700/50 rounded animate-pulse">
-                                      ⏳ Generating
-                                    </span>
-                                  )}
-                                  {!hasSoap && !soapProcessing && (
-                                    <span className="px-2 py-0.5 text-xs bg-slate-700/40 text-slate-400 border border-slate-600/50 rounded">
-                                      ○ No SOAP
-                                    </span>
-                                  )}
+                              <button
+                                onClick={() => {
+                                  setSelectedJobId(job.job_id);
+                                  // Auto-load job data when selected
+                                  setTimeout(async () => {
+                                    try {
+                                      const response = await fetch(`${API_BASE_URL}/api/workflows/aurity/consult/${job.job_id}`);
+                                      if (response.ok) {
+                                        const data = await response.json();
+                                        setDiarizationStatus(data);
+                                        if (data.result_data) {
+                                          setSoapResult(data.result_data);
+                                        }
+                                      }
+                                    } catch (error) {
+                                      console.error('[Job Select] Failed to load job data:', error);
+                                    }
+                                  }, 100);
+                                }}
+                                className="w-full text-left"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-mono text-slate-300">{job.job_id.slice(0, 8)}...</span>
+                                    {hasSoap && (
+                                      <span className="px-2 py-0.5 text-xs bg-green-900/40 text-green-400 border border-green-700/50 rounded">
+                                        ✓ SOAP
+                                      </span>
+                                    )}
+                                    {soapProcessing && (
+                                      <span className="px-2 py-0.5 text-xs bg-yellow-900/40 text-yellow-400 border border-yellow-700/50 rounded animate-pulse">
+                                        ⏳ Generating
+                                      </span>
+                                    )}
+                                    {!hasSoap && !soapProcessing && (
+                                      <span className="px-2 py-0.5 text-xs bg-slate-700/40 text-slate-400 border border-slate-600/50 rounded">
+                                        ○ No SOAP
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-slate-500">{new Date(job.created_at).toLocaleString()}</span>
                                 </div>
-                                <span className="text-xs text-slate-500">{new Date(job.created_at).toLocaleString()}</span>
-                              </div>
-                              <div className="text-xs text-slate-400 mt-1">
-                                Size: {Math.round(job.audio_file_size / 1024)}KB
-                              </div>
-                            </button>
+                                <div className="text-xs text-slate-400 mt-1">
+                                  Size: {Math.round(job.audio_file_size / 1024)}KB
+                                </div>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedJobIdForLogs(job.job_id);
+                                  setLogsModalOpen(true);
+                                }}
+                                className="mt-2 w-full px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 transition-colors"
+                                aria-label="View logs"
+                              >
+                                View Logs
+                              </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -779,22 +848,32 @@ export default function ShowcasePage() {
                       </button>
                     )}
 
-                    {/* Case 2: SOAP generation in progress */}
-                    {diarizationStatus.result_data.soap_status === 'processing' && (
-                      <div className="p-3 bg-yellow-900/30 border border-yellow-800 rounded text-yellow-400 text-sm animate-pulse">
-                        ⏳ SOAP generation in progress... (will be available shortly)
+                    {/* Case 2: SOAP generation in progress (with retry button if stuck) */}
+                    {diarizationStatus.result_data.soap_status === 'processing' && !diarizationStatus.result_data.soap_note && (
+                      <div className="space-y-2">
+                        <div className="p-3 bg-yellow-900/30 border border-yellow-800 rounded text-yellow-400 text-sm animate-pulse">
+                          ⏳ SOAP generation in progress... (will be available shortly)
+                        </div>
+                        <button
+                          onClick={() => handleGenerateSOAP(true)}
+                          disabled={soapLoading}
+                          className="w-full px-3 py-1.5 bg-amber-600/80 text-white text-sm rounded hover:bg-amber-700 disabled:bg-slate-700 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {soapLoading ? 'Retrying...' : '🔄 Retry SOAP Generation'}
+                        </button>
                       </div>
                     )}
 
-                    {/* Case 3: No SOAP yet - Generate SOAP */}
+                    {/* Case 3: No SOAP yet or Failed - Generate/Retry SOAP */}
                     {!diarizationStatus.result_data.soap_note &&
-                     !diarizationStatus.result_data.soap_status && (
+                     diarizationStatus.result_data.soap_status !== 'processing' &&
+                     diarizationStatus.result_data.soap_status !== 'completed' && (
                       <button
-                        onClick={handleGenerateSOAP}
+                        onClick={() => handleGenerateSOAP(diarizationStatus.result_data.soap_status === 'failed')}
                         disabled={soapLoading}
                         className="w-full px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:bg-slate-700 disabled:cursor-not-allowed transition-colors font-medium"
                       >
-                        {soapLoading ? 'Generating...' : '🔬 Generate SOAP Note'}
+                        {soapLoading ? 'Generating...' : (diarizationStatus.result_data.soap_status === 'failed' ? '🔄 Retry SOAP Generation' : '🔬 Generate SOAP Note')}
                       </button>
                     )}
                   </>
@@ -819,24 +898,29 @@ export default function ShowcasePage() {
                   </div>
                 )}
 
-                {soapResult && (
-                  <div className="space-y-4">
-                    {/* Info Header */}
-                    {soapResult.transcription && (
-                      <div className="p-3 bg-slate-900 rounded border border-slate-700">
-                        <div className="flex items-center justify-between text-xs text-slate-400">
-                          <span>
-                            <span className="font-semibold">Language:</span> {soapResult.transcription.language}
-                          </span>
-                          <span>
-                            <span className="font-semibold">Duration:</span> {soapResult.transcription.duration}s
-                          </span>
-                          <span>
-                            <span className="font-semibold">Segments:</span> {soapResult.diarization?.segments?.length || 0}
-                          </span>
+                {/* Show SplitView when there's result_data (transcription/diarization), regardless of SOAP */}
+                {(() => {
+                  const resultData = soapResult || diarizationStatus?.result_data;
+                  if (!resultData) return null;
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Info Header */}
+                      {resultData.transcription && (
+                        <div className="p-3 bg-slate-900 rounded border border-slate-700">
+                          <div className="flex items-center justify-between text-xs text-slate-400">
+                            <span>
+                              <span className="font-semibold">Language:</span> {resultData.transcription.language}
+                            </span>
+                            <span>
+                              <span className="font-semibold">Duration:</span> {resultData.transcription.duration}s
+                            </span>
+                            <span>
+                              <span className="font-semibold">Segments:</span> {resultData.diarization?.segments?.length || 0}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* No Spoilers Toggle */}
                     <div className="flex items-center gap-2">
@@ -851,42 +935,86 @@ export default function ShowcasePage() {
                       </label>
                     </div>
 
-                    {/* SplitView with Transcription Results */}
-                    <SplitView
-                      interaction={{
-                        interaction_id: selectedJobId || diarizationJobId || 'unknown',
-                        session_id: selectedJobId || diarizationJobId || 'unknown',
-                        prompt: soapResult.diarization?.segments?.map((seg: any, idx: number) =>
-                          `[${seg.start_time.toFixed(1)}s - ${seg.end_time.toFixed(1)}s] ${seg.speaker}:\n${seg.text}`
-                        ).join('\n\n') || 'No transcription available',
-                        response: soapResult.diarization?.segments?.map((seg: any, idx: number) =>
-                          `**${seg.speaker}** (${seg.start_time.toFixed(1)}s - ${seg.end_time.toFixed(1)}s)\n\n${seg.improved_text || seg.text}`
-                        ).join('\n\n---\n\n') || 'No diarization available',
-                        provider: 'whisper',
-                        model: soapResult.transcription?.language === 'es' ? 'faster-whisper-small' : 'whisper-small',
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                        content_hash: 'sha256:live-result',
-                        metadata: {
-                          duration: soapResult.transcription?.duration,
-                          language: soapResult.transcription?.language,
-                          segments_count: soapResult.diarization?.segments?.length
-                        }
-                      }}
-                      noSpoilers={noSpoilers}
-                      onCopyPrompt={() => {
-                        const text = soapResult.diarization?.segments?.map((seg: any) =>
-                          `[${seg.start_time.toFixed(1)}s - ${seg.end_time.toFixed(1)}s] ${seg.speaker}:\n${seg.text}`
-                        ).join('\n\n') || '';
-                        navigator.clipboard.writeText(text);
-                      }}
-                      onCopyResponse={() => {
-                        const text = soapResult.diarization?.segments?.map((seg: any) =>
-                          `${seg.speaker} (${seg.start_time.toFixed(1)}s - ${seg.end_time.toFixed(1)}s)\n\n${seg.improved_text || seg.text}`
-                        ).join('\n\n---\n\n') || '';
-                        navigator.clipboard.writeText(text);
-                      }}
-                    />
+                      {/* SplitView with Transcription and SOAP */}
+                      <SplitView
+                        interaction={{
+                          interaction_id: selectedJobId || diarizationJobId || 'unknown',
+                          session_id: selectedJobId || diarizationJobId || 'unknown',
+                          prompt: resultData.diarization?.segments?.map((seg: any, idx: number) =>
+                            `[${seg.start_time.toFixed(1)}s - ${seg.end_time.toFixed(1)}s] ${seg.speaker}:\n${seg.text}`
+                          ).join('\n\n') || 'No transcription available',
+                          response: (() => {
+                            // Format SOAP note if available
+                            const soapNote = resultData.soap_note || diarizationStatus?.result_data?.soap_note;
+                            if (!soapNote) return '';
+
+                            return `# SOAP Note
+
+## S — Subjetivo (Subjective)
+**Motivo de consulta:** ${soapNote.subjetivo?.motivo_consulta || 'N/A'}
+
+**Síntomas:**
+${soapNote.subjetivo?.sintomas?.map((s: any) => `- ${s.sintoma} (${s.duracion || 'N/A'})`).join('\n') || 'N/A'}
+
+## O — Objetivo (Objective)
+**Signos vitales:**
+${soapNote.objetivo?.signos_vitales ? Object.entries(soapNote.objetivo.signos_vitales).map(([k, v]) => `- ${k}: ${v}`).join('\n') : 'N/A'}
+
+## A — Análisis (Assessment)
+**Impresión diagnóstica:** ${soapNote.analisis?.impresion_diagnostica || 'N/A'}
+
+**Diagnósticos diferenciales:**
+${soapNote.analisis?.diagnosticos_diferenciales?.map((dx: any) => `- ${dx.condicion}`).join('\n') || 'N/A'}
+
+## P — Plan (Treatment)
+**Seguimiento:** ${soapNote.plan?.seguimiento?.proxima_cita || 'N/A'}
+
+**Tratamiento:**
+${soapNote.plan?.tratamiento_farmacologico?.map((med: string) => `- ${med}`).join('\n') || 'N/A'}
+
+---
+**Completeness Score:** ${soapNote.completeness ? soapNote.completeness.toFixed(0) : 0}%`;
+                          })(),
+                          provider: 'whisper',
+                          model: resultData.transcription?.language === 'es' ? 'faster-whisper-small' : 'whisper-small',
+                          created_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString(),
+                          content_hash: 'sha256:live-result',
+                          metadata: {
+                            duration: resultData.transcription?.duration,
+                            language: resultData.transcription?.language,
+                            segments_count: resultData.diarization?.segments?.length
+                          }
+                        }}
+                        noSpoilers={noSpoilers}
+                        onCopyPrompt={() => {
+                          const text = resultData.diarization?.segments?.map((seg: any) =>
+                            `[${seg.start_time.toFixed(1)}s - ${seg.end_time.toFixed(1)}s] ${seg.speaker}:\n${seg.text}`
+                          ).join('\n\n') || '';
+                          navigator.clipboard.writeText(text);
+                        }}
+                        onCopyResponse={() => {
+                          const soapNote = resultData.soap_note || diarizationStatus?.result_data?.soap_note;
+                          if (!soapNote) return;
+
+                          const text = `# SOAP Note
+
+## S — Subjetivo
+Motivo: ${soapNote.subjetivo?.motivo_consulta || 'N/A'}
+Síntomas: ${soapNote.subjetivo?.sintomas?.map((s: any) => s.sintoma).join(', ') || 'N/A'}
+
+## O — Objetivo
+${soapNote.objetivo?.signos_vitales ? JSON.stringify(soapNote.objetivo.signos_vitales, null, 2) : 'N/A'}
+
+## A — Análisis
+${soapNote.analisis?.impresion_diagnostica || 'N/A'}
+
+## P — Plan
+${soapNote.plan?.seguimiento?.proxima_cita || 'N/A'}`;
+
+                          navigator.clipboard.writeText(text);
+                        }}
+                      />
 
                     {/* SOAP Note Display (if available) */}
                     {diarizationStatus?.soap_note && (
@@ -980,12 +1108,12 @@ export default function ShowcasePage() {
                             <div className="mt-4 pt-4 border-t border-emerald-800/50">
                               <div className="flex items-center justify-between">
                                 <span className="text-xs text-slate-400">SOAP Completeness Score</span>
-                                <span className="text-sm font-bold text-emerald-400">{(diarizationStatus.soap_note.completeness * 100).toFixed(0)}%</span>
+                                <span className="text-sm font-bold text-emerald-400">{diarizationStatus.soap_note.completeness.toFixed(0)}%</span>
                               </div>
                               <div className="mt-2 w-full bg-slate-700 rounded-full h-2">
                                 <div
                                   className="bg-emerald-500 h-2 rounded-full transition-all"
-                                  style={{ width: `${diarizationStatus.soap_note.completeness * 100}%` }}
+                                  style={{ width: `${diarizationStatus.soap_note.completeness}%` }}
                                 />
                               </div>
                             </div>
@@ -994,17 +1122,18 @@ export default function ShowcasePage() {
                       </div>
                     )}
 
-                    {/* Raw JSON (collapsible) */}
-                    <details className="mt-4">
-                      <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-300">
-                        Show raw JSON
-                      </summary>
-                      <pre className="text-xs text-slate-400 whitespace-pre-wrap font-mono mt-2 max-h-96 overflow-y-auto">
-                        {JSON.stringify(soapResult, null, 2)}
-                      </pre>
-                    </details>
-                  </div>
-                )}
+                      {/* Raw JSON (collapsible) */}
+                      <details className="mt-4">
+                        <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-300">
+                          Show raw JSON
+                        </summary>
+                        <pre className="text-xs text-slate-400 whitespace-pre-wrap font-mono mt-2 max-h-96 overflow-y-auto">
+                          {JSON.stringify(resultData, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1019,7 +1148,7 @@ export default function ShowcasePage() {
               <button
                 onClick={async () => {
                   try {
-                    const response = await fetch('http://localhost:7001/internal/diarization/jobs');
+                    const response = await fetch(`${API_BASE_URL}/internal/diarization/jobs`);
                     const data = await response.json();
                     alert(`Found ${data.data.length} jobs\n\n${JSON.stringify(data.data, null, 2)}`);
                   } catch (error: any) {
@@ -1223,6 +1352,13 @@ export default function ShowcasePage() {
           </div>
         </div>
       </footer>
+
+      {/* Job Logs Modal */}
+      <JobLogsModal
+        jobId={selectedJobIdForLogs}
+        isOpen={logsModalOpen}
+        onClose={() => setLogsModalOpen(false)}
+      />
     </div>
   );
 }

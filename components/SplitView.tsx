@@ -89,24 +89,29 @@ export function SplitView({
         </div>
       </div>
 
-      {/* Right Panel: Response */}
+      {/* Right Panel: SOAP Note */}
       <div className="bg-slate-800 rounded-lg overflow-hidden flex flex-col">
         <div className="bg-slate-700 px-4 py-3 flex justify-between items-center">
           <div>
-            <h2 className="text-lg font-semibold text-slate-100">Response</h2>
+            <h2 className="text-lg font-semibold text-slate-100">SOAP Note</h2>
             <p className="text-sm text-slate-400">
-              {noSpoilers ? "Hidden" : `~${countTokens(interaction.response)} tokens`}
+              {noSpoilers ? "Hidden" : interaction.response ? `~${countTokens(interaction.response)} tokens` : "Not generated"}
             </p>
           </div>
           <button
             onClick={onCopyResponse}
             className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+            disabled={!interaction.response}
           >
             Copy
           </button>
         </div>
         <div className="p-4 overflow-auto flex-1 max-h-[600px]">
-          {renderContent(interaction.response, true)}
+          {interaction.response ? renderContent(interaction.response, true) : (
+            <div className="text-slate-500 italic p-4 bg-slate-800/50 rounded">
+              SOAP note not generated yet. Click "Generate SOAP Note" to create one.
+            </div>
+          )}
         </div>
       </div>
     </div>

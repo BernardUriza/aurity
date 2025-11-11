@@ -116,8 +116,24 @@ export function SlimIndexHub() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Medical AI Workflow Link */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-emerald-900/20 to-cyan-900/20 border border-emerald-800/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-300">Medical AI Workflow</h3>
+              <p className="text-sm text-slate-400 mt-1">AI-powered medical consultation workflow with transcription</p>
+            </div>
+            <a
+              href="/medical-ai"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-medium"
+            >
+              Start Workflow →
+            </a>
+          </div>
+        </div>
+
         {/* Component Showcase Link */}
-        <div className="mb-8 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-800/50 rounded-lg">
+        <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-800/50 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-purple-300">Component Showcase</h3>
@@ -128,6 +144,22 @@ export function SlimIndexHub() {
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
             >
               View Showcase →
+            </a>
+          </div>
+        </div>
+
+        {/* Chunk Breakdown Testing Link */}
+        <div className="mb-8 p-4 bg-gradient-to-r from-orange-900/20 to-yellow-900/20 border border-orange-800/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-orange-300">Chunk Breakdown (Debug)</h3>
+              <p className="text-sm text-slate-400 mt-1">Inspect audio chunks with EBML headers and transcription details</p>
+            </div>
+            <a
+              href="/test-chunks"
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors font-medium"
+            >
+              Test Chunks →
             </a>
           </div>
         </div>

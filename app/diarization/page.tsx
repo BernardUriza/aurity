@@ -13,6 +13,7 @@ import {
   type DiarizationJob,
   type ChunkInfo,
 } from '@/lib/api/diarization';
+import { JobLogsModal } from '@/components/JobLogsModal';
 
 interface DiarizationConfig {
   whisperModel: 'tiny' | 'base' | 'small' | 'medium' | 'large-v3';
@@ -43,6 +44,8 @@ export default function DiarizationPage() {
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [expandedChunks, setExpandedChunks] = useState<Set<number>>(new Set());
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
+  const [selectedJobIdForLogs, setSelectedJobIdForLogs] = useState<string>('');
   const [config, setConfig] = useState<DiarizationConfig>(() => {
     // Load from localStorage if available
     if (typeof window !== 'undefined') {
@@ -589,8 +592,7 @@ export default function DiarizationPage() {
               {jobHistory.map((historyJob) => (
                 <div
                   key={historyJob.job_id}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer"
-                  onClick={() => handleViewJob(historyJob.job_id)}
+                  className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-sm transition-all"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
@@ -605,12 +607,28 @@ export default function DiarizationPage() {
                         {historyJob.job_id.substring(0, 8)}...
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-300">
-                      {new Date(historyJob.created_at).toLocaleString()}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedJobIdForLogs(historyJob.job_id);
+                          setLogsModalOpen(true);
+                        }}
+                        className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 transition-colors"
+                        aria-label="View logs"
+                      >
+                        View Logs
+                      </button>
+                      <div className="text-xs text-gray-500 dark:text-gray-300">
+                        {new Date(historyJob.created_at).toLocaleString()}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 text-xs text-gray-600 dark:text-gray-300">
+                  <div
+                    className="grid grid-cols-3 gap-4 text-xs text-gray-600 dark:text-gray-300 cursor-pointer"
+                    onClick={() => handleViewJob(historyJob.job_id)}
+                  >
                     <div>
                       <span className="font-medium">Progreso:</span>{' '}
                       {historyJob.progress_pct}%
@@ -1093,6 +1111,13 @@ export default function DiarizationPage() {
             </div>
           </div>
         )}
+
+        {/* Job Logs Modal */}
+        <JobLogsModal
+          jobId={selectedJobIdForLogs}
+          isOpen={logsModalOpen}
+          onClose={() => setLogsModalOpen(false)}
+        />
       </div>
     </div>
   );

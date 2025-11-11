@@ -17,6 +17,7 @@ import {
   Server,
   Mic,
   Radio,
+  Stethoscope,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,12 +42,21 @@ export const NAV_ROUTES: NavRoute[] = [
     badge: "ASR",
   },
   {
+    id: "medical-ai",
+    title: "Medical AI Workflow",
+    description: "Workflow médico completo con IA",
+    href: "/medical-ai",
+    icon: Stethoscope,
+    shortcut: "2",
+    badge: "AI",
+  },
+  {
     id: "triage",
     title: "Triage Intake",
     description: "Captura de conversación médica",
     href: "/triage",
     icon: Mic,
-    shortcut: "2",
+    shortcut: "3",
     badge: "Live",
   },
   {

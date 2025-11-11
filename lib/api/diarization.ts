@@ -234,3 +234,30 @@ export async function checkDiarizationHealth(): Promise<{
 
   return response.json();
 }
+
+/**
+ * Job log entry from audit system
+ */
+export interface JobLogEntry {
+  log_id: string;
+  timestamp: string;
+  action: string;
+  user_id: string;
+  resource: string;
+  result: 'success' | 'failed' | 'denied';
+  details?: Record<string, any>;
+}
+
+/**
+ * Get audit logs for a diarization job
+ */
+export async function getDiarizationJobLogs(jobId: string): Promise<JobLogEntry[]> {
+  const response = await fetch(`${API_BASE}/internal/diarization/jobs/${jobId}/logs`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch logs: ${response.status}`);
+  }
+
+  const result = await response.json();
+  return result.data || [];
+}
