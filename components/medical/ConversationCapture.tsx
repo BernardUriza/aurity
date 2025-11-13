@@ -21,11 +21,12 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Mic, MicOff, Loader2, CheckCircle, AlertCircle, Copy, Check } from 'lucide-react';
-import { makeRecorder, guessExt, type Recorder } from '@/lib/recording/makeRecorder';
+import { guessExt } from '@/lib/recording/makeRecorder';
 import { useClipboard } from '@/hooks/useClipboard';
 import { useDemoMode } from '@/hooks/useDemoMode';
 import { useAudioAnalysis } from '@/hooks/useAudioAnalysis';
 import { useChunkProcessor } from '@/hooks/useChunkProcessor';
+import { useRecorder } from '@/hooks/useRecorder';
 import { AUDIO_CONFIG } from '@/lib/audio/constants';
 import { formatTime } from '@/lib/audio/formatting';
 
@@ -72,12 +73,10 @@ export function ConversationCapture({
   className = ''
 }: ConversationCaptureProps) {
   // State
-  const [internalIsRecording, setInternalIsRecording] = useState(false);
   const [isProcessing] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [workflowStatus] = useState<WorkflowStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [recordingTime, setRecordingTime] = useState(0);
   const [transcriptionData, setTranscriptionData] = useState<TranscriptionData>({ text: '' });
   const [lastChunkText, setLastChunkText] = useState<string>(''); // Track latest chunk for highlight animation
 
@@ -98,24 +97,155 @@ export function ConversationCapture({
     backendUrl: 'http://localhost:7001',
   });
 
-  // Use external recording state if provided, otherwise use internal
-  const isRecording = externalIsRecording !== undefined ? externalIsRecording : internalIsRecording;
-  const setIsRecording = setExternalIsRecording || setInternalIsRecording;
+  // Audio level analysis refs
+  const currentStreamRef = useRef<MediaStream | null>(null);
+
+  // Custom hooks for audio analysis
+  const { audioLevel, isSilent } = useAudioAnalysis(currentStreamRef.current, {
+    isActive: isRecording,
+  });
+
+  // Chunk processing callback for useRecorder
+  const handleChunk = useCallback(
+    async (blob: Blob, chunkNumber: number) => {
+      // Deduplication: prevent duplicate chunk processing
+      const key = `${sessionIdRef.current}:${chunkNumber}`;
+      if (inflightRef.current.has(key)) {
+        console.warn(`[CHUNK ${chunkNumber}] ⚠️ Already processing, skipping duplicate`);
+        return;
+      }
+      inflightRef.current.add(key);
+
+      try {
+        const timeSlice = AUDIO_CONFIG.TIME_SLICE;
+        const timestampStart = chunkNumber * (timeSlice / 1000);
+        const timestampEnd = timestampStart + timeSlice / 1000;
+
+        // Silence detection: skip chunks with low audio level
+        if (isSilent) {
+          const percentLevel = Math.round((audioLevel / 255) * 100);
+          console.log(
+            `[CHUNK ${chunkNumber}] ⏭️ Skipped (silence detected) - Audio level: ${audioLevel.toFixed(1)}/255 (${percentLevel}%), Threshold: ${AUDIO_CONFIG.SILENCE_THRESHOLD} (${Math.round((AUDIO_CONFIG.SILENCE_THRESHOLD / 255) * 100)}%), Gain: ${AUDIO_CONFIG.AUDIO_GAIN}x`
+          );
+          inflightRef.current.delete(key);
+          return;
+        }
+
+        const percentLevel = Math.round((audioLevel / 255) * 100);
+        console.log(
+          `[CHUNK ${chunkNumber}] 📤 Submitting to orchestrator - Size: ${blob.size} bytes, Audio level: ${audioLevel.toFixed(1)}/255 (${percentLevel}%)`
+        );
+
+        // Track chunk as uploading
+        setChunkStatuses((prev) => [
+          ...prev,
+          {
+            index: chunkNumber,
+            status: 'uploading' as const,
+            startTime: Date.now(),
+          },
+        ]);
+        addLog(`📤 Enviando chunk ${chunkNumber} (${(blob.size / 1024).toFixed(1)}KB)`);
+
+        const formData = new FormData();
+        formData.append('session_id', sessionIdRef.current);
+        formData.append('chunk_number', chunkNumber.toString());
+        formData.append('mime', blob.type || '');
+        formData.append('audio', blob, `${chunkNumber}${guessExt(blob.type)}`);
+        formData.append('timestamp_start', timestampStart.toString());
+        formData.append('timestamp_end', timestampEnd.toString());
+
+        const response = await fetch('http://localhost:7001/api/workflows/aurity/stream', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[CHUNK ${chunkNumber}] ❌ Orchestrator error:`, errorText);
+          throw new Error(`Orchestrator failed: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+
+        // Case 1: Direct transcription succeeded
+        if (result.status === 'completed' && result.transcription) {
+          console.log(`[CHUNK ${chunkNumber}] ✅ DIRECT path: "${result.transcription}"`);
+          streamingTranscriptRef.current += ' ' + result.transcription;
+          setLastChunkText(result.transcription);
+          setTranscriptionData((prev) => ({
+            ...prev,
+            text: streamingTranscriptRef.current.trim(),
+          }));
+        }
+        // Case 2: Worker with polling
+        else if (result.status === 'pending' && result.job_id) {
+          console.log(`[CHUNK ${chunkNumber}] 🔄 Job queued: ${result.job_id} - Starting polling...`);
+          const transcript = await pollJobStatus(result.job_id, chunkNumber);
+          if (transcript) {
+            console.log(`[CHUNK ${chunkNumber}] ✅ Poll completed: "${transcript}"`);
+            streamingTranscriptRef.current += ' ' + transcript;
+            setLastChunkText(transcript);
+            setTranscriptionData((prev) => ({
+              ...prev,
+              text: streamingTranscriptRef.current.trim(),
+            }));
+          }
+        }
+        // Case 3: Legacy worker fallback format
+        else if (result.queued && result.job_id) {
+          console.log(`[CHUNK ${chunkNumber}] 🔄 WORKER fallback (legacy): ${result.job_id} - Polling...`);
+          const transcript = await pollJobStatus(result.job_id, chunkNumber);
+          if (transcript) {
+            streamingTranscriptRef.current += ' ' + transcript;
+            setLastChunkText(transcript);
+            setTranscriptionData((prev) => ({
+              ...prev,
+              text: streamingTranscriptRef.current.trim(),
+            }));
+          }
+        } else {
+          console.warn(`[CHUNK ${chunkNumber}] ⚠️ Unexpected response format:`, result);
+        }
+      } catch (err) {
+        console.error(`[CHUNK ${chunkNumber}] ❌ Processing failed:`, err);
+      } finally {
+        inflightRef.current.delete(key);
+      }
+    },
+    [isSilent, audioLevel, setChunkStatuses, addLog, pollJobStatus, setLastChunkText, setTranscriptionData]
+  );
+
+  // Initialize useRecorder with chunk processing
+  const {
+    isRecording: hookIsRecording,
+    recordingTime: hookRecordingTime,
+    fullAudioBlob,
+    fullAudioUrl: hookFullAudioUrl,
+    startRecording: hookStartRecording,
+    stopRecording: hookStopRecording,
+  } = useRecorder({
+    onChunk: handleChunk,
+    onError: (error) => setError(error),
+    timeSlice: AUDIO_CONFIG.TIME_SLICE,
+    sampleRate: AUDIO_CONFIG.SAMPLE_RATE,
+    channels: AUDIO_CONFIG.CHANNELS,
+  });
+
+  // Use external recording state if provided, otherwise use hook's state
+  const isRecording = externalIsRecording !== undefined ? externalIsRecording : hookIsRecording;
+  const setIsRecording = setExternalIsRecording || (() => {});
+  const recordingTime = hookRecordingTime;
+  const fullAudioUrl = hookFullAudioUrl;
 
   // Refs
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recorderRef = useRef<Recorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const chunkNumberRef = useRef<number>(0);
   const streamingTranscriptRef = useRef<string>('');
   const sessionIdRef = useRef<string>('');
   const inflightRef = useRef<Set<string>>(new Set());
-  const fullAudioBlobsRef = useRef<Blob[]>([]);  // Store ALL chunks for full audio
-  const continuousRecorderRef = useRef<any>(null); // Separate recorder for full audio (no chunking)
-  const fullAudioUrlRef = useRef<string | null>(null); // Local URL for full audio playback
-  const [fullAudioUrl, setFullAudioUrl] = useState<string | null>(null); // State for UI rendering
+  const fullAudioBlobsRef = useRef<Blob[]>([]);  // Store full audio blob
 
   // Advanced monitoring state
   const [wpm, setWpm] = useState<number>(0); // Words per minute
@@ -209,24 +339,6 @@ export function ConversationCapture({
     }
   }, [isRecording, recordingTime, transcriptionData]);
 
-  // Cleanup audio URL on unmount
-  useEffect(() => {
-    return () => {
-      if (fullAudioUrlRef.current) {
-        URL.revokeObjectURL(fullAudioUrlRef.current);
-        console.log('[Cleanup] Revoked full audio URL');
-      }
-    };
-  }, []);
-
-  // Audio level analysis refs
-  const currentStreamRef = useRef<MediaStream | null>(null);
-
-  // Custom hooks for audio analysis
-  const { audioLevel, isSilent } = useAudioAnalysis(currentStreamRef.current, {
-    isActive: isRecording,
-  });
-
   // Generate session ID (UUID4 format required by FI backend)
   const getSessionId = useCallback(() => {
     // Generate UUID4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
@@ -248,7 +360,7 @@ export function ConversationCapture({
     return () => clearTimeout(timer);
   }, [lastChunkText, isRecording]);
 
-  // Start recording with real-time streaming (RecordRTC mode)
+  // Start recording with real-time streaming (simplified with useRecorder hook)
   const handleStartRecording = useCallback(async () => {
     try {
       // Keep demo audio playing if active (allows recording demo consultation)
@@ -258,13 +370,12 @@ export function ConversationCapture({
 
       setError(null);
       audioChunksRef.current = [];
-      fullAudioBlobsRef.current = []; // Reset full audio blobs
+      fullAudioBlobsRef.current = [];
       chunkNumberRef.current = 0;
       streamingTranscriptRef.current = '';
       inflightRef.current.clear();
-      continuousRecorderRef.current = null; // Clear previous continuous recorder ref
-      setLastChunkText(''); // Clear highlight from previous session
-      setTranscriptionData({ text: '' }); // Reset transcription display
+      setLastChunkText('');
+      setTranscriptionData({ text: '' });
 
       // Reset monitoring metrics
       resetMetrics();
@@ -272,326 +383,63 @@ export function ConversationCapture({
       startTimeRef.current = Date.now();
       addLog('🎙️ Grabación iniciada');
 
-      // Clean up previous audio URL
-      if (fullAudioUrlRef.current) {
-        URL.revokeObjectURL(fullAudioUrlRef.current);
-        fullAudioUrlRef.current = null;
-        setFullAudioUrl(null);
-      }
-
+      // Generate session ID
       const sessionId = getSessionId();
       sessionIdRef.current = sessionId;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Start recording with hook (handles dual recorders, timer, stream)
+      await hookStartRecording();
 
-      // Store stream for audio analysis
-      currentStreamRef.current = stream;
-
-      // Get timeSlice from env (default 3000ms)
-      const timeSlice = parseInt(
-        process.env.NEXT_PUBLIC_AURITY_TIME_SLICE ?? '3000',
-        10
-      );
-
-      // Create recorder with RecordRTC or MediaRecorder fallback
-      const recorder = await makeRecorder(
-        stream,
-        async (blob: Blob) => {
-          // Capture chunk number and increment IMMEDIATELY (atomic operation)
-          // This prevents race conditions when multiple chunks arrive rapidly
-          const chunkNumber = chunkNumberRef.current++;
-
-          // Deduplication: prevent duplicate chunk processing
-          const key = `${sessionIdRef.current}:${chunkNumber}`;
-          if (inflightRef.current.has(key)) {
-            console.warn(`[CHUNK ${chunkNumber}] ⚠️ Already processing, skipping duplicate`);
-            return;
-          }
-          inflightRef.current.add(key);
-
-          try {
-            const timestampStart = chunkNumber * (timeSlice / 1000);
-            const timestampEnd = timestampStart + timeSlice / 1000;
-
-            // Silence detection: skip chunks with low audio level
-            if (isSilent) {
-              const percentLevel = Math.round((audioLevel / 255) * 100);
-              console.log(
-                `[CHUNK ${chunkNumber}] ⏭️ Skipped (silence detected) - Audio level: ${audioLevel.toFixed(1)}/255 (${percentLevel}%), Threshold: ${AUDIO_CONFIG.SILENCE_THRESHOLD} (${Math.round((AUDIO_CONFIG.SILENCE_THRESHOLD / 255) * 100)}%), Gain: ${AUDIO_CONFIG.AUDIO_GAIN}x`
-              );
-              // Mark as processed but don't send to backend
-              inflightRef.current.delete(key);
-              // Note: chunk counter already incremented at top of function
-              return;
-            }
-
-            // ================================================================
-            // HYBRID TRANSCRIPTION: Orchestrator handles try-direct-first
-            // (AUR-PROMPT-4.2 - Architectural Compliance)
-            // ================================================================
-            // Frontend calls PUBLIC endpoint ONLY
-            // Backend orchestrator tries:
-            //   1. DIRECT (fast, 1-3s) → returns transcript immediately
-            //   2. WORKER (fallback, async) → returns job_id for polling
-
-            // Note: Full audio is handled by continuousRecorderRef (no chunking)
-
-            const percentLevel = Math.round((audioLevel / 255) * 100);
-            console.log(
-              `[CHUNK ${chunkNumber}] 📤 Submitting to orchestrator - Size: ${blob.size} bytes, Audio level: ${audioLevel.toFixed(1)}/255 (${percentLevel}%)`
-            );
-
-            // Track chunk as uploading
-            setChunkStatuses(prev => [...prev, {
-              index: chunkNumber,
-              status: 'uploading' as const,
-              startTime: Date.now()
-            }]);
-            addLog(`📤 Enviando chunk ${chunkNumber} (${(blob.size / 1024).toFixed(1)}KB)`);
-
-            const formData = new FormData();
-            formData.append('session_id', sessionIdRef.current);
-            formData.append('chunk_number', chunkNumber.toString());
-            formData.append('mime', blob.type || '');
-            formData.append('audio', blob, `${chunkNumber}${guessExt(blob.type)}`);
-            formData.append('timestamp_start', timestampStart.toString());
-            formData.append('timestamp_end', timestampEnd.toString());
-
-            const response = await fetch(
-              'http://localhost:7001/api/workflows/aurity/stream',
-              {
-                method: 'POST',
-                body: formData,
-              }
-            );
-
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error(`[CHUNK ${chunkNumber}] ❌ Orchestrator error:`, errorText);
-              throw new Error(`Orchestrator failed: ${response.statusText}`);
-            }
-
-            const result = await response.json();
-
-            // Case 1: Direct transcription succeeded (status='completed')
-            if (result.status === 'completed' && result.transcription) {
-              console.log(
-                `[CHUNK ${chunkNumber}] ✅ DIRECT path: "${result.transcription}"`
-              );
-
-              streamingTranscriptRef.current += ' ' + result.transcription;
-              setLastChunkText(result.transcription); // Highlight animation
-              setTranscriptionData((prev) => ({
-                ...prev,
-                text: streamingTranscriptRef.current.trim(),
-              }));
-
-              // TODO: Store in IndexedDB with status='direct_success'
-            }
-            // Case 2: Worker with polling (current backend: status='pending', job_id present)
-            else if (result.status === 'pending' && result.job_id) {
-              console.log(
-                `[CHUNK ${chunkNumber}] 🔄 Job queued: ${result.job_id} - Starting polling...`
-              );
-
-              // TODO: Store in IndexedDB with status='worker_queued', jobId=...
-
-              // Poll job status until completed (polls /api/workflows/aurity/jobs/{job_id})
-              const transcript = await pollJobStatus(result.job_id, chunkNumber);
-
-              if (transcript) {
-                console.log(
-                  `[CHUNK ${chunkNumber}] ✅ Poll completed: "${transcript}"`
-                );
-                streamingTranscriptRef.current += ' ' + transcript;
-                setLastChunkText(transcript); // Highlight animation
-                setTranscriptionData((prev) => ({
-                  ...prev,
-                  text: streamingTranscriptRef.current.trim(),
-                }));
-
-                // TODO: Update IndexedDB with status='worker_success', transcript=...
-              }
-            }
-            // Case 3: Legacy worker fallback format (status='queued', job_id present)
-            else if (result.queued && result.job_id) {
-              console.log(
-                `[CHUNK ${chunkNumber}] 🔄 WORKER fallback (legacy): ${result.job_id} - Polling...`
-              );
-
-              const transcript = await pollJobStatus(result.job_id, chunkNumber);
-
-              if (transcript) {
-                streamingTranscriptRef.current += ' ' + transcript;
-                setLastChunkText(transcript); // Highlight animation
-                setTranscriptionData((prev) => ({
-                  ...prev,
-                  text: streamingTranscriptRef.current.trim(),
-                }));
-              }
-            } else {
-              console.warn(
-                `[CHUNK ${chunkNumber}] ⚠️ Unexpected response format:`,
-                result
-              );
-            }
-          } catch (err) {
-            console.error(`[CHUNK ${chunkNumber}] ❌ Processing failed:`, err);
-          } finally {
-            inflightRef.current.delete(key);
-            // Note: chunk counter already incremented at top of function
-          }
-        },
-        {
-          timeSlice,
-          sampleRate: 16000,
-          channels: 1,
-        }
-      );
-
-      recorderRef.current = recorder;
-
-      console.log(`[Recorder] Using ${recorder.kind} mode`);
-
-      // Start chunked recorder for real-time transcription
-      recorder.start();
-
-      // ========================================================================
-      // PARALLEL: Continuous recorder for full audio (no chunking)
-      // ========================================================================
-      // NOTE: Without timeSlice, the callback is NOT called during recording.
-      // The blob is returned by .stop() Promise instead.
-      const continuousRecorder = await makeRecorder(
-        stream,
-        () => {}, // Empty callback - blob comes from .stop() return value
-        {
-          // NO timeSlice = records continuously until stop()
-          sampleRate: 16000,
-          channels: 1,
-        }
-      );
-
-      continuousRecorderRef.current = continuousRecorder;
-      continuousRecorder.start();
-      console.log('[Continuous Recorder] Started (no chunking) - blob will be captured on stop()');
-
-      setIsRecording(true);
-      setRecordingTime(0);
-
-      // Start timer
-      recordingTimerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
+      // Update external state if provided
+      if (setExternalIsRecording) {
+        setExternalIsRecording(true);
+      }
     } catch (err) {
       console.error('Error starting recording:', err);
       setError('No se pudo acceder al micrófono. Por favor, verifica los permisos.');
     }
-  }, [setIsRecording, getSessionId, onTranscriptionComplete, isDemoPlaying, audioLevel, isSilent, addLog, pollJobStatus, resetMetrics, setChunkStatuses]);
+  }, [isDemoPlaying, hookStartRecording, resetMetrics, addLog, getSessionId, setExternalIsRecording]);
 
   // Stop recording
   const handleStopRecording = useCallback(async () => {
     try {
-      // Stop timer
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
+      // Stop recording with hook (handles dual recorders, timer, stream cleanup)
+      await hookStopRecording();
+
+      // Update external state if provided
+      if (setExternalIsRecording) {
+        setExternalIsRecording(false);
       }
 
-      // ========================================================================
-      // STOP CONTINUOUS RECORDER FIRST (for full audio blob)
-      // ========================================================================
-      if (continuousRecorderRef.current) {
-        const fullBlob = await continuousRecorderRef.current.stop();
-        console.log(`[Continuous Recorder] Stopped - full audio blob: ${fullBlob.size} bytes (${(fullBlob.size / 1024 / 1024).toFixed(2)} MB)`);
+      setLastChunkText('');
 
-        // Store full audio blob for upload
-        fullAudioBlobsRef.current = [fullBlob];
-
-        // Create local URL for immediate playback
-        if (fullAudioUrlRef.current) {
-          URL.revokeObjectURL(fullAudioUrlRef.current); // Clean up old URL
-        }
-        const audioUrl = URL.createObjectURL(fullBlob);
-        fullAudioUrlRef.current = audioUrl;
-        setFullAudioUrl(audioUrl);
-        console.log(`[Continuous Recorder] ✅ Audio completo disponible para reproducción (${(fullBlob.size / 1024 / 1024).toFixed(2)} MB)`);
-      }
-
-      // ========================================================================
-      // STOP CHUNKED RECORDER (for transcription chunks)
-      // ========================================================================
-      if (recorderRef.current) {
-        await recorderRef.current.stop();
-        console.log('[Chunked Recorder] Stopped successfully');
-      }
-
-      // Stop media stream tracks
-      if (currentStreamRef.current) {
-        currentStreamRef.current.getTracks().forEach((track) => track.stop());
-        currentStreamRef.current = null;
-      }
-
-      setIsRecording(false);
-      setLastChunkText(''); // Clear highlight animation
-
-      // ================================================================
-      // OPTIONAL: Send full audio to backend for storage/playback
-      // Note: Only works if session exists in corpus (not for streaming-only mode)
-      // ================================================================
-      if (fullAudioBlobsRef.current.length > 0 && sessionIdRef.current) {
+      // Send full audio to backend if available
+      if (fullAudioBlob && sessionIdRef.current) {
         console.log(
-          `[Session End] Preparing full audio blob (continuous recording, no chunking)...`
+          `[Session End] Preparing full audio blob: ${(fullAudioBlob.size / 1024 / 1024).toFixed(2)} MB`
         );
 
-        // Get full audio blob from continuous recorder (should be single blob)
-        const fullAudioBlob = new Blob(fullAudioBlobsRef.current, {
-          type: fullAudioBlobsRef.current[0]?.type || 'audio/webm',
-        });
-
-        console.log(
-          `[Session End] Full audio blob size: ${(fullAudioBlob.size / 1024 / 1024).toFixed(2)} MB`
-        );
-
-        // Send to backend /end-session endpoint (optional - may not exist for streaming sessions)
         const formData = new FormData();
         formData.append('session_id', sessionIdRef.current);
         formData.append('full_audio', fullAudioBlob, 'session.webm');
 
         try {
-          const response = await fetch(
-            'http://localhost:7001/api/workflows/aurity/end-session',
-            {
-              method: 'POST',
-              body: formData,
-            }
-          );
+          const response = await fetch('http://localhost:7001/api/workflows/aurity/end-session', {
+            method: 'POST',
+            body: formData,
+          });
 
           if (response.ok) {
             const result = await response.json();
             console.log('[Session End] ✅ Full audio saved:', result);
-
-            // Store audio path for playback (backend returns full URL path)
             setJobId(result.audio_path);
-
-            // Also update fullAudioUrl to use backend path (more reliable than blob)
-            if (result.audio_path) {
-              // Clean up old blob URL
-              if (fullAudioUrlRef.current) {
-                URL.revokeObjectURL(fullAudioUrlRef.current);
-                fullAudioUrlRef.current = null;
-              }
-              // Use backend URL (result.audio_path already has full path like /api/workflows/...)
-              setFullAudioUrl(`http://localhost:7001${result.audio_path}`);
-            }
           } else {
-            // Session might not exist in corpus (streaming-only mode) - that's OK
             console.warn('[Session End] ⚠️ Could not save full audio (streaming mode):', await response.text());
           }
         } catch (err) {
           console.warn('[Session End] ⚠️ Upload skipped (streaming mode):', err);
         }
 
-        // Clear chunks
         fullAudioBlobsRef.current = [];
       }
 
@@ -604,7 +452,7 @@ export function ConversationCapture({
     } catch (err) {
       console.error('[Recorder] Stop error:', err);
     }
-  }, [setIsRecording, onTranscriptionComplete]);
+  }, [hookStopRecording, fullAudioBlob, setExternalIsRecording, onTranscriptionComplete]);
 
   // Handle demo playback - toggle play/pause/resume
   const handleDemoPlayback = useCallback(async () => {
@@ -633,15 +481,11 @@ export function ConversationCapture({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-      }
+      // Cleanup polling interval if exists
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
+      // Note: Recording cleanup is handled by useRecorder hook
     };
   }, []);
 
