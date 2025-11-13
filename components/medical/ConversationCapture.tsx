@@ -27,6 +27,7 @@ import { useDemoMode } from '@/hooks/useDemoMode';
 import { useAudioAnalysis } from '@/hooks/useAudioAnalysis';
 import { useChunkProcessor } from '@/hooks/useChunkProcessor';
 import { useRecorder } from '@/hooks/useRecorder';
+import { useTranscription, type TranscriptionData } from '@/hooks/useTranscription';
 import { AUDIO_CONFIG } from '@/lib/audio/constants';
 import { formatTime } from '@/lib/audio/formatting';
 
@@ -36,17 +37,6 @@ interface ConversationCaptureProps {
   isRecording?: boolean;
   setIsRecording?: (recording: boolean) => void;
   className?: string;
-}
-
-interface TranscriptionData {
-  text: string;
-  speakers?: Array<{ speaker: string; text: string; timestamp?: string }>;
-  soapNote?: {
-    subjective: string;
-    objective: string;
-    assessment: string;
-    plan: string;
-  };
 }
 
 interface WorkflowStatus {
@@ -77,8 +67,6 @@ export function ConversationCapture({
   const [jobId, setJobId] = useState<string | null>(null);
   const [workflowStatus] = useState<WorkflowStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [transcriptionData, setTranscriptionData] = useState<TranscriptionData>({ text: '' });
-  const [lastChunkText, setLastChunkText] = useState<string>(''); // Track latest chunk for highlight animation
 
   // Custom hooks
   const { copiedId, copyToClipboard } = useClipboard();
@@ -97,13 +85,20 @@ export function ConversationCapture({
     backendUrl: 'http://localhost:7001',
   });
 
-  // Audio level analysis refs
-  const currentStreamRef = useRef<MediaStream | null>(null);
+  // Transcription hook (Phase 6)
+  const {
+    transcriptionData,
+    lastChunkText,
+    addChunk: addTranscriptionChunk,
+    reset: resetTranscription,
+    getText: getTranscriptionText,
+    getWordCount,
+  } = useTranscription();
 
-  // Custom hooks for audio analysis
-  const { audioLevel, isSilent } = useAudioAnalysis(currentStreamRef.current, {
-    isActive: isRecording,
-  });
+  // Refs (including audio level refs for breaking circular dependency)
+  const currentStreamRef = useRef<MediaStream | null>(null);
+  const audioLevelRef = useRef<number>(0);
+  const isSilentRef = useRef<boolean>(true);
 
   // Chunk processing callback for useRecorder
   const handleChunk = useCallback(
@@ -121,19 +116,22 @@ export function ConversationCapture({
         const timestampStart = chunkNumber * (timeSlice / 1000);
         const timestampEnd = timestampStart + timeSlice / 1000;
 
-        // Silence detection: skip chunks with low audio level
-        if (isSilent) {
-          const percentLevel = Math.round((audioLevel / 255) * 100);
+        // Silence detection: read from refs (breaks circular dependency)
+        const currentAudioLevel = audioLevelRef.current;
+        const currentIsSilent = isSilentRef.current;
+
+        if (currentIsSilent) {
+          const percentLevel = Math.round((currentAudioLevel / 255) * 100);
           console.log(
-            `[CHUNK ${chunkNumber}] ⏭️ Skipped (silence detected) - Audio level: ${audioLevel.toFixed(1)}/255 (${percentLevel}%), Threshold: ${AUDIO_CONFIG.SILENCE_THRESHOLD} (${Math.round((AUDIO_CONFIG.SILENCE_THRESHOLD / 255) * 100)}%), Gain: ${AUDIO_CONFIG.AUDIO_GAIN}x`
+            `[CHUNK ${chunkNumber}] ⏭️ Skipped (silence detected) - Audio level: ${currentAudioLevel.toFixed(1)}/255 (${percentLevel}%), Threshold: ${AUDIO_CONFIG.SILENCE_THRESHOLD} (${Math.round((AUDIO_CONFIG.SILENCE_THRESHOLD / 255) * 100)}%), Gain: ${AUDIO_CONFIG.AUDIO_GAIN}x`
           );
           inflightRef.current.delete(key);
           return;
         }
 
-        const percentLevel = Math.round((audioLevel / 255) * 100);
+        const percentLevel = Math.round((currentAudioLevel / 255) * 100);
         console.log(
-          `[CHUNK ${chunkNumber}] 📤 Submitting to orchestrator - Size: ${blob.size} bytes, Audio level: ${audioLevel.toFixed(1)}/255 (${percentLevel}%)`
+          `[CHUNK ${chunkNumber}] 📤 Submitting to orchestrator - Size: ${blob.size} bytes, Audio level: ${currentAudioLevel.toFixed(1)}/255 (${percentLevel}%)`
         );
 
         // Track chunk as uploading
@@ -171,12 +169,7 @@ export function ConversationCapture({
         // Case 1: Direct transcription succeeded
         if (result.status === 'completed' && result.transcription) {
           console.log(`[CHUNK ${chunkNumber}] ✅ DIRECT path: "${result.transcription}"`);
-          streamingTranscriptRef.current += ' ' + result.transcription;
-          setLastChunkText(result.transcription);
-          setTranscriptionData((prev) => ({
-            ...prev,
-            text: streamingTranscriptRef.current.trim(),
-          }));
+          addTranscriptionChunk(result.transcription);
         }
         // Case 2: Worker with polling
         else if (result.status === 'pending' && result.job_id) {
@@ -184,12 +177,7 @@ export function ConversationCapture({
           const transcript = await pollJobStatus(result.job_id, chunkNumber);
           if (transcript) {
             console.log(`[CHUNK ${chunkNumber}] ✅ Poll completed: "${transcript}"`);
-            streamingTranscriptRef.current += ' ' + transcript;
-            setLastChunkText(transcript);
-            setTranscriptionData((prev) => ({
-              ...prev,
-              text: streamingTranscriptRef.current.trim(),
-            }));
+            addTranscriptionChunk(transcript);
           }
         }
         // Case 3: Legacy worker fallback format
@@ -197,12 +185,7 @@ export function ConversationCapture({
           console.log(`[CHUNK ${chunkNumber}] 🔄 WORKER fallback (legacy): ${result.job_id} - Polling...`);
           const transcript = await pollJobStatus(result.job_id, chunkNumber);
           if (transcript) {
-            streamingTranscriptRef.current += ' ' + transcript;
-            setLastChunkText(transcript);
-            setTranscriptionData((prev) => ({
-              ...prev,
-              text: streamingTranscriptRef.current.trim(),
-            }));
+            addTranscriptionChunk(transcript);
           }
         } else {
           console.warn(`[CHUNK ${chunkNumber}] ⚠️ Unexpected response format:`, result);
@@ -213,7 +196,7 @@ export function ConversationCapture({
         inflightRef.current.delete(key);
       }
     },
-    [isSilent, audioLevel, setChunkStatuses, addLog, pollJobStatus, setLastChunkText, setTranscriptionData]
+    [setChunkStatuses, addLog, pollJobStatus, addTranscriptionChunk]
   );
 
   // Initialize useRecorder with chunk processing
@@ -234,15 +217,24 @@ export function ConversationCapture({
 
   // Use external recording state if provided, otherwise use hook's state
   const isRecording = externalIsRecording !== undefined ? externalIsRecording : hookIsRecording;
-  const setIsRecording = setExternalIsRecording || (() => {});
   const recordingTime = hookRecordingTime;
   const fullAudioUrl = hookFullAudioUrl;
+
+  // Audio analysis (after isRecording is defined)
+  const { audioLevel, isSilent } = useAudioAnalysis(currentStreamRef.current, {
+    isActive: isRecording,
+  });
+
+  // Sync audio values to refs (breaks circular dependency)
+  useEffect(() => {
+    audioLevelRef.current = audioLevel;
+    isSilentRef.current = isSilent;
+  }, [audioLevel, isSilent]);
 
   // Refs
   const audioChunksRef = useRef<Blob[]>([]);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const chunkNumberRef = useRef<number>(0);
-  const streamingTranscriptRef = useRef<string>('');
   const sessionIdRef = useRef<string>('');
   const inflightRef = useRef<Set<string>>(new Set());
   const fullAudioBlobsRef = useRef<Blob[]>([]);  // Store full audio blob
@@ -285,7 +277,7 @@ export function ConversationCapture({
             status: c.status
           })),
           transcription_full: transcriptionData?.text || '',
-          word_count: transcriptionData?.text ? transcriptionData.text.trim().split(/\s+/).filter(w => w.length > 0).length : 0,
+          word_count: getWordCount(),
           duration_seconds: recordingTime,
           avg_latency_ms: avgLatency,
           wpm: wpm,
@@ -304,7 +296,7 @@ export function ConversationCapture({
           status: c.status
         })),
         transcription_full: transcriptionData?.text || '',
-        word_count: transcriptionData?.text ? transcriptionData.text.trim().split(/\s+/).filter(w => w.length > 0).length : 0,
+        word_count: getWordCount(),
         duration_seconds: recordingTime,
         avg_latency_ms: avgLatency,
         wpm: wpm,
@@ -313,7 +305,7 @@ export function ConversationCapture({
     } finally {
       setLoadingH5(false);
     }
-  }, [sessionIdRef, chunkStatuses, transcriptionData, recordingTime, avgLatency, wpm, fullAudioUrl]);
+  }, [sessionIdRef, chunkStatuses, transcriptionData, recordingTime, avgLatency, wpm, fullAudioUrl, getWordCount]);
 
   // Handle "Continue" button click - open H5 modal first
   const handleContinue = useCallback(async () => {
@@ -331,13 +323,13 @@ export function ConversationCapture({
 
   // Calculate WPM (Words Per Minute) in real-time
   useEffect(() => {
-    if (isRecording && recordingTime > 0 && transcriptionData?.text) {
-      const words = transcriptionData.text.trim().split(/\s+/).filter(w => w.length > 0).length;
+    if (isRecording && recordingTime > 0) {
+      const words = getWordCount();
       const minutes = recordingTime / 60;
       const calculatedWpm = minutes > 0 ? Math.round(words / minutes) : 0;
       setWpm(calculatedWpm);
     }
-  }, [isRecording, recordingTime, transcriptionData]);
+  }, [isRecording, recordingTime, getWordCount]);
 
   // Generate session ID (UUID4 format required by FI backend)
   const getSessionId = useCallback(() => {
@@ -348,17 +340,6 @@ export function ConversationCapture({
       return v.toString(16);
     });
   }, []);
-
-  // Clear highlight animation after 3 seconds (fade-out effect)
-  useEffect(() => {
-    if (!lastChunkText || !isRecording) return;
-
-    const timer = setTimeout(() => {
-      setLastChunkText('');
-    }, 3000); // Clear highlight after 3 seconds
-
-    return () => clearTimeout(timer);
-  }, [lastChunkText, isRecording]);
 
   // Start recording with real-time streaming (simplified with useRecorder hook)
   const handleStartRecording = useCallback(async () => {
@@ -372,10 +353,10 @@ export function ConversationCapture({
       audioChunksRef.current = [];
       fullAudioBlobsRef.current = [];
       chunkNumberRef.current = 0;
-      streamingTranscriptRef.current = '';
       inflightRef.current.clear();
-      setLastChunkText('');
-      setTranscriptionData({ text: '' });
+
+      // Reset transcription (Phase 6 - uses hook)
+      resetTranscription();
 
       // Reset monitoring metrics
       resetMetrics();
@@ -398,7 +379,7 @@ export function ConversationCapture({
       console.error('Error starting recording:', err);
       setError('No se pudo acceder al micrófono. Por favor, verifica los permisos.');
     }
-  }, [isDemoPlaying, hookStartRecording, resetMetrics, addLog, getSessionId, setExternalIsRecording]);
+  }, [isDemoPlaying, hookStartRecording, resetMetrics, resetTranscription, addLog, getSessionId, setExternalIsRecording]);
 
   // Stop recording
   const handleStopRecording = useCallback(async () => {
@@ -410,8 +391,6 @@ export function ConversationCapture({
       if (setExternalIsRecording) {
         setExternalIsRecording(false);
       }
-
-      setLastChunkText('');
 
       // Send full audio to backend if available
       if (fullAudioBlob && sessionIdRef.current) {
@@ -443,16 +422,15 @@ export function ConversationCapture({
         fullAudioBlobsRef.current = [];
       }
 
-      // Notify parent if transcription complete
-      if (onTranscriptionComplete && streamingTranscriptRef.current) {
-        onTranscriptionComplete({
-          text: streamingTranscriptRef.current.trim(),
-        });
+      // Notify parent if transcription complete (Phase 6 - uses hook)
+      const finalText = getTranscriptionText();
+      if (onTranscriptionComplete && finalText) {
+        onTranscriptionComplete({ text: finalText });
       }
     } catch (err) {
       console.error('[Recorder] Stop error:', err);
     }
-  }, [hookStopRecording, fullAudioBlob, setExternalIsRecording, onTranscriptionComplete]);
+  }, [hookStopRecording, fullAudioBlob, setExternalIsRecording, getTranscriptionText, onTranscriptionComplete]);
 
   // Handle demo playback - toggle play/pause/resume
   const handleDemoPlayback = useCallback(async () => {
@@ -723,7 +701,7 @@ export function ConversationCapture({
             </div>
             <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700 text-center">
               <div className="text-2xl font-bold text-emerald-400">
-                {transcriptionData?.text ? transcriptionData.text.trim().split(/\s+/).filter(w => w.length > 0).length : 0}
+                {getWordCount()}
               </div>
               <div className="text-xs text-slate-400 mt-1">Palabras transcritas</div>
             </div>
