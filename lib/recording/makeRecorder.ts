@@ -59,7 +59,8 @@ export async function makeRecorder(
   onChunk: ChunkHandler,
   opts?: RecorderOptions
 ): Promise<Recorder> {
-  const timeSlice = opts?.timeSlice ?? 3000;
+  // Don't default timeSlice - undefined = continuous recording
+  const timeSlice = opts?.timeSlice;
   const channels = opts?.channels ?? 1;
   const mimeWebm = 'audio/webm;codecs=opus';
   const mimeMp4 = 'audio/mp4;codecs=mp4a.40.2';
@@ -127,41 +128,55 @@ export async function makeRecorder(
         currentRecorder = createRecorder();
         currentRecorder.startRecording();
 
-        console.log(
-          `[RecordRTC Loop] Started chunk recording (${timeSlice}ms) - MIME: ${mimeType}`
-        );
+        if (timeSlice && timeSlice > 0) {
+          console.log(
+            `[RecordRTC Loop] Started chunk recording (${timeSlice}ms) - MIME: ${mimeType}`
+          );
+        } else {
+          console.log(
+            `[RecordRTC Continuous] Started continuous recording (no chunks) - MIME: ${mimeType}`
+          );
+        }
 
-        // Schedule stop/restart
-        loopTimer = setTimeout(async () => {
-          if (!currentRecorder || !isActive) return;
+        // Only schedule loop if timeSlice is provided
+        if (timeSlice && timeSlice > 0) {
+          // Schedule stop/restart
+          loopTimer = setTimeout(async () => {
+            if (!currentRecorder || !isActive) return;
 
-          currentRecorder.stopRecording(() => {
-            if (!isActive) return; // User stopped during this callback
+            currentRecorder.stopRecording(() => {
+              if (!isActive) return; // User stopped during this callback
 
-            const blob = currentRecorder.getBlob();
+              const blob = currentRecorder.getBlob();
 
-            if (blob && blob.size > 0) {
-              console.log(
-                `[RecordRTC Loop] ✅ Chunk ready: ${blob.size} bytes, MIME: ${blob.type}`
-              );
-              onChunk(blob);
-            } else {
-              console.warn('[RecordRTC Loop] ⚠️ Empty blob, skipping');
-            }
+              if (blob && blob.size > 0) {
+                console.log(
+                  `[RecordRTC Loop] ✅ Chunk ready: ${blob.size} bytes, MIME: ${blob.type}`
+                );
+                onChunk(blob);
+              } else {
+                console.warn('[RecordRTC Loop] ⚠️ Empty blob, skipping');
+              }
 
-            // Restart for next chunk (if still recording)
-            if (isActive) {
-              startLoop();
-            }
-          });
-        }, timeSlice);
+              // Restart for next chunk (if still recording)
+              if (isActive) {
+                startLoop();
+              }
+            });
+          }, timeSlice);
+        }
+        // If no timeSlice, just keep recording continuously (no loop)
       };
 
       return {
         start: () => {
-          console.log('[RecordRTC] Starting recording with Stop/Start Loop pattern');
+          if (timeSlice && timeSlice > 0) {
+            console.log('[RecordRTC] Starting recording with Stop/Start Loop pattern');
+          } else {
+            console.log('[RecordRTC] Starting continuous recording (no chunks)');
+          }
           console.log(
-            `[RecordRTC] Config: MIME=${mimeType}, timeSlice=${timeSlice}ms, channels=${channels}, sampleRate=${
+            `[RecordRTC] Config: MIME=${mimeType}, timeSlice=${timeSlice !== undefined ? `${timeSlice}ms` : 'none (continuous)'}, channels=${channels}, sampleRate=${
               opts?.sampleRate ?? 16000
             }Hz`
           );
@@ -170,7 +185,7 @@ export async function makeRecorder(
         },
         stop: () =>
           new Promise<Blob>((resolve) => {
-            console.log('[RecordRTC] Stopping recording loop');
+            console.log('[RecordRTC] Stopping recording...');
             isActive = false;
 
             if (loopTimer) {
@@ -181,10 +196,11 @@ export async function makeRecorder(
             if (currentRecorder) {
               currentRecorder.stopRecording(() => {
                 const finalBlob = currentRecorder.getBlob();
-                console.log(`[RecordRTC] Final blob: ${finalBlob.size} bytes`);
+                console.log(`[RecordRTC] Final blob: ${finalBlob.size} bytes (${(finalBlob.size / 1024 / 1024).toFixed(2)} MB)`);
                 resolve(finalBlob);
               });
             } else {
+              console.warn('[RecordRTC] No active recorder to stop');
               resolve(new Blob([], { type: mimeType }));
             }
           }),
@@ -202,7 +218,13 @@ export async function makeRecorder(
   const mr = new MediaRecorder(stream, { mimeType: mime });
 
   return {
-    start: () => mr.start(timeSlice),
+    start: () => {
+      if (timeSlice !== undefined) {
+        mr.start(timeSlice);
+      } else {
+        mr.start(); // Continuous recording
+      }
+    },
     stop: () =>
       new Promise<Blob>((resolve) => {
         mr.onstop = () => resolve(new Blob([]));
