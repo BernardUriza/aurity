@@ -213,21 +213,18 @@ export function useChunkProcessor(
             return null;
           }
         } catch (err) {
-          console.error(`[CHUNK ${chunkNumber}] Poll error:`, err);
+          // Silently handle poll errors - backend may be slow or unavailable
           setBackendHealth('down');
           return null;
         }
       }
 
-      // Timeout
-      console.error(
-        `[CHUNK ${chunkNumber}] Poll timeout after ${maxAttempts * pollInterval}ms`
-      );
-      addLog(`⏱️ Chunk ${chunkNumber} timeout (>60s)`);
+      // Timeout - fail silently, LLM will use webspeech/fulltext
+      // Don't log error - this is expected for slow Whisper processing
       setChunkStatuses((prev) =>
         prev.map((c) =>
           c.index === chunkNumber
-            ? { ...c, status: 'failed' as const, error: 'Timeout' }
+            ? { ...c, status: 'unresolved' as const, transcript: null }
             : c
         )
       );

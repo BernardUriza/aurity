@@ -29,6 +29,7 @@ import { useChunkProcessor } from '@/hooks/useChunkProcessor';
 import { useRecorder } from '@/hooks/useRecorder';
 import { useTranscription, type TranscriptionData } from '@/hooks/useTranscription';
 import { useWebSpeech } from '@/hooks/useWebSpeech';
+import { useDiarizationPolling } from '@/hooks/useDiarizationPolling';
 import { AUDIO_CONFIG } from '@/lib/audio/constants';
 import { DemoButton } from './DemoButton';
 import { SessionBadges } from './SessionBadges';
@@ -41,6 +42,7 @@ import { PausedAudioPreview } from './PausedAudioPreview';
 import { FinalTranscription } from './FinalTranscription';
 import { H5Modal } from './H5Modal';
 import { TranscriptionSources } from './TranscriptionSources';
+import { DiarizationProcessingModal } from './DiarizationProcessingModal';
 
 interface ConversationCaptureProps {
   onNext?: () => void;
@@ -81,6 +83,10 @@ export function ConversationCapture({
   const [workflowStatus] = useState<WorkflowStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [webSpeechTranscripts, setWebSpeechTranscripts] = useState<string[]>([]); // WebSpeech preview (separate)
+
+  // Diarization polling state
+  const [diarizationJobId, setDiarizationJobId] = useState<string | null>(null);
+  const [showDiarizationModal, setShowDiarizationModal] = useState(false);
 
   // Custom hooks
   const { copiedId, copyToClipboard } = useClipboard();
@@ -127,6 +133,23 @@ export function ConversationCapture({
     language: 'es-MX',
     continuous: true,
     interimResults: true,
+  });
+
+  // Diarization polling hook
+  const { status: diarizationStatus, isPolling } = useDiarizationPolling({
+    sessionId: sessionIdRef.current || '',
+    jobId: diarizationJobId || '',
+    enabled: showDiarizationModal && !!diarizationJobId,
+    onComplete: () => {
+      console.log('[Diarization] ✅ Completed with triple vision');
+      setShowDiarizationModal(false);
+      addLog('✅ Diarización completada');
+    },
+    onError: (error) => {
+      console.error('[Diarization] ❌ Error:', error);
+      setShowDiarizationModal(false);
+      addLog(`❌ Error en diarización: ${error}`);
+    },
   });
 
   // Refs (audio level refs for breaking circular dependency)
@@ -593,6 +616,13 @@ export function ConversationCapture({
                 console.log('[Session End] ✅ Session finalized:', finalizeResult);
                 console.log('[Session End] 🔐 Encrypted + 🎙️ Diarization dispatched:', finalizeResult.diarization_job_id);
                 console.log('[Session End] 📦 3 sources saved: WebSpeech, Chunks, Full');
+
+                // Start diarization polling with blocking modal
+                if (finalizeResult.diarization_job_id) {
+                  setDiarizationJobId(finalizeResult.diarization_job_id);
+                  setShowDiarizationModal(true);
+                  addLog(`🎙️ Iniciando diarización (Job: ${finalizeResult.diarization_job_id.slice(0, 8)}...)`);
+                }
               } else {
                 console.error('[Session End] ❌ Finalization failed:', await finalizeResponse.text());
               }
@@ -807,6 +837,15 @@ export function ConversationCapture({
           onContinue={onNext}
         />
       )}
+
+      {/* Diarization Processing Modal - Blocking modal during diarization */}
+      <DiarizationProcessingModal
+        isOpen={showDiarizationModal}
+        status={diarizationStatus.status}
+        progress={diarizationStatus.progress}
+        segmentCount={diarizationStatus.segmentCount}
+        error={diarizationStatus.error}
+      />
     </div>
   );
 }

@@ -19,3 +19,4 @@ export { DialogueFlow } from './DialogueFlow';
 export { ClinicalNotes } from './ClinicalNotes';
 export { OrderEntry } from './OrderEntry';
 export { SummaryExport } from './SummaryExport';
+export { DiarizationProcessingModal } from './DiarizationProcessingModal';
