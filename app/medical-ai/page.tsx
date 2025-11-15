@@ -18,6 +18,8 @@ import {
   SummaryExport
 } from '@/components/medical';
 import { Mic, MicOff, Clock, User, ArrowLeft, Stethoscope, FileText, MessageSquare, ClipboardList, Download } from 'lucide-react';
+import { useEncounterTimer } from '@/hooks/useEncounterTimer';
+import { Patient, WorkflowStep, Encounter } from '@/types/medical';
 
 // Workflow steps
 const MedicalWorkflowSteps = [
@@ -28,39 +30,47 @@ const MedicalWorkflowSteps = [
   { id: 'resumen', label: 'Resumen', icon: Download, component: SummaryExport },
 ];
 
-// Patient data (would be fetched from FI backend in production)
-const patients = [
+// Patient data (TODO: Fetch from FI backend API in production)
+const patients: Patient[] = [
   {
     id: '1',
     name: 'María García',
     age: 45,
     gender: 'Femenino',
-    medicalHistory: ['Hipertensión', 'Diabetes Tipo 2']
+    medicalHistory: ['Hipertensión', 'Diabetes Tipo 2'],
+    allergies: ['Penicilina'],
+    chronicConditions: ['Hipertensión', 'Diabetes Tipo 2']
   },
   {
     id: '2',
     name: 'Juan Pérez',
     age: 62,
     gender: 'Masculino',
-    medicalHistory: ['Asma', 'Artritis']
+    medicalHistory: ['Asma', 'Artritis'],
+    chronicConditions: ['Asma', 'Artritis'],
+    currentMedications: ['Salbutamol', 'Ibuprofeno']
   },
   {
     id: '3',
     name: 'Ana Martínez',
     age: 33,
     gender: 'Femenino',
-    medicalHistory: []
+    medicalHistory: [],
+    allergies: []
   }
 ];
 
 export default function MedicalAIWorkflow() {
   const router = useRouter();
   const [showPatientSelector, setShowPatientSelector] = useState(true);
-  const [selectedPatient, setSelectedPatient] = useState<any>(null);
-  const [currentStep, setCurrentStep] = useState('escuchar');
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [currentStep, setCurrentStep] = useState<WorkflowStep>('escuchar');
   const [isRecording, setIsRecording] = useState(false);
-  const [encounterTime] = useState('00:08:23');
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
+  const [encounterData, setEncounterData] = useState<Partial<Encounter> | null>(null);
+
+  // Real-time encounter timer
+  const { timeElapsed, pause, resume } = useEncounterTimer(true);
 
   const currentStepIndex = MedicalWorkflowSteps.findIndex(step => step.id === currentStep);
   const progress = ((currentStepIndex + 1) / MedicalWorkflowSteps.length) * 100;
@@ -171,9 +181,15 @@ export default function MedicalAIWorkflow() {
                 {selectedPatient ? `${selectedPatient.name}, ${selectedPatient.age} años` : ''}
               </span>
             </div>
-            <div className="badge-modern border border-cyan-500/20 bg-cyan-500/10">
-              <Clock className="h-4 w-4 text-cyan-400" />
-              <span className="font-medium text-white">{encounterTime}</span>
+            <div
+              className="badge-modern border border-cyan-500/20 bg-cyan-500/10"
+              title="Encounter duration"
+              role="status"
+              aria-live="polite"
+              aria-label={`Encounter duration: ${timeElapsed}`}
+            >
+              <Clock className="h-4 w-4 text-cyan-400" aria-hidden="true" />
+              <span className="font-medium text-white font-mono">{timeElapsed}</span>
             </div>
             <button
               onClick={() => {
@@ -249,6 +265,8 @@ export default function MedicalAIWorkflow() {
             onPrevious={goToPreviousStep}
             isRecording={isRecording}
             setIsRecording={setIsRecording}
+            encounterData={encounterData || undefined}
+            patient={selectedPatient || undefined}
           />
         </div>
       </main>
