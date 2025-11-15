@@ -60,6 +60,7 @@ export default function MedicalAIWorkflow() {
   const [currentStep, setCurrentStep] = useState('escuchar');
   const [isRecording, setIsRecording] = useState(false);
   const [encounterTime] = useState('00:08:23');
+  const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
 
   const currentStepIndex = MedicalWorkflowSteps.findIndex(step => step.id === currentStep);
   const progress = ((currentStepIndex + 1) / MedicalWorkflowSteps.length) * 100;
@@ -127,6 +128,9 @@ export default function MedicalAIWorkflow() {
 
   const goToNextStep = () => {
     if (currentStepIndex < MedicalWorkflowSteps.length - 1) {
+      // Mark current step as completed
+      setCompletedSteps(prev => new Set([...prev, currentStep]));
+      // Move to next step
       setCurrentStep(MedicalWorkflowSteps[currentStepIndex + 1].id);
     }
   };
@@ -196,18 +200,23 @@ export default function MedicalAIWorkflow() {
             {MedicalWorkflowSteps.map((step, index) => {
               const Icon = step.icon;
               const isActive = step.id === currentStep;
-              const isCompleted = index < currentStepIndex;
+              const isCompleted = completedSteps.has(step.id);
+              const isPreviousCompleted = index === 0 || completedSteps.has(MedicalWorkflowSteps[index - 1].id);
+              const isUnlocked = isActive || isCompleted || (isPreviousCompleted && index <= currentStepIndex + 1);
 
               return (
                 <div key={step.id} className="flex items-center gap-2">
                   <button
-                    onClick={() => setCurrentStep(step.id)}
+                    onClick={() => isUnlocked && setCurrentStep(step.id)}
+                    disabled={!isUnlocked}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
                       isActive
                         ? 'bg-emerald-600 text-white'
                         : isCompleted
                         ? 'text-green-400 hover:bg-green-900/50'
-                        : 'text-slate-400 hover:bg-slate-800 border border-slate-700'
+                        : isUnlocked
+                        ? 'text-slate-400 hover:bg-slate-800 border border-slate-700'
+                        : 'text-slate-600 bg-slate-800/50 border border-slate-800 cursor-not-allowed opacity-50'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -215,7 +224,7 @@ export default function MedicalAIWorkflow() {
                   </button>
                   {index < MedicalWorkflowSteps.length - 1 && (
                     <div className={`w-8 h-0.5 ${
-                      index < currentStepIndex ? 'bg-green-500' : 'bg-slate-700'
+                      isCompleted ? 'bg-green-500' : 'bg-slate-700'
                     }`} />
                   )}
                 </div>

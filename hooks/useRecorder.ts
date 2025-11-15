@@ -35,7 +35,7 @@ interface UseRecorderReturn {
   fullAudioBlob: Blob | null;
   fullAudioUrl: string | null;
   startRecording: () => Promise<void>;
-  stopRecording: () => Promise<void>;
+  stopRecording: () => Promise<Blob | null>;
 }
 
 export function useRecorder(config: UseRecorderConfig): UseRecorderReturn {
@@ -189,11 +189,15 @@ export function useRecorder(config: UseRecorderConfig): UseRecorderReturn {
       }
 
       setIsRecording(false);
+
+      // Return the full audio blob for immediate use (avoid stale closure issues)
+      return fullBlob;
     } catch (err) {
       console.error('[Recorder] Stop error:', err);
       if (onError) {
         onError(err instanceof Error ? err.message : 'Error al detener grabación');
       }
+      return null;
     }
   }, [onError]);
 

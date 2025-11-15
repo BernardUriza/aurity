@@ -100,8 +100,23 @@ export function useChunkProcessor(
 
           const jobStatus = await response.json();
 
+          // Backend returns: {session_id, status, total_chunks, processed_chunks, chunks: [...]}
+          // Find the specific chunk we're polling for
+          const targetChunk = jobStatus.chunks?.find((c: any) => c.chunk_number === chunkNumber);
+
+          if (!targetChunk) {
+            // Chunk not yet in job metadata
+            if (attempt % 10 === 0) {
+              console.log(
+                `[CHUNK ${chunkNumber}] ⏳ Chunk not found in job yet (attempt ${attempt + 1})`
+              );
+            }
+            await new Promise((resolve) => setTimeout(resolve, pollInterval));
+            continue;
+          }
+
           // Update chunk status based on backend response
-          if (jobStatus.status === 'processing') {
+          if (targetChunk.status === 'processing' || jobStatus.status === 'in_progress') {
             setChunkStatuses((prev) =>
               prev.map((c) =>
                 c.index === chunkNumber ? { ...c, status: 'processing' as const } : c
@@ -109,20 +124,19 @@ export function useChunkProcessor(
             );
           }
 
-          // Backend returns: {status: "pending"|"processing"|"completed"|"failed", transcript?: string}
-          if (jobStatus.status === 'completed') {
+          // Check if THIS chunk is completed
+          if (targetChunk.status === 'completed') {
             const endTime = Date.now();
             const latency = endTime - startTime;
 
             console.log(
               `[CHUNK ${chunkNumber}] ✅ Poll completed (${latency}ms)`,
-              jobStatus
+              targetChunk
             );
             addLog(`Chunk ${chunkNumber} transcrito en ${(latency / 1000).toFixed(1)}s`);
 
-            // Try different field names the backend might use
-            const transcript =
-              jobStatus.transcript || jobStatus.text || jobStatus.transcription;
+            // Extract transcript from chunk
+            const transcript = targetChunk.transcript;
 
             // Update chunk status to completed
             setChunkStatuses((prev) =>
@@ -156,16 +170,16 @@ export function useChunkProcessor(
               return transcript;
             } else {
               console.warn(
-                `[CHUNK ${chunkNumber}] Job completed but no transcript. Keys:`,
-                Object.keys(jobStatus)
+                `[CHUNK ${chunkNumber}] Chunk completed but no transcript.`,
+                targetChunk
               );
               return null;
             }
-          } else if (jobStatus.status === 'failed') {
+          } else if (targetChunk.status === 'failed') {
             console.error(
-              `[CHUNK ${chunkNumber}] Job failed: ${jobStatus.error || 'Unknown error'}`
+              `[CHUNK ${chunkNumber}] Chunk failed: ${targetChunk.error_message || 'Unknown error'}`
             );
-            addLog(`❌ Chunk ${chunkNumber} falló: ${jobStatus.error || 'Unknown'}`);
+            addLog(`❌ Chunk ${chunkNumber} falló: ${targetChunk.error_message || 'Unknown'}`);
 
             setChunkStatuses((prev) =>
               prev.map((c) =>
@@ -174,27 +188,27 @@ export function useChunkProcessor(
                       ...c,
                       status: 'failed' as const,
                       endTime: Date.now(),
-                      error: jobStatus.error,
+                      error: targetChunk.error_message,
                     }
                   : c
               )
             );
             setBackendHealth('degraded');
             return null;
-          } else if (jobStatus.status === 'pending' || jobStatus.status === 'processing') {
+          } else if (targetChunk.status === 'pending' || targetChunk.status === 'processing') {
             // Still processing, wait and continue polling
             if (attempt % 10 === 0) {
               // Log every 5 seconds (10 attempts * 500ms)
               console.log(
-                `[CHUNK ${chunkNumber}] ⏳ Polling... (${jobStatus.status}, attempt ${attempt + 1})`
+                `[CHUNK ${chunkNumber}] ⏳ Polling... (${targetChunk.status}, attempt ${attempt + 1})`
               );
             }
             await new Promise((resolve) => setTimeout(resolve, pollInterval));
             continue;
           } else {
             console.warn(
-              `[CHUNK ${chunkNumber}] Unknown job status: ${jobStatus.status}`,
-              jobStatus
+              `[CHUNK ${chunkNumber}] Unknown chunk status: ${targetChunk.status}`,
+              targetChunk
             );
             return null;
           }

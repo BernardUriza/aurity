@@ -30,7 +30,8 @@ export function FinalTranscription({
   loadingH5,
   onContinue,
 }: FinalTranscriptionProps) {
-  if (!transcriptionData?.text) return null;
+  // Always show the component after recording, even if no transcription
+  const hasTranscription = transcriptionData?.text && transcriptionData.text.trim().length > 0;
 
   return (
     <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
@@ -40,7 +41,16 @@ export function FinalTranscription({
       </div>
 
       <div className="bg-slate-900/50 rounded-lg p-4 mb-4">
-        <p className="text-slate-300 whitespace-pre-wrap">{transcriptionData.text}</p>
+        {hasTranscription ? (
+          <p className="text-slate-300 whitespace-pre-wrap">{transcriptionData.text}</p>
+        ) : (
+          <div className="text-center py-6">
+            <p className="text-slate-500 mb-2">⚠️ No se generó transcripción</p>
+            <p className="text-xs text-slate-600">
+              Posibles causas: audio muy bajo, silencio detectado, o problema con el micrófono
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Audio Playback (DEMO REQUIREMENT) - Show when audio is available */}

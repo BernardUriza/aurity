@@ -6,10 +6,12 @@
  * Features:
  * - Live transcription updates
  * - Last chunk highlight animation (cyan background)
- * - Blinking cursor effect
+ * - Blinking cursor effect (only when active)
+ * - Paused state indicator
  * - Chunk count indicator
  *
  * Extracted from ConversationCapture (Phase 7)
+ * Updated: Pause state support (2025-11-13)
  */
 
 import type { TranscriptionData } from '@/hooks/useTranscription';
@@ -18,21 +20,31 @@ interface StreamingTranscriptProps {
   transcriptionData: TranscriptionData;
   lastChunkText: string;
   chunkCount: number;
+  isPaused?: boolean;
 }
 
 export function StreamingTranscript({
   transcriptionData,
   lastChunkText,
   chunkCount,
+  isPaused = false,
 }: StreamingTranscriptProps) {
   if (!transcriptionData?.text) return null;
 
   return (
-    <div className="bg-slate-800 rounded-xl p-6 border border-cyan-500/30 animate-in fade-in duration-300">
+    <div className={`bg-slate-800 rounded-xl p-6 border animate-in fade-in duration-300 ${
+      isPaused ? 'border-yellow-500/30' : 'border-cyan-500/30'
+    }`}>
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-        <h3 className="text-lg font-semibold text-white">Transcripción en Tiempo Real</h3>
-        <span className="text-xs text-cyan-400 ml-auto">
+        <div className={`w-2 h-2 rounded-full ${
+          isPaused ? 'bg-yellow-400' : 'bg-cyan-400 animate-pulse'
+        }`} />
+        <h3 className="text-lg font-semibold text-white">
+          {isPaused ? 'Transcripción (Pausada)' : 'Transcripción en Tiempo Real'}
+        </h3>
+        <span className={`text-xs ml-auto ${
+          isPaused ? 'text-yellow-400' : 'text-cyan-400'
+        }`}>
           {chunkCount} chunks procesados
         </span>
       </div>
@@ -47,18 +59,20 @@ export function StreamingTranscript({
               {lastChunkText}
             </span>
           )}
-          {/* Blinking cursor */}
-          <span
-            className="inline-block w-0.5 h-4 ml-1 bg-cyan-400"
-            style={{
-              animation: 'blink 1s step-end infinite'
-            }}
-          />
+          {/* Blinking cursor - Only when NOT paused */}
+          {!isPaused && (
+            <span
+              className="inline-block w-0.5 h-4 ml-1 bg-cyan-400"
+              style={{
+                animation: 'blink 1s step-end infinite'
+              }}
+            />
+          )}
         </p>
       </div>
 
       <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
-        <span>💡 El texto se actualiza cada 3 segundos mientras hablas</span>
+        <span>{isPaused ? '⏸️ Grabación pausada - texto preservado' : '💡 El texto se actualiza cada 3 segundos mientras hablas'}</span>
       </div>
 
       {/* Custom CSS for blink animation */}
