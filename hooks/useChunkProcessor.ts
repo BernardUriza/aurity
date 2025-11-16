@@ -60,8 +60,8 @@ export function useChunkProcessor(
 ): UseChunkProcessorReturn {
   const {
     backendUrl = 'http://localhost:7001',
-    maxAttempts = 120, // 120 attempts * 500ms = 60s timeout
-    pollInterval = 500, // 500ms between polls
+    maxAttempts = 60, // 60 attempts * 1000ms = 60s timeout
+    pollInterval = 1000, // 1000ms (1s) between polls - reduced load on HDF5 SWMR
   } = config;
 
   // State
