@@ -1,27 +1,34 @@
 /**
- * Diarization Polling Hook
+ * Diarization Polling Hook (Adaptive Polling Pattern)
  *
- * Polls the diarization job status and waits for HDF5 triple vision completion
+ * Uses Exponential Backoff with Reset-on-Change strategy:
+ * - Starts with fast polling (1s) when job is active
+ * - Backs off exponentially during idle periods (max 8s)
+ * - Resets to fast polling when progress changes detected
+ * - Pauses when browser tab is hidden (visibility-aware)
  *
  * Author: Bernard Uriza Orozco
  * Created: 2025-11-14
+ * Updated: 2025-11-15 (Adaptive polling pattern)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface DiarizationStatus {
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
   progress: number;
   segmentCount?: number;
   error?: string;
   hasTripleVision?: boolean; // All 3 sources present in HDF5
+  statusMessage?: string; // Detailed message from polling
 }
 
 interface UseDiarizationPollingOptions {
   sessionId: string;
   jobId: string;
   enabled: boolean;
-  pollInterval?: number;
+  pollInterval?: number; // Initial fast interval (default 1s)
+  maxInterval?: number; // Max backoff interval (default 8s)
   maxAttempts?: number;
   onComplete?: () => void;
   onError?: (error: string) => void;
@@ -31,6 +38,8 @@ interface UseDiarizationPollingReturn {
   status: DiarizationStatus;
   isPolling: boolean;
   cancel: () => void;
+  currentInterval: number; // Current adaptive interval (ms)
+  totalPolls: number; // Total polls attempted
 }
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
@@ -42,8 +51,9 @@ export function useDiarizationPolling(
     sessionId,
     jobId,
     enabled,
-    pollInterval = 2000, // Poll every 2 seconds
-    maxAttempts = 150, // 5 minutes max (150 * 2s = 300s)
+    pollInterval = 1000, // Start fast (1s)
+    maxInterval = 8000, // Max backoff (8s)
+    maxAttempts = 180, // 3 min timeout at worst case
     onComplete,
     onError,
   } = options;
@@ -52,22 +62,37 @@ export function useDiarizationPolling(
     status: 'pending',
     progress: 0,
     hasTripleVision: false,
+    statusMessage: '⏳ Esperando en cola...',
   });
   const [isPolling, setIsPolling] = useState(false);
   const attemptRef = useRef(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null); // Changed from interval to timeout
   const isCancelledRef = useRef(false);
+  const currentIntervalRef = useRef(pollInterval); // Track current adaptive interval
+  const lastProgressRef = useRef(0); // Track progress changes for reset-on-change
 
   const checkDiarizationStatus = useCallback(async (): Promise<DiarizationStatus | null> => {
+    if (!sessionId || !jobId) {
+      return null;
+    }
+
     try {
-      // Check diarization job status
-      const response = await fetch(
-        `${BACKEND_URL}/api/internal/diarization/jobs/${jobId}`,
-        {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      const monitorUrl = `${BACKEND_URL}/api/workflows/aurity/sessions/${sessionId}/monitor`;
+
+      // AbortController with 5s timeout to prevent hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const response = await fetch(monitorUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -75,35 +100,62 @@ export function useDiarizationPolling(
 
       const data = await response.json();
 
-      // Check if HDF5 has triple vision (all 3 sources)
-      const hasWebSpeech = data.transcription_sources?.webspeech_final?.length > 0;
-      const hasChunks = data.transcription_sources?.transcription_per_chunks?.length > 0;
-      const hasFullText = data.transcription_sources?.full_transcription?.length > 0;
-      const hasTripleVision = hasWebSpeech && hasChunks && hasFullText;
+      // Use diarization.status directly (backend doesn't return transcription_sources anymore)
+      const diarizationStatus = data.diarization?.status || data.status;
+      const diarizationProgress = data.diarization?.progress || data.progress || 0;
+
+      // Build detailed status message
+      let statusMessage = '';
+      if (diarizationStatus === 'pending') {
+        statusMessage = '⏳ Esperando en cola...';
+      } else if (diarizationStatus === 'in_progress') {
+        if (data.segment_count > 0) {
+          statusMessage = `🎙️ Analizando audio... ${data.segment_count} segmentos identificados`;
+        } else {
+          statusMessage = '🔄 Iniciando análisis...';
+        }
+      } else if (diarizationStatus === 'completed') {
+        statusMessage = `✅ Análisis completo: ${data.segment_count || 0} segmentos clasificados`;
+      } else if (diarizationStatus === 'failed') {
+        statusMessage = `❌ Error: ${data.error || 'Desconocido'}`;
+      }
 
       return {
-        status: data.status,
-        progress: data.progress || 0,
+        status: diarizationStatus,
+        progress: diarizationProgress,
         segmentCount: data.segment_count,
-        hasTripleVision,
+        hasTripleVision: diarizationStatus === 'completed', // Completed = success
+        statusMessage,
       };
     } catch (error) {
-      console.warn('[Diarization Poll] Error:', error);
+      // Silently ignore AbortError (timeout) to reduce console spam
+      if (error instanceof Error && error.name === 'AbortError') {
+        return null;
+      }
+      console.warn('[Polling] Request failed:', error);
       return null;
     }
-  }, [jobId]);
+  }, [sessionId, jobId]);
 
   const startPolling = useCallback(() => {
     if (isCancelledRef.current) return;
 
     setIsPolling(true);
     attemptRef.current = 0;
+    currentIntervalRef.current = pollInterval;
+    lastProgressRef.current = 0;
 
     const poll = async () => {
+      // Visibility-aware: Pause when tab hidden
+      if (typeof document !== 'undefined' && document.hidden) {
+        timeoutRef.current = setTimeout(poll, 2000);
+        return;
+      }
+
       if (isCancelledRef.current) {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
         }
         setIsPolling(false);
         return;
@@ -111,11 +163,11 @@ export function useDiarizationPolling(
 
       attemptRef.current++;
 
-      // Check for timeout
+      // Timeout check
       if (attemptRef.current > maxAttempts) {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
         }
         setStatus({
           status: 'failed',
@@ -133,56 +185,84 @@ export function useDiarizationPolling(
       if (result) {
         setStatus(result);
 
-        // Check if completed AND has triple vision
+        // Reset-on-Change: Detect progress change
+        const progressChanged = result.progress > lastProgressRef.current;
+        if (progressChanged) {
+          currentIntervalRef.current = pollInterval;
+          lastProgressRef.current = result.progress;
+        } else if (result.status === 'pending' || result.status === 'in_progress') {
+          // Exponential Backoff: No change detected, increase interval
+          const newInterval = Math.min(currentIntervalRef.current * 1.5, maxInterval);
+          currentIntervalRef.current = newInterval;
+        }
+
+        // Terminal states
         if (result.status === 'completed' && result.hasTripleVision) {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
           }
           setIsPolling(false);
           onComplete?.();
+          return;
         } else if (result.status === 'failed') {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
           }
           setIsPolling(false);
           onError?.(result.error || 'Diarization failed');
+          return;
         }
+
+        // Schedule next poll with adaptive interval
+        timeoutRef.current = setTimeout(poll, currentIntervalRef.current);
+      } else {
+        timeoutRef.current = setTimeout(poll, 2000);
       }
     };
 
-    // Start polling
-    intervalRef.current = setInterval(poll, pollInterval);
-    poll(); // Run immediately
-  }, [checkDiarizationStatus, maxAttempts, pollInterval, onComplete, onError]);
+    // Start immediately
+    poll();
+  }, [checkDiarizationStatus, maxAttempts, pollInterval, maxInterval, onComplete, onError, sessionId, jobId]);
 
   const cancel = useCallback(() => {
     isCancelledRef.current = true;
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
     setIsPolling(false);
   }, []);
 
   useEffect(() => {
-    if (enabled && sessionId && jobId) {
-      isCancelledRef.current = false;
-      startPolling();
+    // Guard: prevent multiple polling instances
+    if (!enabled || !sessionId || !jobId) {
+      return;
     }
 
+    // Guard: already polling
+    if (isPolling) {
+      return;
+    }
+
+    isCancelledRef.current = false;
+    startPolling();
+
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
-  }, [enabled, sessionId, jobId, startPolling]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, sessionId, jobId]);
 
   return {
     status,
     isPolling,
     cancel,
+    currentInterval: currentIntervalRef.current,
+    totalPolls: attemptRef.current,
   };
 }

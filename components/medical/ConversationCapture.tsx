@@ -6,15 +6,24 @@
  * Production-ready audio recording and transcription component
  * integrated with FI backend services (no demo/mock data).
  *
- * Backend Integration:
- * - POST /api/workflows/aurity/consult - Upload audio for processing
- * - GET /api/workflows/aurity/consult/{job_id} - Poll for results
+ * Backend Integration (Refactored 2025-11-15):
+ * - POST /api/workflows/aurity/stream - Upload audio chunks
+ * - POST /api/workflows/aurity/sessions/{id}/checkpoint - Concatenate audio on pause
+ * - POST /api/workflows/aurity/sessions/{id}/diarization - Dispatch speaker separation (NEW)
+ * - GET /api/workflows/aurity/sessions/{id}/monitor - Monitor progress
+ *
+ * Workflow:
+ * 1. Upload chunks → transcription (Azure Whisper)
+ * 2. Checkpoint on pause (concatenate audio)
+ * 3. End session → dispatch diarization (Azure GPT-4)
+ * 4. SOAP generation (TBD)
+ * 5. Finalize (encrypt session - only after SOAP)
  *
  * Features:
  * - Real audio recording with MediaRecorder API
- * - Progress tracking with job polling
- * - SOAP note generation via Ollama backend
- * - Speaker diarization
+ * - Pause/Resume support with checkpoint concatenation
+ * - Speaker diarization with Azure GPT-4
+ * - Real-time progress monitoring
  *
  * File: apps/aurity/components/medical/ConversationCapture.tsx
  */
@@ -31,7 +40,11 @@ import { useTranscription, type TranscriptionData } from '@/hooks/useTranscripti
 import { useWebSpeech } from '@/hooks/useWebSpeech';
 import { useDiarizationPolling } from '@/hooks/useDiarizationPolling';
 import { AUDIO_CONFIG } from '@/lib/audio/constants';
+import { medicalWorkflowApi } from '@/lib/api/medical-workflow';
 import { DemoButton } from './DemoButton';
+
+// Backend URL constant
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
 import { SessionBadges } from './SessionBadges';
 import { RecordingControls } from './RecordingControls';
 import { AudioLevelVisualizer } from './AudioLevelVisualizer';
@@ -40,15 +53,18 @@ import { WorkflowProgress } from './WorkflowProgress';
 import { StreamingTranscript } from './StreamingTranscript';
 import { PausedAudioPreview } from './PausedAudioPreview';
 import { FinalTranscription } from './FinalTranscription';
-import { H5Modal } from './H5Modal';
 import { TranscriptionSources } from './TranscriptionSources';
 import { DiarizationProcessingModal } from './DiarizationProcessingModal';
+import { CheckpointProgress } from './CheckpointProgress';
+import { H5DebugModal } from '../dev/H5DebugModal';
+import { useH5DebugTools } from '@/hooks/useH5DebugTools';
 
 interface ConversationCaptureProps {
   onNext?: () => void;
   onTranscriptionComplete?: (data: TranscriptionData) => void;
   isRecording?: boolean;
   setIsRecording?: (recording: boolean) => void;
+  onSessionCreated?: (sessionId: string) => void; // Callback when session ID is generated
   className?: string;
 }
 
@@ -73,6 +89,7 @@ export function ConversationCapture({
   onTranscriptionComplete,
   isRecording: externalIsRecording,
   setIsRecording: setExternalIsRecording,
+  onSessionCreated,
   className = ''
 }: ConversationCaptureProps) {
   // State
@@ -84,14 +101,33 @@ export function ConversationCapture({
   const [error, setError] = useState<string | null>(null);
   const [webSpeechTranscripts, setWebSpeechTranscripts] = useState<string[]>([]); // WebSpeech preview (separate)
 
+  // Checkpoint state (for visual feedback during pause)
+  const [checkpointState, setCheckpointState] = useState<{
+    isCreating: boolean;
+    isSuccess: boolean;
+    isError: boolean;
+    chunksCount?: number;
+    audioSizeMB?: number;
+    errorMessage?: string;
+  }>({
+    isCreating: false,
+    isSuccess: false,
+    isError: false,
+  });
+
   // Diarization polling state
+  const [sessionId, setSessionId] = useState<string>(''); // NEW: State for sessionId (needed for polling hook reactivity)
   const [diarizationJobId, setDiarizationJobId] = useState<string | null>(null);
   const [showDiarizationModal, setShowDiarizationModal] = useState(false);
+  const [isWaitingForChunks, setIsWaitingForChunks] = useState(false);
+  const [shouldFinalize, setShouldFinalize] = useState(false);
+  const [estimatedSecondsRemaining, setEstimatedSecondsRemaining] = useState<number>(0);
+  const finalizationStartTimeRef = useRef<number>(0);
 
   // Custom hooks
   const { copiedId, copyToClipboard } = useClipboard();
   const { isDemoPlaying, isDemoPaused, playDemo, pauseDemo, resumeDemo } =
-    useDemoMode('http://localhost:7001/static/consulta_demo.mp3');
+    useDemoMode(`${BACKEND_URL}/static/consulta_demo.mp3`);
   const {
     chunkStatuses,
     setChunkStatuses,
@@ -102,7 +138,7 @@ export function ConversationCapture({
     addLog,
     resetMetrics,
   } = useChunkProcessor({
-    backendUrl: 'http://localhost:7001',
+    backendUrl: BACKEND_URL,
   });
 
   // Transcription hook (Phase 6)
@@ -135,19 +171,49 @@ export function ConversationCapture({
     interimResults: true,
   });
 
-  // Diarization polling hook
-  const { status: diarizationStatus, isPolling } = useDiarizationPolling({
-    sessionId: sessionIdRef.current || '',
+  // Refs (must be declared BEFORE useDiarizationPolling uses them)
+  const audioChunksRef = useRef<Blob[]>([]);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const chunkNumberRef = useRef<number>(0);
+  const sessionIdRef = useRef<string>('');
+  const inflightRef = useRef<Set<string>>(new Set());
+  const fullAudioBlobsRef = useRef<Blob[]>([]);  // Store full audio blob
+
+  // Diarization polling hook (MUST use state, not ref, for reactivity)
+  const {
+    status: diarizationStatus,
+    isPolling,
+    currentInterval,
+    totalPolls,
+  } = useDiarizationPolling({
+    sessionId: sessionId, // State (not ref) - triggers useEffect when set
     jobId: diarizationJobId || '',
     enabled: showDiarizationModal && !!diarizationJobId,
-    onComplete: () => {
+    pollInterval: 1000, // Fast polling (1s) - adaptive backoff handles resource usage
+    maxInterval: 8000, // Standard backoff (8s)
+    onComplete: async () => {
       console.log('[Diarization] ✅ Completed with triple vision');
-      setShowDiarizationModal(false);
       addLog('✅ Diarización completada');
+
+      // Keep modal open for 2 seconds to show success, then reset session
+      setTimeout(() => {
+        setShowDiarizationModal(false);
+        setDiarizationJobId(null);
+        // NOW it's safe to reset sessionId (after diarization complete)
+        sessionIdRef.current = '';
+        setSessionId('');
+        addLog('🔄 Sesión finalizada - listo para nueva grabación');
+      }, 2000);
+
+      console.log('[Workflow] 🎯 Phase 3 complete. Phase 4 (SOAP) pending implementation.');
     },
     onError: (error) => {
       console.error('[Diarization] ❌ Error:', error);
       setShowDiarizationModal(false);
+      setDiarizationJobId(null);
+      // Reset on error too
+      sessionIdRef.current = '';
+      setSessionId('');
       addLog(`❌ Error en diarización: ${error}`);
     },
   });
@@ -155,6 +221,57 @@ export function ConversationCapture({
   // Refs (audio level refs for breaking circular dependency)
   const audioLevelRef = useRef<number>(0);
   const isSilentRef = useRef<boolean>(true);
+
+  // Effect: Monitor chunk completion and trigger finalization when ready
+  useEffect(() => {
+    if (!shouldFinalize || !isWaitingForChunks) {
+      return;
+    }
+
+    const pendingChunks = chunkStatuses.filter(
+      (c) => c.status !== 'completed' && c.status !== 'failed'
+    );
+    const completedCount = chunkStatuses.filter((c) => c.status === 'completed').length;
+
+    // Fetch monitor to get estimated time remaining
+    const fetchMonitor = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/workflows/aurity/sessions/${sessionIdRef.current}/monitor`, {
+          headers: { 'Accept': 'application/json' },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setEstimatedSecondsRemaining(data.transcription?.estimated_seconds_remaining || 0);
+        }
+      } catch (error) {
+        console.error('[Monitor] Failed to fetch estimated time:', error);
+      }
+    };
+
+    if (pendingChunks.length > 0) {
+      fetchMonitor();
+    }
+
+    // Log progress
+    if (pendingChunks.length > 0) {
+      addLog(`⏳ Transcripción: ${completedCount}/${chunkNumberRef.current} chunks completados`);
+    }
+
+    // Check timeout (30 seconds)
+    const elapsed = Date.now() - finalizationStartTimeRef.current;
+    if (elapsed > 30000 && pendingChunks.length > 0) {
+      addLog(`⚠️ Timeout: ${pendingChunks.length} chunks aún pendientes`);
+      setIsWaitingForChunks(false);
+      setShouldFinalize(false);
+      return;
+    }
+
+    // All chunks completed - proceed with finalization
+    if (pendingChunks.length === 0 && chunkNumberRef.current > 0) {
+      setIsWaitingForChunks(false);
+      // The actual finalization will continue in handleEndSession
+    }
+  }, [chunkStatuses, shouldFinalize, isWaitingForChunks, addLog]);
 
   // Chunk processing callback for useRecorder
   const handleChunk = useCallback(
@@ -207,47 +324,30 @@ export function ConversationCapture({
         ]);
         addLog(`📤 Enviando chunk ${chunkNumber} (${(blob.size / 1024).toFixed(1)}KB)`);
 
-        const formData = new FormData();
-        formData.append('session_id', sessionIdRef.current);
-        formData.append('chunk_number', chunkNumber.toString());
-        formData.append('mime', blob.type || '');
-        formData.append('audio', blob, `${chunkNumber}${guessExt(blob.type)}`);
-        formData.append('timestamp_start', timestampStart.toString());
-        formData.append('timestamp_end', timestampEnd.toString());
-
-        const response = await fetch('http://localhost:7001/api/workflows/aurity/stream', {
-          method: 'POST',
-          body: formData,
-        });
-
-        console.log(`[CHUNK ${chunkNumber}] 📥 Response status: ${response.status} ${response.statusText}`);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[CHUNK ${chunkNumber}] ❌ Orchestrator error:`, errorText);
-          throw new Error(`Orchestrator failed: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        console.log(`[CHUNK ${chunkNumber}] 📦 Response JSON:`, result);
+        const result = await medicalWorkflowApi.uploadChunk(
+          sessionIdRef.current,
+          chunkNumber,
+          blob,
+          {
+            timestampStart,
+            timestampEnd,
+            filename: `${chunkNumber}${guessExt(blob.type)}`,
+          }
+        );
 
         // Case 1: Direct transcription succeeded
         if (result.status === 'completed' && result.transcription) {
-          console.log(`[CHUNK ${chunkNumber}] ✅ DIRECT path: "${result.transcription}"`);
           addTranscriptionChunk(result.transcription);
         }
         // Case 2: Worker with polling (session-based job)
         else if (result.status === 'pending' && result.session_id) {
-          console.log(`[CHUNK ${chunkNumber}] 🔄 Job pending for session: ${result.session_id} - Starting polling...`);
           const transcript = await pollJobStatus(sessionIdRef.current, chunkNumber);
           if (transcript) {
-            console.log(`[CHUNK ${chunkNumber}] ✅ Poll completed: "${transcript}"`);
             addTranscriptionChunk(transcript);
           }
         }
         // Case 3: Legacy worker fallback format (deprecated)
         else if (result.queued && result.job_id) {
-          console.log(`[CHUNK ${chunkNumber}] 🔄 WORKER fallback (legacy): ${result.job_id} - Polling...`);
           const transcript = await pollJobStatus(result.job_id, chunkNumber);
           if (transcript) {
             addTranscriptionChunk(transcript);
@@ -297,86 +397,19 @@ export function ConversationCapture({
     isSilentRef.current = isSilent;
   }, [audioLevel, isSilent]);
 
-  // Refs
-  const audioChunksRef = useRef<Blob[]>([]);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const chunkNumberRef = useRef<number>(0);
-  const sessionIdRef = useRef<string>('');
-  const inflightRef = useRef<Set<string>>(new Set());
-  const fullAudioBlobsRef = useRef<Blob[]>([]);  // Store full audio blob
-
   // Advanced monitoring state
   const [wpm, setWpm] = useState<number>(0); // Words per minute
   const startTimeRef = useRef<number>(0);
 
-  // HDF5 Modal state
-  const [showH5Modal, setShowH5Modal] = useState(false);
-  const [h5Data, setH5Data] = useState<any>(null);
-  const [loadingH5, setLoadingH5] = useState(false);
+  // H5 Debug Tools (development only, Ctrl+Shift+H)
+  const h5Debug = useH5DebugTools(sessionIdRef.current);
 
-  // Fetch HDF5 data for current session
-  const fetchH5Data = useCallback(async () => {
-    if (!sessionIdRef.current) {
-      console.warn('No session ID available');
-      return;
+  // Handle "Continue" button click - simplified (no H5 modal in production)
+  const handleContinue = useCallback(() => {
+    if (onNext) {
+      onNext();
     }
-
-    setLoadingH5(true);
-    try {
-      // Create a simple Python script to read HDF5
-      const response = await fetch('http://localhost:7001/api/workflows/aurity/sessions/' + sessionIdRef.current + '/inspect', {
-        method: 'GET',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setH5Data(data);
-      } else {
-        // If endpoint doesn't exist, create inline visualization from what we have
-        setH5Data({
-          session_id: sessionIdRef.current,
-          chunks: chunkStatuses.filter(c => c.status === 'completed').map(c => ({
-            index: c.index,
-            transcript: c.transcript || '',
-            latency_ms: c.latency,
-            status: c.status
-          })),
-          transcription_full: transcriptionData?.text || '',
-          word_count: getWordCount(),
-          duration_seconds: recordingTime,
-          avg_latency_ms: avgLatency,
-          wpm: wpm,
-          full_audio_available: !!fullAudioUrl
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching H5 data:', err);
-      // Fallback to local data
-      setH5Data({
-        session_id: sessionIdRef.current,
-        chunks: chunkStatuses.filter(c => c.status === 'completed').map(c => ({
-          index: c.index,
-          transcript: c.transcript || '',
-          latency_ms: c.latency,
-          status: c.status
-        })),
-        transcription_full: transcriptionData?.text || '',
-        word_count: getWordCount(),
-        duration_seconds: recordingTime,
-        avg_latency_ms: avgLatency,
-        wpm: wpm,
-        full_audio_available: !!fullAudioUrl
-      });
-    } finally {
-      setLoadingH5(false);
-    }
-  }, [sessionIdRef, chunkStatuses, transcriptionData, recordingTime, avgLatency, wpm, fullAudioUrl, getWordCount]);
-
-  // Handle "Continue" button click - open H5 modal first
-  const handleContinue = useCallback(async () => {
-    await fetchH5Data();
-    setShowH5Modal(true);
-  }, [fetchH5Data]);
+  }, [onNext]);
 
   /**
    * Poll job status until completed (AUR-PROMPT-4.2).
@@ -422,6 +455,10 @@ export function ConversationCapture({
       chunkNumberRef.current = 0;
       inflightRef.current.clear();
 
+      // Reset diarization state from previous session
+      setShowDiarizationModal(false);
+      setDiarizationJobId(null);
+
       // Reset transcription (Phase 6 - uses hook)
       resetTranscription();
       setWebSpeechTranscripts([]); // Reset WebSpeech transcripts
@@ -432,9 +469,13 @@ export function ConversationCapture({
       startTimeRef.current = Date.now();
       addLog('🎙️ Grabación iniciada');
 
-      // Generate session ID
-      const sessionId = getSessionId();
-      sessionIdRef.current = sessionId;
+      // Generate NEW session ID (clean slate)
+      const newSessionId = getSessionId();
+      sessionIdRef.current = newSessionId;
+      setSessionId(newSessionId); // Update state for polling hook reactivity
+
+      // Notify parent component (for DialogueFlow to load later)
+      onSessionCreated?.(newSessionId);
 
       // Start recording with hook (handles dual recorders, timer, stream)
       await hookStartRecording();
@@ -477,6 +518,72 @@ export function ConversationCapture({
         const audioUrl = URL.createObjectURL(concatenatedBlob);
         setPausedAudioUrl(audioUrl);
         console.log(`[Pause] Created preview audio: ${(concatenatedBlob.size / 1024 / 1024).toFixed(2)} MB (${fullAudioBlobsRef.current.length} segments)`);
+      }
+
+      // Call checkpoint endpoint to concatenate chunks incrementally
+      if (sessionIdRef.current && chunkNumberRef.current > 0) {
+        const lastChunkIdx = chunkNumberRef.current - 1; // Last uploaded chunk (0-indexed)
+        console.log(`[Checkpoint] Creating checkpoint at chunk ${lastChunkIdx} for session ${sessionIdRef.current}`);
+
+        // Set checkpoint creating state
+        setCheckpointState({
+          isCreating: true,
+          isSuccess: false,
+          isError: false,
+          chunksCount: chunkNumberRef.current,
+        });
+
+        try {
+          const checkpointResult = await medicalWorkflowApi.createCheckpoint(
+            sessionIdRef.current,
+            lastChunkIdx
+          );
+
+          // Backend returns 200 OK on success, throws on error (no need for success field)
+          console.log('[Checkpoint] Success:', checkpointResult);
+          addLog(
+            `✅ Checkpoint creado: ${checkpointResult.chunks_concatenated} chunks concatenados (${(checkpointResult.full_audio_size / 1024 / 1024).toFixed(2)} MB)`
+          );
+
+          // Set success state
+          setCheckpointState({
+            isCreating: false,
+            isSuccess: true,
+            isError: false,
+            chunksCount: checkpointResult.chunks_concatenated,
+            audioSizeMB: checkpointResult.full_audio_size / 1024 / 1024,
+          });
+
+          // Auto-hide success after 3 seconds
+          setTimeout(() => {
+            setCheckpointState({
+              isCreating: false,
+              isSuccess: false,
+              isError: false,
+            });
+          }, 3000);
+        } catch (err) {
+          console.error('[Checkpoint] Error:', err);
+          addLog(`⚠️ Error en checkpoint: ${err instanceof Error ? err.message : 'Unknown'}`);
+
+          // Set error state
+          setCheckpointState({
+            isCreating: false,
+            isSuccess: false,
+            isError: true,
+            chunksCount: chunkNumberRef.current,
+            errorMessage: err instanceof Error ? err.message : 'Unknown error',
+          });
+
+          // Auto-hide error after 3 seconds
+          setTimeout(() => {
+            setCheckpointState({
+              isCreating: false,
+              isSuccess: false,
+              isError: false,
+            });
+          }, 3000);
+        }
       }
 
       setIsPaused(true);
@@ -528,9 +635,14 @@ export function ConversationCapture({
     }
   }, [pausedAudioUrl, hookStartRecording, setExternalIsRecording, addLog, isWebSpeechSupported, startWebSpeech]);
 
-  // End session (NEW - finalizes and resets everything)
-  const handleEndSession = useCallback(async () => {
+  // Perform session finalization (extracted for non-blocking flow)
+  const performFinalization = useCallback(async () => {
     try {
+      console.log('[Session End] 🚀 Starting finalization process...');
+
+      // Close modal temporarily during finalization
+      setShowDiarizationModal(false);
+
       // Clean up paused audio URL if exists
       if (pausedAudioUrl) {
         URL.revokeObjectURL(pausedAudioUrl);
@@ -571,66 +683,27 @@ export function ConversationCapture({
           `[Session End] Preparing full audio blob: ${(finalAudioBlob.size / 1024 / 1024).toFixed(2)} MB`
         );
 
-        const formData = new FormData();
-        formData.append('session_id', sessionIdRef.current);
-        formData.append('full_audio', finalAudioBlob, 'session.webm');
-
         try {
-          const response = await fetch('http://localhost:7001/api/workflows/aurity/end-session', {
-            method: 'POST',
-            body: formData,
-          });
+          const result = await medicalWorkflowApi.endSession(sessionIdRef.current, finalAudioBlob);
+          console.log('[Session End] ✅ Full audio saved:', result);
+          setJobId(result.audio_path);
 
-          if (response.ok) {
-            const result = await response.json();
-            console.log('[Session End] ✅ Full audio saved:', result);
-            setJobId(result.audio_path);
+          // Dispatch diarization (NEW separated endpoint - no finalize yet)
+          try {
+            const diarizationResult = await medicalWorkflowApi.startDiarization(sessionIdRef.current);
 
-            // Finalize session: encrypt + dispatch diarization (with 3 sources)
-            try {
-              // Prepare 3 separate transcription sources for HDF5
-              const transcriptionSources = {
-                webspeech_final: webSpeechTranscripts, // WebSpeech instant previews
-                transcription_per_chunks: chunkStatuses
-                  .filter((c) => c.status === 'completed' && c.transcript)
-                  .map((c) => ({
-                    chunk_number: c.index,
-                    text: c.transcript || '',
-                    latency_ms: c.latency,
-                    confidence: 0, // TODO: extract from backend
-                  })),
-                full_transcription: finalText, // Concatenated full text (from getTranscriptionText)
-              };
-
-              const finalizeResponse = await fetch(
-                `http://localhost:7001/internal/sessions/${sessionIdRef.current}/finalize`,
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ transcription_sources: transcriptionSources }),
-                }
-              );
-
-              if (finalizeResponse.ok) {
-                const finalizeResult = await finalizeResponse.json();
-                console.log('[Session End] ✅ Session finalized:', finalizeResult);
-                console.log('[Session End] 🔐 Encrypted + 🎙️ Diarization dispatched:', finalizeResult.diarization_job_id);
-                console.log('[Session End] 📦 3 sources saved: WebSpeech, Chunks, Full');
-
-                // Start diarization polling with blocking modal
-                if (finalizeResult.diarization_job_id) {
-                  setDiarizationJobId(finalizeResult.diarization_job_id);
-                  setShowDiarizationModal(true);
-                  addLog(`🎙️ Iniciando diarización (Job: ${finalizeResult.diarization_job_id.slice(0, 8)}...)`);
-                }
-              } else {
-                console.error('[Session End] ❌ Finalization failed:', await finalizeResponse.text());
-              }
-            } catch (finalizeErr) {
-              console.error('[Session End] ❌ Finalization error:', finalizeErr);
+            // Start diarization polling with blocking modal
+            if (diarizationResult.job_id) {
+              console.log('[DIARIZATION] 🎙️ Starting diarization job:', diarizationResult.job_id);
+              setDiarizationJobId(diarizationResult.job_id);
+              setIsWaitingForChunks(false); // Chunks done, now waiting for diarization
+              setShowDiarizationModal(true); // Keep modal open, but now for diarization
+              addLog(`🎙️ Iniciando diarización (Job: ${diarizationResult.job_id.slice(0, 8)}...)`);
             }
-          } else {
-            console.warn('[Session End] ⚠️ Could not save full audio (streaming mode):', await response.text());
+          } catch (diarizationErr) {
+            console.error('[Session End] ❌ Diarization error:', diarizationErr);
+            addLog(`❌ Error de diarización: ${diarizationErr}`);
+            setShowDiarizationModal(false);
           }
         } catch (err) {
           console.warn('[Session End] ⚠️ Upload skipped (streaming mode):', err);
@@ -645,18 +718,37 @@ export function ConversationCapture({
         onTranscriptionComplete({ text: finalText });
       }
 
-      // Reset everything for new session
+      // Reset everything EXCEPT sessionId (wait for diarization callback)
       setIsPaused(false);
       resetTranscription();
       resetMetrics();
       setChunkStatuses([]);
       chunkNumberRef.current = 0;
-      sessionIdRef.current = '';
-      addLog('🔄 Sesión finalizada - listo para nueva grabación');
+      // DO NOT reset sessionId here - the diarization polling needs it!
+      // It will be reset in the onComplete/onError callback
     } catch (err) {
       console.error('[Session] End error:', err);
     }
-  }, [pausedAudioUrl, getTranscriptionText, onTranscriptionComplete, resetTranscription, resetMetrics, setChunkStatuses, addLog]);
+  }, [pausedAudioUrl, getTranscriptionText, onTranscriptionComplete, resetTranscription, resetMetrics, setChunkStatuses, addLog, chunkStatuses, webSpeechTranscripts]);
+
+  // Effect: Trigger finalization when chunks are ready
+  useEffect(() => {
+    if (shouldFinalize && !isWaitingForChunks) {
+      performFinalization();
+      setShouldFinalize(false); // Reset flag
+    }
+  }, [shouldFinalize, isWaitingForChunks, performFinalization]);
+
+  // End session handler (non-blocking - shows modal and waits for chunks)
+  const handleEndSession = useCallback(() => {
+    // Show modal for chunk waiting (NOT diarization yet - that comes after)
+    setShowDiarizationModal(true); // Will show "waiting for chunks" state
+    setIsWaitingForChunks(true);
+    setShouldFinalize(true);
+    finalizationStartTimeRef.current = Date.now();
+
+    addLog('🔄 Finalizando sesión - esperando chunks pendientes...');
+  }, [addLog]);
 
   // Handle demo playback - toggle play/pause/resume
   const handleDemoPlayback = useCallback(async () => {
@@ -771,6 +863,16 @@ export function ConversationCapture({
         </div>
       )}
 
+      {/* Checkpoint Progress - Show during pause/checkpoint operations */}
+      <CheckpointProgress
+        isCreating={checkpointState.isCreating}
+        isSuccess={checkpointState.isSuccess}
+        isError={checkpointState.isError}
+        chunksCount={checkpointState.chunksCount}
+        audioSizeMB={checkpointState.audioSizeMB}
+        errorMessage={checkpointState.errorMessage}
+      />
+
       {/* Advanced Monitoring Panel - Persist after recording stops */}
       {chunkStatuses.length > 0 && (
         <AdvancedMetrics
@@ -814,7 +916,6 @@ export function ConversationCapture({
           transcriptionData={transcriptionData}
           fullAudioUrl={fullAudioUrl}
           chunkCount={chunkNumberRef.current}
-          loadingH5={loadingH5}
           onContinue={onNext ? handleContinue : undefined}
         />
       )}
@@ -829,22 +930,35 @@ export function ConversationCapture({
         </div>
       )}
 
-      {/* HDF5 Data Modal */}
-      {showH5Modal && h5Data && (
-        <H5Modal
-          h5Data={h5Data}
-          onClose={() => setShowH5Modal(false)}
-          onContinue={onNext}
+      {/* H5 Debug Modal - Development Only (Ctrl+Shift+H) */}
+      {h5Debug.isEnabled && (
+        <H5DebugModal
+          h5Data={h5Debug.h5Data}
+          isOpen={h5Debug.isOpen}
+          onClose={h5Debug.close}
         />
       )}
 
       {/* Diarization Processing Modal - Blocking modal during diarization */}
       <DiarizationProcessingModal
         isOpen={showDiarizationModal}
-        status={diarizationStatus.status}
+        status={isWaitingForChunks ? 'waiting_for_chunks' : diarizationStatus.status}
         progress={diarizationStatus.progress}
         segmentCount={diarizationStatus.segmentCount}
         error={diarizationStatus.error}
+        statusMessage={diarizationStatus.statusMessage}
+        completedChunks={chunkStatuses.filter((c) => c.status === 'completed').length}
+        totalChunks={chunkNumberRef.current}
+        estimatedSecondsRemaining={estimatedSecondsRemaining}
+        currentInterval={currentInterval}
+        totalPolls={totalPolls}
+        isPolling={isPolling}
+        onCancel={() => {
+          console.log('[ConversationCapture] Emergency exit - closing modal');
+          setShowDiarizationModal(false);
+          setIsWaitingForChunks(false);
+          setShouldFinalize(false);
+        }}
       />
     </div>
   );

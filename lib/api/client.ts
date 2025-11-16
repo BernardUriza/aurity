@@ -79,6 +79,45 @@ export async function apiRequest<T>(
   }
 }
 
+/**
+ * Upload multipart form data (files, audio chunks, etc.)
+ */
+export async function apiUpload<T>(
+  endpoint: string,
+  formData: FormData,
+  options: RequestOptions = {}
+): Promise<T> {
+  const url = `${BACKEND_URL}${endpoint}`;
+
+  try {
+    const response = await fetchWithTimeout(url, {
+      ...options,
+      method: 'POST',
+      body: formData,
+      // Don't set Content-Type - browser sets it with boundary
+      headers: {
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new APIError(
+        response.status,
+        response.statusText,
+        errorText || `Upload failed: ${response.statusText}`
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof APIError) {
+      throw error;
+    }
+    throw new Error(`Upload error: ${error instanceof Error ? error.message : 'Unknown'}`);
+  }
+}
+
 export const api = {
   get: <T>(endpoint: string, options?: RequestOptions) =>
     apiRequest<T>(endpoint, { ...options, method: 'GET' }),
@@ -99,4 +138,7 @@ export const api = {
 
   delete: <T>(endpoint: string, options?: RequestOptions) =>
     apiRequest<T>(endpoint, { ...options, method: 'DELETE' }),
+
+  upload: <T>(endpoint: string, formData: FormData, options?: RequestOptions) =>
+    apiUpload<T>(endpoint, formData, options),
 };

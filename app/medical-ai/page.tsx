@@ -68,6 +68,7 @@ export default function MedicalAIWorkflow() {
   const [isRecording, setIsRecording] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [encounterData, setEncounterData] = useState<Partial<Encounter> | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(''); // Track session ID for diarization
 
   // Real-time encounter timer
   const { timeElapsed, pause, resume } = useEncounterTimer(true);
@@ -267,6 +268,8 @@ export default function MedicalAIWorkflow() {
             setIsRecording={setIsRecording}
             encounterData={encounterData || undefined}
             patient={selectedPatient || undefined}
+            sessionId={currentSessionId}
+            onSessionCreated={setCurrentSessionId}
           />
         </div>
       </main>

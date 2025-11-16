@@ -29,14 +29,6 @@ export function PausedAudioPreview({
   onEndSession,
   onResume,
 }: PausedAudioPreviewProps) {
-  // Debug logging
-  console.log('[PausedAudioPreview] Rendered:', {
-    audioUrl: audioUrl ? `blob:... (${audioUrl.length} chars)` : 'null',
-    segmentCount,
-    chunkCount,
-    hasAudioUrl: !!audioUrl
-  });
-
   return (
     <div className="bg-slate-800 rounded-xl p-6 border border-yellow-500/30 animate-in fade-in duration-300">
       <div className="flex items-center gap-2 mb-4">

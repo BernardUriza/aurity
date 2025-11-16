@@ -1,16 +1,18 @@
 /**
- * H5Modal Component
+ * H5 Debug Modal
  *
- * Modal display for HDF5 session data with detailed metrics and chunk breakdown.
+ * Development-only modal for inspecting HDF5 session data.
  *
  * Features:
  * - Summary cards (duration, words, WPM, chunks)
  * - Full transcription display
  * - Chunk detail breakdown with status indicators
  * - Metadata panel (latency, audio availability)
- * - Continue to next step button
  *
- * Extracted from ConversationCapture (Phase 7)
+ * Trigger: Ctrl+Shift+H (development mode only)
+ *
+ * Author: Bernard Uriza Orozco
+ * Created: 2025-11-15 (Extracted from ConversationCapture Phase 7)
  */
 
 import { formatTime } from '@/lib/audio/formatting';
@@ -31,24 +33,26 @@ interface H5Data {
   full_audio_available: boolean;
 }
 
-interface H5ModalProps {
-  h5Data: H5Data;
+interface H5DebugModalProps {
+  h5Data: H5Data | null;
+  isOpen: boolean;
   onClose: () => void;
-  onContinue?: () => void;
 }
 
-export function H5Modal({ h5Data, onClose, onContinue }: H5ModalProps) {
+export function H5DebugModal({ h5Data, isOpen, onClose }: H5DebugModalProps) {
+  if (!isOpen || !h5Data) return null;
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-      <div className="bg-slate-900 rounded-2xl border border-slate-700 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in duration-300">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between bg-gradient-to-r from-slate-800 to-slate-900">
+      <div className="bg-slate-900 rounded-2xl border border-yellow-500/50 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in duration-300">
+        {/* Modal Header - DEV MODE WARNING */}
+        <div className="px-6 py-4 border-b border-yellow-500/50 flex items-center justify-between bg-gradient-to-r from-yellow-900/20 to-slate-900">
           <div className="flex items-center gap-3">
-            <svg className="w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+            <div className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-bold rounded border border-yellow-500/50">
+              DEV TOOLS
+            </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Datos HDF5 de la Sesión</h2>
+              <h2 className="text-xl font-bold text-white">HDF5 Session Inspector</h2>
               <p className="text-sm text-slate-400">Session ID: {h5Data.session_id}</p>
             </div>
           </div>
@@ -168,25 +172,17 @@ export function H5Modal({ h5Data, onClose, onContinue }: H5ModalProps) {
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-between bg-slate-800/50">
+        {/* Modal Footer - DEV MODE INFO */}
+        <div className="px-6 py-4 border-t border-yellow-500/50 flex items-center justify-between bg-slate-800/50">
+          <p className="text-xs text-slate-400">
+            Hotkey: <kbd className="px-2 py-1 bg-slate-700 rounded text-yellow-400 font-mono">Ctrl+Shift+H</kbd>
+          </p>
           <button
             onClick={onClose}
             className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
           >
             Cerrar
           </button>
-          {onContinue && (
-            <button
-              onClick={() => {
-                onClose();
-                onContinue();
-              }}
-              className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors"
-            >
-              Continuar al Siguiente Paso →
-            </button>
-          )}
         </div>
       </div>
     </div>

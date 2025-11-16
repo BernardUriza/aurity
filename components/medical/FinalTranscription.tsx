@@ -19,7 +19,6 @@ interface FinalTranscriptionProps {
   transcriptionData: TranscriptionData;
   fullAudioUrl: string | null;
   chunkCount: number;
-  loadingH5: boolean;
   onContinue?: () => void;
 }
 
@@ -27,7 +26,6 @@ export function FinalTranscription({
   transcriptionData,
   fullAudioUrl,
   chunkCount,
-  loadingH5,
   onContinue,
 }: FinalTranscriptionProps) {
   // Always show the component after recording, even if no transcription
@@ -82,10 +80,9 @@ export function FinalTranscription({
       {onContinue && (
         <button
           onClick={onContinue}
-          disabled={loadingH5}
-          className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-3 rounded-lg transition-colors"
         >
-          {loadingH5 ? 'Cargando datos...' : 'Continuar al Siguiente Paso'}
+          Continuar al Siguiente Paso
         </button>
       )}
     </div>

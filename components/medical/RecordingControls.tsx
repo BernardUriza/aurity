@@ -10,11 +10,14 @@
  * - Recording time display
  * - End Session button (when paused)
  * - Status text
+ * - Debounce protection (prevents double-click)
  *
  * Extracted from ConversationCapture (Phase 7)
  * Updated: Pause/Resume mode (2025-11-13)
+ * Fixed: Double-click protection (2025-11-15)
  */
 
+import { useState } from 'react';
 import { Mic, Pause, Play, Loader2 } from 'lucide-react';
 import { formatTime } from '@/lib/audio/formatting';
 import type { TranscriptionData } from '@/hooks/useTranscription';
@@ -44,27 +47,58 @@ export function RecordingControls({
   onResume,
   onEndSession,
 }: RecordingControlsProps) {
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const handleClick = async () => {
+    // Prevent double-click
+    if (isTransitioning || isProcessing) {
+      console.warn('[RecordingControls] Ignoring click - already transitioning');
+      return;
+    }
+
+    setIsTransitioning(true);
+
+    try {
+      if (isPaused) {
+        await onResume();
+      } else if (isRecording) {
+        await onPause();
+      } else {
+        await onStart();
+      }
+    } finally {
+      // Reset after 1 second to allow state to update
+      setTimeout(() => setIsTransitioning(false), 1000);
+    }
+  };
+
+  const isDisabled = isProcessing || isTransitioning;
+
   return (
     <div className="bg-slate-800 rounded-xl p-8 border border-slate-700">
       <div className="flex flex-col items-center gap-6">
         {/* Main Control Button */}
         <div className="relative">
           <button
-            onClick={isPaused ? onResume : isRecording ? onPause : onStart}
-            disabled={isProcessing}
+            onClick={handleClick}
+            disabled={isDisabled}
             className={`
               w-24 h-24 rounded-full flex items-center justify-center transition-all relative z-10
-              ${isRecording
+              ${isTransitioning
+                ? 'bg-cyan-500'
+                : isRecording
                 ? 'bg-yellow-500 hover:bg-yellow-600 animate-heartbeat'
                 : isPaused
                 ? 'bg-emerald-500 hover:bg-emerald-600'
                 : 'bg-emerald-500 hover:bg-emerald-600'
               }
-              ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}
+              ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
               shadow-lg hover:shadow-xl
             `}
           >
-            {isPaused ? (
+            {isTransitioning ? (
+              <Loader2 className="h-10 w-10 text-white animate-spin" />
+            ) : isPaused ? (
               <Play className="h-10 w-10 text-white" />
             ) : isRecording ? (
               <Pause className="h-10 w-10 text-white" />
@@ -93,20 +127,28 @@ export function RecordingControls({
         )}
 
         {/* Status Text */}
-        <div className="text-center">
-          {isRecording && (
+        <div className="text-center min-h-[28px]">
+          {isTransitioning && (
+            <div className="flex items-center gap-2 text-cyan-400 animate-pulse">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <p className="font-medium">
+                {isRecording ? 'Pausando grabación...' : isPaused ? 'Reanudando...' : 'Iniciando...'}
+              </p>
+            </div>
+          )}
+          {!isTransitioning && isRecording && (
             <p className="text-yellow-400 font-medium">Grabando... (Click para pausar)</p>
           )}
-          {isPaused && (
+          {!isTransitioning && isPaused && (
             <p className="text-emerald-400 font-medium">Pausado (Click para reanudar)</p>
           )}
-          {isProcessing && (
+          {!isTransitioning && isProcessing && (
             <div className="flex items-center gap-2 text-cyan-400">
               <Loader2 className="h-5 w-5 animate-spin" />
               <p className="font-medium">Procesando audio...</p>
             </div>
           )}
-          {!isRecording && !isPaused && !isProcessing && !transcriptionData && (
+          {!isTransitioning && !isRecording && !isPaused && !isProcessing && !transcriptionData && (
             <p className="text-slate-400">Presiona para comenzar a grabar</p>
           )}
         </div>
