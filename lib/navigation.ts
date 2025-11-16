@@ -15,7 +15,6 @@ import {
   FileText,
   Database,
   Server,
-  Mic,
   Radio,
   Stethoscope,
   type LucideIcon,
@@ -49,15 +48,6 @@ export const NAV_ROUTES: NavRoute[] = [
     icon: Stethoscope,
     shortcut: "2",
     badge: "AI",
-  },
-  {
-    id: "triage",
-    title: "Triage Intake",
-    description: "Captura de conversación médica",
-    href: "/triage",
-    icon: Mic,
-    shortcut: "3",
-    badge: "Live",
   },
   {
     id: "dashboard",

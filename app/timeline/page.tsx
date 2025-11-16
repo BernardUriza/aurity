@@ -50,6 +50,11 @@ export default function TimelinePage() {
         const sessionId = sessions[0].metadata.session_id;
         const detail = await getSessionDetail(sessionId);
 
+        // Validate detail has required structure
+        if (!detail || !detail.metadata || !detail.metadata.session_id) {
+          throw new Error('Invalid session detail format from API');
+        }
+
         const elapsed = performance.now() - start;
         setLoadTime(elapsed);
 

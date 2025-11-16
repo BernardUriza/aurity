@@ -8,8 +8,9 @@
  * Updated: 2025-10-30 - Added timeout, retry, cache
  */
 
+// Timeline router mounted at /api/workflows/aurity/timeline (updated 2025-11-15)
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_TIMELINE_API_URL || 'http://localhost:9002';
+  process.env.NEXT_PUBLIC_TIMELINE_API_URL || 'http://localhost:7001/api/workflows/aurity';
 
 const TIMEOUT_MS = 1000; // 1 second timeout
 const CACHE_KEY_SUMMARIES = 'fi_timeline_summaries';
@@ -198,7 +199,7 @@ export async function getSessionSummaries(params?: {
 }): Promise<SessionSummary[]> {
   const { limit = 50, offset = 0, sort = 'recent' } = params || {};
 
-  const url = new URL(`${API_BASE_URL}/api/timeline/sessions`);
+  const url = new URL(`${API_BASE_URL}/timeline/sessions`);
   url.searchParams.set('limit', limit.toString());
   url.searchParams.set('offset', offset.toString());
   url.searchParams.set('sort', sort);
@@ -236,7 +237,7 @@ export async function getSessionSummaries(params?: {
 export async function getSessionDetail(
   sessionId: string
 ): Promise<SessionDetail> {
-  const url = `${API_BASE_URL}/api/timeline/sessions/${sessionId}`;
+  const url = `${API_BASE_URL}/timeline/sessions/${sessionId}`;
 
   // Use retry for session detail (no cache for individual sessions)
   const response = await fetchWithRetry(url);
@@ -263,7 +264,7 @@ export async function getEvents(params?: {
 }): Promise<EventResponse[]> {
   const { session_id, event_type, who, limit = 100, offset = 0 } = params || {};
 
-  const url = new URL(`${API_BASE_URL}/api/timeline/events`);
+  const url = new URL(`${API_BASE_URL}/timeline/events`);
 
   if (session_id) url.searchParams.set('session_id', session_id);
   if (event_type) url.searchParams.set('event_type', event_type);
@@ -285,7 +286,7 @@ export async function getEvents(params?: {
  * Fetch timeline statistics
  */
 export async function getTimelineStats(): Promise<TimelineStats> {
-  const url = `${API_BASE_URL}/api/timeline/stats`;
+  const url = `${API_BASE_URL}/timeline/stats`;
 
   const response = await fetch(url);
 

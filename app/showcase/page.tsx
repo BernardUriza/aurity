@@ -306,21 +306,12 @@ export default function ShowcasePage() {
   // Mock data for AccessTile
   const mockRoutes: NavRoute[] = [
     {
-      id: "triage",
-      title: "Triage Intake",
-      description: "Start new patient consultation",
-      href: "/triage",
-      icon: Users,
-      shortcut: "1",
-      badge: "New"
-    },
-    {
       id: "sessions",
       title: "Sessions",
       description: "View all consultation sessions",
       href: "/sessions",
       icon: FileText,
-      shortcut: "2"
+      shortcut: "1"
     },
     {
       id: "dashboard",
@@ -328,7 +319,7 @@ export default function ShowcasePage() {
       description: "Analytics and KPIs",
       href: "/dashboard",
       icon: Activity,
-      shortcut: "3"
+      shortcut: "2"
     }
   ];
 

@@ -103,6 +103,56 @@ export interface DiarizationSegment {
   improved_text?: string;
 }
 
+export interface SOAPNote {
+  subjective?: {
+    chiefComplaint?: string;
+    hpi?: string;
+    pastMedicalHistory?: string[];
+    allergies?: string[];
+  };
+  objective?: {
+    vitalSigns?: string;
+    physicalExam?: string;
+  };
+  assessment?: {
+    primaryDiagnosis?: string;
+    differentialDiagnoses?: string[];
+  };
+  plan?: {
+    medications?: Array<{
+      name: string;
+      dose: string;
+      frequency: string;
+      duration?: string;
+      route?: string;
+    }>;
+    studies?: string[];
+    followUp?: string;
+    treatment?: string;
+  };
+}
+
+export interface SOAPResponse {
+  session_id: string;
+  soap: SOAPNote;
+}
+
+export interface MedicalOrder {
+  id: string;
+  type: 'medication' | 'lab' | 'imaging' | 'followup';
+  description: string;
+  details?: string;
+  created_at?: string;
+  updated_at?: string;
+  source?: 'soap' | 'manual';
+}
+
+export interface OrdersResponse {
+  session_id: string;
+  orders: MedicalOrder[];
+  order_count: number;
+}
+
 export interface DiarizationSegmentsResponse {
   session_id: string;
   segments: DiarizationSegment[];
@@ -176,11 +226,17 @@ export const medicalWorkflowApi = {
    */
   endSession: async (
     sessionId: string,
-    fullAudioBlob: Blob
+    fullAudioBlob: Blob,
+    webSpeechTranscripts?: string[]
   ): Promise<EndSessionResponse> => {
     const formData = new FormData();
     formData.append('session_id', sessionId);
     formData.append('full_audio', fullAudioBlob, 'session.webm');
+
+    // Include webspeech transcripts for Triple Vision diarization
+    if (webSpeechTranscripts && webSpeechTranscripts.length > 0) {
+      formData.append('webspeech_final', JSON.stringify(webSpeechTranscripts));
+    }
 
     return api.upload<EndSessionResponse>(
       '/api/workflows/aurity/end-session',
@@ -266,5 +322,88 @@ export const medicalWorkflowApi = {
       { text: newText }
     );
     return response.segment;
+  },
+
+  // ============================================================================
+  // SOAP CRUD
+  // ============================================================================
+
+  /**
+   * Get SOAP note for a session
+   */
+  getSOAP: async (sessionId: string): Promise<SOAPNote> => {
+    const response = await api.get<SOAPResponse>(
+      `/api/workflows/aurity/sessions/${sessionId}/soap`
+    );
+    return response.soap;
+  },
+
+  /**
+   * Update SOAP note (triggers auto-creation of orders)
+   */
+  updateSOAP: async (sessionId: string, soap: SOAPNote): Promise<{ orders_created: number }> => {
+    return api.put<{ success: boolean; orders_created: number }>(
+      `/api/workflows/aurity/sessions/${sessionId}/soap`,
+      { soap }
+    );
+  },
+
+  // ============================================================================
+  // ORDERS CRUD
+  // ============================================================================
+
+  /**
+   * Get all medical orders for a session
+   */
+  getOrders: async (sessionId: string): Promise<MedicalOrder[]> => {
+    const response = await api.get<OrdersResponse>(
+      `/api/workflows/aurity/sessions/${sessionId}/orders`
+    );
+    return response.orders;
+  },
+
+  /**
+   * Create a new medical order
+   */
+  createOrder: async (
+    sessionId: string,
+    order: {
+      type: MedicalOrder['type'];
+      description: string;
+      details?: string;
+    }
+  ): Promise<string> => {
+    const response = await api.post<{ success: boolean; order_id: string }>(
+      `/api/workflows/aurity/sessions/${sessionId}/orders`,
+      order
+    );
+    return response.order_id;
+  },
+
+  /**
+   * Update an existing order
+   */
+  updateOrder: async (
+    sessionId: string,
+    orderId: string,
+    order: {
+      type: MedicalOrder['type'];
+      description: string;
+      details?: string;
+    }
+  ): Promise<void> => {
+    await api.put(
+      `/api/workflows/aurity/sessions/${sessionId}/orders/${orderId}`,
+      order
+    );
+  },
+
+  /**
+   * Delete an order
+   */
+  deleteOrder: async (sessionId: string, orderId: string): Promise<void> => {
+    await api.delete(
+      `/api/workflows/aurity/sessions/${sessionId}/orders/${orderId}`
+    );
   },
 };

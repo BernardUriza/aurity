@@ -11,12 +11,14 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface TranscriptionSourcesProps {
   webSpeechTranscripts: string[];
   whisperChunks: Array<{ chunk_number: number; text: string }>;
   fullTranscription: string;
+  sessionId?: string;
+  isFinalized?: boolean;
   className?: string;
 }
 
@@ -26,13 +28,104 @@ export function TranscriptionSources({
   webSpeechTranscripts,
   whisperChunks,
   fullTranscription,
+  sessionId,
+  isFinalized = false,
   className = '',
 }: TranscriptionSourcesProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('webspeech');
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioLoaded, setAudioLoaded] = useState(false);
+
+  // Build audio URL if session is finalized
+  const audioUrl = sessionId && isFinalized
+    ? `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001'}/api/workflows/aurity/sessions/${sessionId}/audio`
+    : null;
+
+  // Debug: Log audio URL only when it changes
+  useEffect(() => {
+    if (audioUrl) {
+      console.log('[TranscriptionSources] Audio URL:', audioUrl);
+    }
+  }, [audioUrl]);
+
+  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    const audio = e.currentTarget;
+    const error = audio.error;
+    let errorMessage = 'Error desconocido al cargar audio';
+
+    if (error) {
+      switch (error.code) {
+        case MediaError.MEDIA_ERR_ABORTED:
+          errorMessage = 'Carga de audio abortada';
+          break;
+        case MediaError.MEDIA_ERR_NETWORK:
+          errorMessage = 'Error de red al cargar audio';
+          break;
+        case MediaError.MEDIA_ERR_DECODE:
+          errorMessage = 'Error al decodificar audio';
+          break;
+        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+          errorMessage = 'Formato de audio no soportado o archivo no encontrado';
+          break;
+      }
+    }
+
+    console.error('[TranscriptionSources] Audio error:', errorMessage, error);
+    setAudioError(errorMessage);
+  };
+
+  const handleAudioCanPlay = () => {
+    console.log('[TranscriptionSources] Audio loaded successfully');
+    setAudioLoaded(true);
+    setAudioError(null);
+  };
 
   return (
     <div className={`bg-slate-800 rounded-xl p-4 border border-slate-700 ${className}`}>
       <h3 className="text-lg font-semibold text-white mb-3">Fuentes de Transcripción</h3>
+
+      {/* Audio Player (only when finalized) */}
+      {audioUrl && (
+        <div className="mb-4 bg-slate-900 rounded-lg p-4 border border-slate-700">
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="h-5 w-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            </svg>
+            <span className="text-sm font-medium text-purple-400">Audio de la Consulta</span>
+            {audioLoaded && (
+              <span className="text-xs text-green-400 ml-auto">✓ Cargado</span>
+            )}
+          </div>
+
+          <audio
+            controls
+            controlsList="nodownload"
+            className="w-full"
+            src={audioUrl}
+            preload="auto"
+            onError={handleAudioError}
+            onCanPlay={handleAudioCanPlay}
+            onLoadedMetadata={() => console.log('[TranscriptionSources] Audio metadata loaded')}
+          >
+            Tu navegador no soporta reproducción de audio.
+          </audio>
+
+          {audioError && (
+            <div className="mt-2 p-2 bg-red-900/20 border border-red-700/30 rounded text-xs text-red-400">
+              ⚠️ {audioError}
+              <div className="mt-1 text-red-400/60">
+                URL: {audioUrl}
+              </div>
+            </div>
+          )}
+
+          {!audioError && (
+            <p className="text-xs text-slate-500 mt-2">
+              💡 Escucha la grabación completa de la consulta médica
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">

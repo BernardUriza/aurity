@@ -104,6 +104,8 @@ export function ClinicalNotes({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [soapGenerationStatus, setSOAPGenerationStatus] = useState<'pending' | 'in_progress' | 'completed' | 'error' | null>(null);
+  const [pollingAttempts, setPollingAttempts] = useState(0);
 
   // AI Features
   const [aiSuggestions, setAISuggestions] = useState<AISuggestion[]>([]);
@@ -113,6 +115,8 @@ export function ClinicalNotes({
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatbotSize, setChatbotSize] = useState({ width: 384, height: 600 }); // 384px = w-96
+  const [isResizing, setIsResizing] = useState(false);
   const [voiceActive, setVoiceActive] = useState<string | null>(null);
 
   // UI State
@@ -213,19 +217,46 @@ export function ClinicalNotes({
   }, [soapData, generateAISuggestions]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // DATA FETCHING
+  // DATA FETCHING WITH POLLING
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   useEffect(() => {
-    const fetchSOAPNotes = async () => {
-      if (!sessionId) {
-        setError('No session ID provided');
-        setIsLoading(false);
-        return;
-      }
+    const MAX_POLLING_ATTEMPTS = 30; // 30 attempts × 2s = 60s timeout
+    const POLLING_INTERVAL = 2000; // 2 seconds
+    let pollingTimer: NodeJS.Timeout | null = null;
 
+    const checkSOAPStatus = async (): Promise<boolean> => {
       try {
-        setIsLoading(true);
+        // Use monitor endpoint to check SOAP generation status
+        const monitorOutput = await medicalWorkflowApi.getSessionMonitor(sessionId);
+
+        // Parse monitor output to detect SOAP status
+        const hasSOAPCompleted = monitorOutput.includes('SOAP_GENERATION') &&
+                                 monitorOutput.includes('✅');
+        const isSOAPInProgress = monitorOutput.includes('SOAP_GENERATION') &&
+                                 (monitorOutput.includes('⏳') || monitorOutput.includes('🔄'));
+
+        if (hasSOAPCompleted) {
+          setSOAPGenerationStatus('completed');
+          return true;
+        }
+
+        if (isSOAPInProgress) {
+          setSOAPGenerationStatus('in_progress');
+          return false;
+        }
+
+        // No SOAP task found yet
+        setSOAPGenerationStatus('pending');
+        return false;
+      } catch (err) {
+        console.warn('[ClinicalNotes] Failed to check SOAP status:', err);
+        return false;
+      }
+    };
+
+    const fetchSOAPNotes = async () => {
+      try {
         const response: SOAPNoteResponse = await medicalWorkflowApi.getSOAPNote(sessionId);
 
         // Parse backend response to structured format
@@ -257,15 +288,87 @@ export function ClinicalNotes({
           followUp: soap_note.plan.follow_up || ''
         });
 
+        setSOAPGenerationStatus('completed');
         setIsLoading(false);
+        setError(null);
       } catch (err) {
-        console.error('[ClinicalNotes] Failed to fetch:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load SOAP notes');
-        setIsLoading(false);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        const isNoDataError = errorMsg.includes('No SOAP data found') ||
+                             errorMsg.includes('404');
+
+        if (isNoDataError) {
+          console.log('[ClinicalNotes] No SOAP data yet, will poll...');
+          return false; // Indicates SOAP not ready
+        } else {
+          console.error('[ClinicalNotes] Failed to fetch:', err);
+          setError('Failed to load SOAP notes');
+          setSOAPGenerationStatus('error');
+          setIsLoading(false);
+          return true; // Stop polling on error
+        }
       }
+      return true; // SOAP successfully fetched
     };
 
-    fetchSOAPNotes();
+    const pollForSOAP = async () => {
+      if (!sessionId) {
+        setError('No session ID provided');
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Initial attempt to fetch SOAP
+      const initialFetchSuccess = await fetchSOAPNotes();
+      if (initialFetchSuccess) {
+        return; // SOAP already exists or error occurred
+      }
+
+      // Check if SOAP generation is in progress
+      const isSOAPReady = await checkSOAPStatus();
+      if (isSOAPReady) {
+        await fetchSOAPNotes();
+        return;
+      }
+
+      // Start polling
+      setPollingAttempts(0);
+      const poll = async (attempt: number) => {
+        if (attempt >= MAX_POLLING_ATTEMPTS) {
+          console.warn('[ClinicalNotes] SOAP polling timeout after 60s');
+          setError('SOAP generation timeout. Please refresh to try again.');
+          setSOAPGenerationStatus('error');
+          setIsLoading(false);
+          return;
+        }
+
+        setPollingAttempts(attempt + 1);
+
+        const isReady = await checkSOAPStatus();
+        if (isReady) {
+          const success = await fetchSOAPNotes();
+          if (!success) {
+            // SOAP marked as complete but fetch failed, retry
+            pollingTimer = setTimeout(() => poll(attempt + 1), POLLING_INTERVAL);
+          }
+        } else {
+          // Continue polling
+          pollingTimer = setTimeout(() => poll(attempt + 1), POLLING_INTERVAL);
+        }
+      };
+
+      pollingTimer = setTimeout(() => poll(1), POLLING_INTERVAL);
+    };
+
+    pollForSOAP();
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingTimer) {
+        clearTimeout(pollingTimer);
+      }
+    };
   }, [sessionId]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -381,42 +484,130 @@ export function ClinicalNotes({
     setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
 
     try {
-      // TODO: Llamar al endpoint del LLM para parsear el comando
-      // Por ahora, lógica simple de ejemplo:
-      // "nota 1: la paciente vive con VIH" → agregar a HPI
+      // Call LLM assistant endpoint
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE}/api/workflows/aurity/sessions/${sessionId}/assistant`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            command: userMessage,
+            current_soap: soapData,
+          }),
+        }
+      );
 
-      // Simular procesamiento
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
 
-      // Respuesta del asistente (mock)
-      const assistantResponse = `He agregado la información al historial de enfermedad actual.`;
+      const result = await response.json();
 
-      // Actualizar soapData basado en el comando
-      if (userMessage.toLowerCase().includes('nota')) {
-        // Extraer la nota después de "nota X:"
-        const noteMatch = userMessage.match(/nota\s*\d*:\s*(.+)/i);
-        if (noteMatch) {
-          const noteContent = noteMatch[1];
-          setSOAPData(prev => ({
-            ...prev,
-            hpi: prev.hpi + (prev.hpi ? '\n\n' : '') + `• ${noteContent}`
-          }));
+      // Apply updates to soapData
+      const updatedSOAP = { ...soapData };
+
+      for (const [field, operation] of Object.entries(result.updates)) {
+        const colonIndex = operation.indexOf(':');
+        const op = operation.substring(0, colonIndex);
+        const content = operation.substring(colonIndex + 1);
+
+        if (op === 'append') {
+          // Append to existing text field
+          updatedSOAP[field] = (updatedSOAP[field] || '') + content;
+        } else if (op === 'replace') {
+          // Replace entire field
+          updatedSOAP[field] = content;
+        } else if (op === 'add_item') {
+          // Add single item to array
+          if (!Array.isArray(updatedSOAP[field])) {
+            updatedSOAP[field] = [];
+          }
+
+          // Check if content is JSON object (for medications, etc.)
+          let itemToAdd = content;
+          if (content.trim().startsWith('{')) {
+            try {
+              itemToAdd = JSON.parse(content);
+            } catch (e) {
+              console.warn('[Chatbot] Failed to parse JSON item:', content);
+            }
+          }
+
+          updatedSOAP[field].push(itemToAdd);
+        } else if (op === 'add_items') {
+          // Add multiple items to array (content is JSON array)
+          if (!Array.isArray(updatedSOAP[field])) {
+            updatedSOAP[field] = [];
+          }
+
+          try {
+            const items = JSON.parse(content);
+            if (Array.isArray(items)) {
+              updatedSOAP[field].push(...items);
+            } else {
+              console.warn('[Chatbot] add_items content is not an array:', content);
+            }
+          } catch (e) {
+            console.warn('[Chatbot] Failed to parse JSON array:', content, e);
+          }
         }
       }
 
+      setSOAPData(updatedSOAP);
+
       // Add assistant response
-      setChatMessages(prev => [...prev, { role: 'assistant', content: assistantResponse }]);
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: result.explanation
+      }]);
 
     } catch (error) {
       console.error('[Chatbot] Error:', error);
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Lo siento, ocurrió un error al procesar tu solicitud.'
+        content: `Lo siento, ocurrió un error al procesar tu solicitud: ${error instanceof Error ? error.message : 'Error desconocido'}`
       }]);
     } finally {
       setChatLoading(false);
     }
   };
+
+  // Chatbot Resize Handler
+  const handleResizeStart = useCallback((e: React.MouseEvent, direction: 'left' | 'top' | 'topleft') => {
+    e.preventDefault();
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = chatbotSize.width;
+    const startHeight = chatbotSize.height;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = startX - moveEvent.clientX; // Inverted for left resize
+      const deltaY = startY - moveEvent.clientY; // Inverted for top resize
+
+      if (direction === 'left' || direction === 'topleft') {
+        const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
+        setChatbotSize(prev => ({ ...prev, width: newWidth }));
+      }
+
+      if (direction === 'top' || direction === 'topleft') {
+        const newHeight = Math.max(400, Math.min(900, startHeight + deltaY));
+        setChatbotSize(prev => ({ ...prev, height: newHeight }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [chatbotSize]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // COMPUTED
@@ -440,9 +631,22 @@ export function ClinicalNotes({
 
   if (isLoading) {
     return (
-      <div className={`flex items-center justify-center py-12 ${className}`}>
+      <div className={`flex flex-col items-center justify-center py-12 ${className}`}>
         <Loader2 className="h-12 w-12 text-blue-400 animate-spin" />
-        <span className="ml-4 text-slate-400">Cargando notas clínicas...</span>
+        <span className="mt-4 text-slate-400">
+          {soapGenerationStatus === 'pending' && 'Esperando generación de SOAP...'}
+          {soapGenerationStatus === 'in_progress' && `Generando notas SOAP con IA... (${pollingAttempts}/${30})`}
+          {soapGenerationStatus === 'completed' && 'Cargando notas SOAP...'}
+          {!soapGenerationStatus && 'Cargando notas clínicas...'}
+        </span>
+        {soapGenerationStatus === 'in_progress' && (
+          <div className="mt-4 w-64 bg-slate-700 rounded-full h-2">
+            <div
+              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(pollingAttempts / 30) * 100}%` }}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -798,13 +1002,59 @@ export function ClinicalNotes({
               </div>
             )}
           </div>
+
+          {/* Differential Diagnoses */}
+          {soapData.differentialDiagnoses.length > 0 && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Diagnósticos Diferenciales
+              </label>
+              <div className="space-y-2">
+                {soapData.differentialDiagnoses.map((diff, idx) => (
+                  <div key={idx} className="bg-purple-500/5 border border-purple-500/20 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        {typeof diff === 'string' ? (
+                          <span className="text-white">{diff}</span>
+                        ) : (
+                          <>
+                            {diff.code && <span className="text-purple-400 font-semibold mr-2">{diff.code}</span>}
+                            <span className="text-white">{diff.description}</span>
+                          </>
+                        )}
+                      </div>
+                      <button onClick={() => {
+                        setSOAPData(prev => ({
+                          ...prev,
+                          differentialDiagnoses: prev.differentialDiagnoses.filter((_, i) => i !== idx)
+                        }));
+                      }}>
+                        <X className="h-4 w-4 text-slate-400 hover:text-red-400" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* PLAN */}
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-2xl">📋</span>
-            <h3 className="text-xl font-bold text-white">Plan</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📋</span>
+              <h3 className="text-xl font-bold text-white">Plan</h3>
+            </div>
+            <button
+              onClick={() => setShowChatbot(!showChatbot)}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-2 ${
+                showChatbot ? 'bg-emerald-600' : 'bg-slate-700 hover:bg-slate-600'
+              } text-white text-sm`}
+            >
+              <Zap className="h-4 w-4" />
+              Asistente IA
+            </button>
           </div>
 
           {/* Medications */}
@@ -882,6 +1132,30 @@ export function ClinicalNotes({
                 </label>
               ))}
             </div>
+
+            {/* Selected Diagnostic Tests (including custom from chatbot) */}
+            {soapData.diagnosticTests.length > 0 && (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-slate-400 mb-2">Órdenes Seleccionadas:</p>
+                <div className="space-y-2">
+                  {soapData.diagnosticTests.map((test, idx) => (
+                    <div key={idx} className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white">{test}</span>
+                        <button onClick={() => {
+                          setSOAPData(prev => ({
+                            ...prev,
+                            diagnosticTests: prev.diagnosticTests.filter((_, i) => i !== idx)
+                          }));
+                        }}>
+                          <X className="h-4 w-4 text-slate-400 hover:text-red-400" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Follow-up */}
@@ -1068,6 +1342,18 @@ export function ClinicalNotes({
                 <h4 className="text-lg font-bold text-purple-400 mb-2">Evaluación</h4>
                 <div className="space-y-2 text-slate-300">
                   <p><span className="font-semibold">Diagnóstico Principal:</span> {soapData.primaryDiagnosis?.description || 'N/A'}</p>
+                  {soapData.differentialDiagnoses.length > 0 && (
+                    <>
+                      <p className="font-semibold mt-2">Diagnósticos Diferenciales:</p>
+                      <ul className="list-disc ml-6">
+                        {soapData.differentialDiagnoses.map((diff, idx) => (
+                          <li key={idx}>
+                            {typeof diff === 'string' ? diff : diff.description}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1081,6 +1367,16 @@ export function ClinicalNotes({
                       <ul className="list-disc ml-6">
                         {soapData.medications.map((med, idx) => (
                           <li key={idx}>{med.name} - {med.dosage} - {med.frequency}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {soapData.diagnosticTests.length > 0 && (
+                    <>
+                      <p className="font-semibold mt-2">Estudios Solicitados:</p>
+                      <ul className="list-disc ml-6">
+                        {soapData.diagnosticTests.map((test, idx) => (
+                          <li key={idx}>{test}</li>
                         ))}
                       </ul>
                     </>

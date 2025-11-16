@@ -715,8 +715,14 @@ export function ConversationCapture({
         );
 
         try {
-          const result = await medicalWorkflowApi.endSession(sessionIdRef.current, finalAudioBlob);
-          console.log('[Session End] ✅ Full audio saved:', result);
+          // Send full audio + webspeech transcripts (Triple Vision)
+          const result = await medicalWorkflowApi.endSession(
+            sessionIdRef.current,
+            finalAudioBlob,
+            webSpeechTranscripts
+          );
+          console.log('[Session End] ✅ Full audio + webspeech saved:', result);
+          console.log('[Session End] 📋 WebSpeech transcripts sent:', webSpeechTranscripts.length);
           setJobId(result.audio_path);
 
           // Dispatch diarization (NEW separated endpoint - no finalize yet)
@@ -919,14 +925,16 @@ export function ConversationCapture({
       {/* Workflow Progress - Enhanced with icons and animations */}
       {workflowStatus && <WorkflowProgress workflowStatus={workflowStatus} />}
 
-      {/* 3 Separate Transcription Sources - Show when recording/paused */}
-      {(isRecording || isPaused || chunkNumberRef.current > 0) && (
+      {/* 3 Separate Transcription Sources - Show when recording/paused/completed */}
+      {(isRecording || isPaused || isFinalized || chunkNumberRef.current > 0) && (
         <TranscriptionSources
           webSpeechTranscripts={webSpeechTranscripts}
           whisperChunks={chunkStatuses
             .filter((c) => c.status === 'completed' && c.transcript)
             .map((c) => ({ chunk_number: c.index, text: c.transcript || '' }))}
           fullTranscription={transcriptionData?.text || ''}
+          sessionId={sessionIdRef.current}
+          isFinalized={isFinalized}
           className="mt-4"
         />
       )}
