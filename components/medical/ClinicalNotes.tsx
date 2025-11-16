@@ -18,7 +18,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Save, AlertCircle, CheckCircle2, ChevronRight, Loader2,
-  Copy, Check, RefreshCw, Eye, Edit2, Download, History, ArrowUpDown,
+  Copy, Check, RefreshCw, Eye, Edit2, Edit3, Download, History, ArrowUpDown,
   Mic, MicOff, Sparkles, Search, Pill, Activity, Thermometer,
   Heart, Wind, TrendingUp, Plus, X, Brain, AlertTriangle, BookOpen, Zap
 } from 'lucide-react';
@@ -549,90 +549,90 @@ export function ClinicalNotes({
 
             <div className="grid grid-cols-5 gap-3">
               {/* Temperature */}
-              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600">
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600 hover:border-red-400 transition-colors group">
                 <div className="flex items-center gap-2 mb-2">
                   <Thermometer className="h-4 w-4 text-red-400" />
                   <span className="text-xs text-slate-400">Temp.</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded border border-slate-700 hover:border-red-500 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500/50 cursor-text">
                   <input
                     type="number"
                     step="0.1"
                     value={soapData.vitalSigns.temperature}
                     onChange={(e) => updateVitalSign('temperature', e.target.value)}
                     placeholder="36.5"
-                    className="w-14 bg-transparent text-white text-lg font-semibold border-none outline-none"
+                    className="w-14 bg-transparent text-white text-lg font-semibold border-none outline-none cursor-text"
                   />
                   <span className="text-slate-400 text-sm">°C</span>
                 </div>
               </div>
 
               {/* Heart Rate */}
-              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600">
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600 hover:border-red-400 transition-colors group">
                 <div className="flex items-center gap-2 mb-2">
                   <Heart className="h-4 w-4 text-red-400" />
                   <span className="text-xs text-slate-400">FC</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded border border-slate-700 hover:border-red-500 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500/50 cursor-text">
                   <input
                     type="number"
                     value={soapData.vitalSigns.heartRate}
                     onChange={(e) => updateVitalSign('heartRate', e.target.value)}
                     placeholder="72"
-                    className="w-12 bg-transparent text-white text-lg font-semibold border-none outline-none"
+                    className="w-12 bg-transparent text-white text-lg font-semibold border-none outline-none cursor-text"
                   />
                   <span className="text-slate-400 text-sm">bpm</span>
                 </div>
               </div>
 
               {/* Blood Pressure */}
-              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600">
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600 hover:border-blue-400 transition-colors group">
                 <div className="flex items-center gap-2 mb-2">
                   <Activity className="h-4 w-4 text-blue-400" />
                   <span className="text-xs text-slate-400">PA</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded border border-slate-700 hover:border-blue-500 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/50 cursor-text">
                   <input
                     type="text"
                     value={soapData.vitalSigns.bloodPressure}
                     onChange={(e) => updateVitalSign('bloodPressure', e.target.value)}
                     placeholder="120/80"
-                    className="w-16 bg-transparent text-white text-lg font-semibold border-none outline-none"
+                    className="w-16 bg-transparent text-white text-lg font-semibold border-none outline-none cursor-text"
                   />
                 </div>
               </div>
 
               {/* Respiratory Rate */}
-              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600">
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600 hover:border-cyan-400 transition-colors group">
                 <div className="flex items-center gap-2 mb-2">
                   <Wind className="h-4 w-4 text-cyan-400" />
                   <span className="text-xs text-slate-400">FR</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded border border-slate-700 hover:border-cyan-500 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/50 cursor-text">
                   <input
                     type="number"
                     value={soapData.vitalSigns.respiratoryRate}
                     onChange={(e) => updateVitalSign('respiratoryRate', e.target.value)}
                     placeholder="16"
-                    className="w-12 bg-transparent text-white text-lg font-semibold border-none outline-none"
+                    className="w-12 bg-transparent text-white text-lg font-semibold border-none outline-none cursor-text"
                   />
                   <span className="text-slate-400 text-sm">/min</span>
                 </div>
               </div>
 
               {/* SpO2 */}
-              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600">
+              <div className="bg-slate-900 p-3 rounded-lg border border-slate-600 hover:border-green-400 transition-colors group">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="h-4 w-4 text-green-400" />
                   <span className="text-xs text-slate-400">SpO₂</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded border border-slate-700 hover:border-green-500 focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500/50 cursor-text">
                   <input
                     type="number"
                     value={soapData.vitalSigns.oxygenSaturation}
                     onChange={(e) => updateVitalSign('oxygenSaturation', e.target.value)}
                     placeholder="98"
-                    className="w-12 bg-transparent text-white text-lg font-semibold border-none outline-none"
+                    className="w-12 bg-transparent text-white text-lg font-semibold border-none outline-none cursor-text"
                   />
                   <span className="text-slate-400 text-sm">%</span>
                 </div>
@@ -642,15 +642,16 @@ export function ClinicalNotes({
 
           {/* Physical Exam */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+              <Edit3 className="h-4 w-4 text-cyan-400" />
               Examen Físico
             </label>
             <textarea
               value={soapData.physicalExam}
               onChange={(e) => updateField('physicalExam', e.target.value)}
               rows={3}
-              placeholder="Descripción del examen físico..."
-              className="w-full bg-slate-900 text-white px-4 py-2 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none resize-none"
+              placeholder="Descripción del examen físico... (haz clic para editar)"
+              className="w-full bg-slate-800/50 text-white px-4 py-3 rounded-lg border border-slate-700 hover:border-cyan-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/50 focus:outline-none resize-none transition-colors cursor-text"
             />
           </div>
         </div>
