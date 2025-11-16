@@ -108,6 +108,11 @@ export function ClinicalNotes({
   // AI Features
   const [aiSuggestions, setAISuggestions] = useState<AISuggestion[]>([]);
   const [showAIPanel, setShowAIPanel] = useState(true);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showChatbot, setShowChatbot] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
   const [voiceActive, setVoiceActive] = useState<string | null>(null);
 
   // UI State
@@ -362,6 +367,58 @@ export function ClinicalNotes({
   };
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // CHATBOT HANDLER
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    setChatLoading(true);
+
+    // Add user message to chat
+    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+    try {
+      // TODO: Llamar al endpoint del LLM para parsear el comando
+      // Por ahora, lógica simple de ejemplo:
+      // "nota 1: la paciente vive con VIH" → agregar a HPI
+
+      // Simular procesamiento
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Respuesta del asistente (mock)
+      const assistantResponse = `He agregado la información al historial de enfermedad actual.`;
+
+      // Actualizar soapData basado en el comando
+      if (userMessage.toLowerCase().includes('nota')) {
+        // Extraer la nota después de "nota X:"
+        const noteMatch = userMessage.match(/nota\s*\d*:\s*(.+)/i);
+        if (noteMatch) {
+          const noteContent = noteMatch[1];
+          setSOAPData(prev => ({
+            ...prev,
+            hpi: prev.hpi + (prev.hpi ? '\n\n' : '') + `• ${noteContent}`
+          }));
+        }
+      }
+
+      // Add assistant response
+      setChatMessages(prev => [...prev, { role: 'assistant', content: assistantResponse }]);
+
+    } catch (error) {
+      console.error('[Chatbot] Error:', error);
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Lo siento, ocurrió un error al procesar tu solicitud.'
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // COMPUTED
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -411,13 +468,16 @@ export function ClinicalNotes({
             <p className="text-sm text-slate-400">Inputs estructurados con asistencia de IA</p>
           </div>
           <div className="flex gap-2">
+            {/* Vista Previa - Modal de solo lectura */}
             <button
-              onClick={() => setViewMode(prev => prev === 'structured' ? 'text' : 'structured')}
+              onClick={() => setShowPreviewModal(true)}
               className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg flex items-center gap-2"
             >
-              {viewMode === 'structured' ? <Edit2 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              {viewMode === 'structured' ? 'Modo Texto' : 'Modo Estructurado'}
+              <Eye className="h-4 w-4" />
+              Vista Previa
             </button>
+
+            {/* SOAP ⇄ APSO Toggle */}
             <button
               onClick={() => setSectionOrder(prev => prev === 'SOAP' ? 'APSO' : 'SOAP')}
               className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg flex items-center gap-2"
@@ -425,6 +485,19 @@ export function ClinicalNotes({
               <ArrowUpDown className="h-4 w-4" />
               {sectionOrder}
             </button>
+
+            {/* Chatbot Guía - Modificar notas con lenguaje natural */}
+            <button
+              onClick={() => setShowChatbot(!showChatbot)}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                showChatbot ? 'bg-emerald-600' : 'bg-slate-700 hover:bg-slate-600'
+              } text-white`}
+            >
+              <Zap className="h-4 w-4" />
+              Asistente IA
+            </button>
+
+            {/* Panel IA (sugerencias) */}
             <button
               onClick={() => setShowAIPanel(!showAIPanel)}
               className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
@@ -432,7 +505,7 @@ export function ClinicalNotes({
               } text-white`}
             >
               <Brain className="h-4 w-4" />
-              Panel IA
+              Sugerencias
             </button>
           </div>
         </div>
@@ -936,6 +1009,169 @@ export function ClinicalNotes({
                   Buscar guías clínicas
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* MODAL: Vista Previa (Solo Lectura) */}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 rounded-xl max-w-3xl w-full max-h-[80vh] overflow-y-auto border border-slate-700">
+            {/* Header */}
+            <div className="sticky top-0 bg-slate-900 border-b border-slate-700 p-6 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-white">Vista Previa - Notas SOAP</h3>
+                <p className="text-sm text-slate-400">Solo lectura</p>
+              </div>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Subjective */}
+              <div>
+                <h4 className="text-lg font-bold text-emerald-400 mb-2">Subjetivo</h4>
+                <div className="space-y-2 text-slate-300">
+                  <p><span className="font-semibold">Motivo de Consulta:</span> {soapData.chiefComplaint || 'N/A'}</p>
+                  <p><span className="font-semibold">Historia:</span></p>
+                  <p className="whitespace-pre-wrap">{soapData.hpi || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Objective */}
+              <div>
+                <h4 className="text-lg font-bold text-cyan-400 mb-2">Objetivo</h4>
+                <div className="space-y-2 text-slate-300">
+                  <p className="font-semibold">Signos Vitales:</p>
+                  <div className="grid grid-cols-2 gap-2 ml-4">
+                    <p>Temperatura: {soapData.vitalSigns.temperature || 'N/A'} °C</p>
+                    <p>FC: {soapData.vitalSigns.heartRate || 'N/A'} bpm</p>
+                    <p>PA: {soapData.vitalSigns.bloodPressure || 'N/A'}</p>
+                    <p>FR: {soapData.vitalSigns.respiratoryRate || 'N/A'} /min</p>
+                    <p>SpO₂: {soapData.vitalSigns.oxygenSaturation || 'N/A'} %</p>
+                  </div>
+                  <p className="mt-2"><span className="font-semibold">Examen Físico:</span></p>
+                  <p className="whitespace-pre-wrap">{soapData.physicalExam || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Assessment */}
+              <div>
+                <h4 className="text-lg font-bold text-purple-400 mb-2">Evaluación</h4>
+                <div className="space-y-2 text-slate-300">
+                  <p><span className="font-semibold">Diagnóstico Principal:</span> {soapData.primaryDiagnosis?.description || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Plan */}
+              <div>
+                <h4 className="text-lg font-bold text-amber-400 mb-2">Plan</h4>
+                <div className="space-y-2 text-slate-300">
+                  {soapData.medications.length > 0 && (
+                    <>
+                      <p className="font-semibold">Medicamentos:</p>
+                      <ul className="list-disc ml-6">
+                        {soapData.medications.map((med, idx) => (
+                          <li key={idx}>{med.name} - {med.dosage} - {med.frequency}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  <p className="mt-2"><span className="font-semibold">Seguimiento:</span></p>
+                  <p className="whitespace-pre-wrap">{soapData.followUp || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* CHATBOT: Asistente IA (Modificar notas con lenguaje natural) */}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {showChatbot && (
+        <div className="fixed bottom-6 right-6 w-96 bg-slate-900 rounded-xl border border-emerald-500 shadow-2xl z-40 flex flex-col max-h-[600px]">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-emerald-600 to-cyan-600 p-4 rounded-t-xl flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-white" />
+              <h3 className="text-white font-bold">Asistente IA</h3>
+            </div>
+            <button
+              onClick={() => setShowChatbot(false)}
+              className="text-white hover:bg-white/20 p-1 rounded"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-800">
+            {chatMessages.length === 0 && (
+              <div className="text-center text-slate-400 py-8">
+                <Brain className="h-12 w-12 mx-auto mb-3 text-emerald-400" />
+                <p className="text-sm">Escribe comandos como:</p>
+                <p className="text-xs mt-2 text-emerald-400">"nota 1: la paciente vive con VIH"</p>
+                <p className="text-xs text-emerald-400">"agregar alergia a penicilina"</p>
+              </div>
+            )}
+
+            {chatMessages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] px-4 py-2 rounded-lg ${
+                    msg.role === 'user'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                </div>
+              </div>
+            ))}
+
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-slate-700 px-4 py-2 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+                    <p className="text-sm text-slate-400">Procesando...</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div className="p-4 border-t border-slate-700">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleChatSend()}
+                placeholder="Escribe un comando..."
+                className="flex-1 bg-slate-800 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none text-sm"
+                disabled={chatLoading}
+              />
+              <button
+                onClick={handleChatSend}
+                disabled={!chatInput.trim() || chatLoading}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg flex items-center gap-2"
+              >
+                <Zap className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </div>
