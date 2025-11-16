@@ -207,4 +207,23 @@ export const medicalWorkflowApi = {
       `/api/workflows/aurity/sessions/${sessionId}/diarization/segments`
     );
   },
+
+  /**
+   * Get session monitor (real-time progress with ASCII art)
+   */
+  getSessionMonitor: async (sessionId: string): Promise<string> => {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001'}/api/workflows/aurity/sessions/${sessionId}/monitor`,
+      {
+        method: 'GET',
+        headers: { 'Accept': 'text/plain' },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Monitor API error: ${response.status}`);
+    }
+
+    return response.text();
+  },
 };

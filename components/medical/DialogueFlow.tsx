@@ -18,6 +18,7 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Edit2, Save, User, ChevronRight, Loader2, AlertCircle } from 'lucide-react';
 import { medicalWorkflowApi, type DiarizationSegment } from '@/lib/api/medical-workflow';
+import { isDoctor, isPatient } from '@/lib/constants/speakers';
 
 interface DialogueFlowProps {
   onNext?: () => void;
@@ -231,13 +232,13 @@ export function DialogueFlow({
           </div>
           <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 text-center">
             <div className="text-2xl font-bold text-cyan-400">
-              {dialogue.filter(d => d.speaker === 'MEDICO' || d.speaker === 'Doctor').length}
+              {dialogue.filter(d => isDoctor(d.speaker)).length}
             </div>
             <div className="text-sm text-slate-400">Médico</div>
           </div>
           <div className="bg-slate-800 rounded-lg p-4 border border-slate-700 text-center">
             <div className="text-2xl font-bold text-purple-400">
-              {dialogue.filter(d => d.speaker === 'PACIENTE' || d.speaker === 'Paciente').length}
+              {dialogue.filter(d => isPatient(d.speaker)).length}
             </div>
             <div className="text-sm text-slate-400">Paciente</div>
           </div>

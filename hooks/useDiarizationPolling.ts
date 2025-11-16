@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { POLLING_CONFIG, BACKOFF_MULTIPLIER } from '@/lib/constants/polling';
 
 interface DiarizationStatus {
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
@@ -51,9 +52,9 @@ export function useDiarizationPolling(
     sessionId,
     jobId,
     enabled,
-    pollInterval = 1000, // Start fast (1s)
-    maxInterval = 8000, // Max backoff (8s)
-    maxAttempts = 180, // 3 min timeout at worst case
+    pollInterval = POLLING_CONFIG.INITIAL_INTERVAL,
+    maxInterval = POLLING_CONFIG.MAX_INTERVAL,
+    maxAttempts = POLLING_CONFIG.MAX_ATTEMPTS,
     onComplete,
     onError,
   } = options;
@@ -79,9 +80,9 @@ export function useDiarizationPolling(
     try {
       const monitorUrl = `${BACKEND_URL}/api/workflows/aurity/sessions/${sessionId}/monitor`;
 
-      // AbortController with 5s timeout to prevent hanging requests
+      // AbortController with timeout to prevent hanging requests
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), POLLING_CONFIG.REQUEST_TIMEOUT);
 
       const response = await fetch(monitorUrl, {
         method: 'GET',
@@ -148,7 +149,7 @@ export function useDiarizationPolling(
     const poll = async () => {
       // Visibility-aware: Pause when tab hidden
       if (typeof document !== 'undefined' && document.hidden) {
-        timeoutRef.current = setTimeout(poll, 2000);
+        timeoutRef.current = setTimeout(poll, POLLING_CONFIG.HIDDEN_TAB_INTERVAL);
         return;
       }
 
@@ -192,7 +193,7 @@ export function useDiarizationPolling(
           lastProgressRef.current = result.progress;
         } else if (result.status === 'pending' || result.status === 'in_progress') {
           // Exponential Backoff: No change detected, increase interval
-          const newInterval = Math.min(currentIntervalRef.current * 1.5, maxInterval);
+          const newInterval = Math.min(currentIntervalRef.current * BACKOFF_MULTIPLIER, maxInterval);
           currentIntervalRef.current = newInterval;
         }
 
@@ -218,7 +219,8 @@ export function useDiarizationPolling(
         // Schedule next poll with adaptive interval
         timeoutRef.current = setTimeout(poll, currentIntervalRef.current);
       } else {
-        timeoutRef.current = setTimeout(poll, 2000);
+        // Fallback: retry with hidden tab interval if request failed
+        timeoutRef.current = setTimeout(poll, POLLING_CONFIG.HIDDEN_TAB_INTERVAL);
       }
     };
 

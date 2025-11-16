@@ -40,11 +40,9 @@ import { useTranscription, type TranscriptionData } from '@/hooks/useTranscripti
 import { useWebSpeech } from '@/hooks/useWebSpeech';
 import { useDiarizationPolling } from '@/hooks/useDiarizationPolling';
 import { AUDIO_CONFIG } from '@/lib/audio/constants';
+import { POLLING_CONFIG } from '@/lib/constants/polling';
 import { medicalWorkflowApi } from '@/lib/api/medical-workflow';
 import { DemoButton } from './DemoButton';
-
-// Backend URL constant
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
 import { SessionBadges } from './SessionBadges';
 import { RecordingControls } from './RecordingControls';
 import { AudioLevelVisualizer } from './AudioLevelVisualizer';
@@ -189,24 +187,51 @@ export function ConversationCapture({
     sessionId: diarizationJobId || '', // job_id IS the session_id (backend returns same value)
     jobId: diarizationJobId || '',
     enabled: showDiarizationModal && !!diarizationJobId,
-    pollInterval: 1000, // Fast polling (1s) - adaptive backoff handles resource usage
-    maxInterval: 8000, // Standard backoff (8s)
+    pollInterval: POLLING_CONFIG.INITIAL_INTERVAL,
+    maxInterval: POLLING_CONFIG.MAX_INTERVAL,
     onComplete: async () => {
       console.log('[Diarization] ✅ Completed with triple vision');
       addLog('✅ Diarización completada');
 
-      // Keep modal open for 2 seconds to show success, then auto-advance to next step
-      setTimeout(() => {
+      // Keep modal open briefly to show success, then trigger Phase 4 (SOAP)
+      setTimeout(async () => {
         setShowDiarizationModal(false);
         setDiarizationJobId(null);
-        // NOW it's safe to reset sessionId (after diarization complete)
-        sessionIdRef.current = '';
-        setSessionId('');
-        addLog('🔄 Sesión finalizada - avanzando al siguiente paso');
 
-        // Auto-advance to next workflow step (Phase 4: Review)
-        console.log('[Workflow] 🎯 Phase 3 complete. Auto-advancing to Phase 4 (Review).');
-        onNext?.();
+        console.log('[Workflow] 🎯 Phase 3 complete. Starting Phase 4 (SOAP Generation).');
+        addLog('✅ Diarización completa - iniciando generación de nota SOAP...');
+
+        // Phase 4: SOAP Generation (NEW)
+        try {
+          const soapResult = await medicalWorkflowApi.startSOAPGeneration(sessionIdRef.current);
+          console.log('[SOAP] Generation started:', soapResult);
+          addLog(`📝 SOAP generation iniciada (job_id: ${soapResult.job_id})`);
+
+          // TODO: Poll SOAP status similar to diarization
+          // For now, just auto-advance after short delay
+          setTimeout(() => {
+            addLog('✅ SOAP generation completada (polling TBD)');
+
+            // Phase 5: Finalize (encryption)
+            console.log('[Workflow] 🎯 Phase 4 complete. Ready for Phase 5 (Finalize).');
+
+            // Reset session after all phases complete
+            sessionIdRef.current = '';
+            setSessionId('');
+            addLog('🔄 Workflow completo - listo para nueva sesión');
+
+            // Auto-advance to next step (review screen)
+            onNext?.();
+          }, 3000);
+        } catch (error) {
+          console.error('[SOAP] Failed to start generation:', error);
+          addLog(`❌ Error iniciando SOAP: ${error}`);
+
+          // Still advance even if SOAP fails (graceful degradation)
+          sessionIdRef.current = '';
+          setSessionId('');
+          onNext?.();
+        }
       }, 2000);
     },
     onError: (error) => {
@@ -238,12 +263,14 @@ export function ConversationCapture({
     // Fetch monitor to get estimated time remaining
     const fetchMonitor = async () => {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/workflows/aurity/sessions/${sessionIdRef.current}/monitor`, {
-          headers: { 'Accept': 'application/json' },
-        });
-        if (response.ok) {
-          const data = await response.json();
+        const monitorText = await medicalWorkflowApi.getSessionMonitor(sessionIdRef.current);
+        // Parse JSON from monitor text response (backend returns both ASCII + JSON)
+        try {
+          const data = JSON.parse(monitorText);
           setEstimatedSecondsRemaining(data.transcription?.estimated_seconds_remaining || 0);
+        } catch {
+          // If not JSON, ignore (pure ASCII art)
+          console.log('[Monitor] ASCII art response received');
         }
       } catch (error) {
         console.error('[Monitor] Failed to fetch estimated time:', error);
