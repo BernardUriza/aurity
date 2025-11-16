@@ -406,4 +406,24 @@ export const medicalWorkflowApi = {
       `/api/workflows/aurity/sessions/${sessionId}/orders/${orderId}`
     );
   },
+
+  /**
+   * Get all transcription chunks for a session
+   */
+  getTranscriptionChunks: async (sessionId: string): Promise<{
+    session_id: string;
+    chunks: Array<{
+      chunk_number: number;
+      transcript: string;
+      duration: number;
+      created_at: string;
+      status: string;
+    }>;
+    total_duration: number;
+    total_chunks: number;
+  }> => {
+    return api.get(
+      `/api/workflows/aurity/sessions/${sessionId}/chunks`
+    );
+  },
 };

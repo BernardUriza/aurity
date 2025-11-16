@@ -66,6 +66,8 @@ interface ConversationCaptureProps {
   isRecording?: boolean;
   setIsRecording?: (recording: boolean) => void;
   onSessionCreated?: (sessionId: string) => void; // Callback when session ID is generated
+  sessionId?: string; // Existing session ID (for read-only mode)
+  readOnly?: boolean; // Read-only mode for existing sessions
   className?: string;
 }
 
@@ -91,6 +93,8 @@ export function ConversationCapture({
   isRecording: externalIsRecording,
   setIsRecording: setExternalIsRecording,
   onSessionCreated,
+  sessionId: externalSessionId,
+  readOnly = false,
   className = ''
 }: ConversationCaptureProps) {
   // State
@@ -250,6 +254,58 @@ export function ConversationCapture({
   // Refs (audio level refs for breaking circular dependency)
   const audioLevelRef = useRef<number>(0);
   const isSilentRef = useRef<boolean>(true);
+
+  // Effect: Initialize read-only mode with existing session
+  useEffect(() => {
+    if (readOnly && externalSessionId) {
+      console.log('[ConversationCapture] Read-only mode - loading session:', externalSessionId);
+      setSessionId(externalSessionId);
+      setIsFinalized(true); // Mark as finalized to prevent recording
+
+      // Load existing transcription chunks
+      const loadExistingData = async () => {
+        try {
+          addLog('📖 Cargando sesión existente...');
+          const data = await medicalWorkflowApi.getTranscriptionChunks(externalSessionId);
+
+          console.log('[ConversationCapture] Loaded chunks:', data.total_chunks);
+
+          // Populate chunk statuses
+          const loadedStatuses = data.chunks.map((chunk) => ({
+            chunkNumber: chunk.chunk_number,
+            status: 'completed' as const,
+            timestamp: new Date(chunk.created_at).toISOString(),
+            latency: 0,
+          }));
+          setChunkStatuses(loadedStatuses);
+
+          // Populate transcription data
+          data.chunks.forEach((chunk) => {
+            if (chunk.transcript) {
+              addTranscriptionChunk({
+                text: chunk.transcript,
+                timestamp: new Date(chunk.created_at).toISOString(),
+                chunkNumber: chunk.chunk_number,
+                isFinal: true,
+              });
+            }
+          });
+
+          // Load audio file
+          const audioUrl = `${BACKEND_URL}/api/workflows/aurity/sessions/${externalSessionId}/audio`;
+          setPausedAudioUrl(audioUrl);
+          setIsPaused(true); // Show audio player
+
+          addLog(`✅ Sesión cargada: ${data.total_chunks} chunks, ${data.total_duration.toFixed(1)}s`);
+        } catch (error) {
+          console.error('[ConversationCapture] Failed to load session:', error);
+          addLog(`❌ Error cargando sesión: ${error}`);
+        }
+      };
+
+      loadExistingData();
+    }
+  }, [readOnly, externalSessionId, addLog, setChunkStatuses, addTranscriptionChunk]);
 
   // Effect: Monitor chunk completion and trigger finalization when ready
   useEffect(() => {
@@ -845,8 +901,23 @@ export function ConversationCapture({
       {/* Header */}
       <div className="text-center">
         <h2 className="text-2xl font-bold text-white mb-2">Captura de Conversación</h2>
-        <p className="text-slate-400">Graba la consulta médica para transcripción y análisis</p>
+        <p className="text-slate-400">
+          {readOnly ? 'Sesión existente - Solo lectura' : 'Graba la consulta médica para transcripción y análisis'}
+        </p>
       </div>
+
+      {/* Read-Only Banner */}
+      {readOnly && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-blue-400 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-blue-300">Sesión Existente</p>
+            <p className="text-xs text-blue-400/80">
+              Esta sesión ya fue grabada. La grabación está bloqueada. Mostrando audio y transcripción existentes.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Recording Control */}
       <RecordingControls

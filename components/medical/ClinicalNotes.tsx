@@ -104,6 +104,9 @@ export function ClinicalNotes({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [soapGenerationStatus, setSOAPGenerationStatus] = useState<'pending' | 'in_progress' | 'completed' | 'error' | null>(null);
   const [pollingAttempts, setPollingAttempts] = useState(0);
 
@@ -332,6 +335,18 @@ export function ClinicalNotes({
         return;
       }
 
+      // SOAP doesn't exist and isn't generating - trigger generation
+      try {
+        console.log('[ClinicalNotes] SOAP not found, triggering generation...');
+        await medicalWorkflowApi.startSOAPGeneration(sessionId);
+        setSOAPGenerationStatus('in_progress');
+      } catch (triggerError) {
+        console.error('[ClinicalNotes] Failed to start SOAP generation:', triggerError);
+        setError('Failed to start SOAP generation');
+        setIsLoading(false);
+        return;
+      }
+
       // Start polling
       setPollingAttempts(0);
       const poll = async (attempt: number) => {
@@ -463,10 +478,63 @@ export function ClinicalNotes({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     console.log('[ClinicalNotes] Saving:', soapData);
-    setIsSaved(true);
-    // TODO: Send to backend
+    setIsSaving(true);
+    setIsSaved(false);
+    setSaveError(null);
+
+    try {
+      // Transform local format to backend format
+      const backendSOAP: any = {
+        subjective: {
+          chiefComplaint: soapData.chiefComplaint,
+          hpi: soapData.hpi,
+          pastMedicalHistory: soapData.currentMedications, // Using current medications as PMH
+          allergies: soapData.allergies,
+        },
+        objective: {
+          vitalSigns: Object.entries(soapData.vitalSigns)
+            .filter(([_, v]) => v)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(', '),
+          physicalExam: soapData.physicalExam,
+        },
+        assessment: {
+          primaryDiagnosis: soapData.primaryDiagnosis?.description || '',
+          differentialDiagnoses: soapData.differentialDiagnoses.map(d => d.description),
+        },
+        plan: {
+          medications: soapData.medications,
+          studies: soapData.diagnosticTests,
+          followUp: soapData.followUp,
+          treatment: '', // Not in current UI
+        },
+      };
+
+      // Call backend to update SOAP and auto-create orders
+      const result = await medicalWorkflowApi.updateSOAP(sessionId, backendSOAP);
+
+      console.log(`[ClinicalNotes] SOAP saved! ${result.orders_created} orders created`);
+      setIsSaved(true);
+
+      // Show success message with orders count
+      if (result.orders_created > 0) {
+        setSaveSuccess(`Notas guardadas. ${result.orders_created} órdenes médicas creadas automáticamente.`);
+      } else {
+        setSaveSuccess('Notas guardadas correctamente.');
+      }
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSaveSuccess(null), 5000);
+
+    } catch (error) {
+      console.error('[ClinicalNotes] Save failed:', error);
+      setSaveError(error instanceof Error ? error.message : 'Error al guardar');
+      setIsSaved(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1185,15 +1253,29 @@ export function ClinicalNotes({
           )}
           <button
             onClick={handleSave}
-            disabled={!isComplete}
+            disabled={!isComplete || isSaving}
             className={`flex-1 font-medium py-3 rounded-lg flex items-center justify-center gap-2 ${
-              isComplete
+              isComplete && !isSaving
                 ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
                 : 'bg-slate-700 text-slate-400 cursor-not-allowed'
             }`}
           >
-            <Save className="h-5 w-5" />
-            {isSaved ? 'Guardado' : 'Guardar Notas'}
+            {isSaving ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Guardando...
+              </>
+            ) : isSaved ? (
+              <>
+                <CheckCircle2 className="h-5 w-5" />
+                Guardado
+              </>
+            ) : (
+              <>
+                <Save className="h-5 w-5" />
+                Guardar Notas
+              </>
+            )}
           </button>
           {onNext && (
             <button
@@ -1210,6 +1292,20 @@ export function ClinicalNotes({
             </button>
           )}
         </div>
+
+        {/* Success/Error Messages */}
+        {saveSuccess && (
+          <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+            <p className="text-emerald-400 text-sm">{saveSuccess}</p>
+          </div>
+        )}
+        {saveError && (
+          <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-400" />
+            <p className="text-red-400 text-sm">{saveError}</p>
+          </div>
+        )}
       </div>
 
       {/* AI SUGGESTIONS PANEL */}

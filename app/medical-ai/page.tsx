@@ -20,7 +20,7 @@ import { SessionsTable } from '@/components/SessionsTable';
 import {
   Mic, Clock, User, ArrowLeft, Stethoscope, FileText, MessageSquare,
   ClipboardList, Download, History, Plus, Search, Filter, Calendar,
-  Users, AlertCircle, CheckCircle2, ChevronRight, Activity
+  Users, AlertCircle, CheckCircle2, ChevronRight, Activity, Copy, Check
 } from 'lucide-react';
 import { useEncounterTimer } from '@/hooks/useEncounterTimer';
 import { Patient, WorkflowStep, Encounter } from '@/types/medical';
@@ -82,6 +82,7 @@ export default function MedicalAIWorkflow() {
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [encounterData, setEncounterData] = useState<Partial<Encounter> | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [isExistingSession, setIsExistingSession] = useState(false);
 
   // Search and filters
   const [patientSearch, setPatientSearch] = useState('');
@@ -90,6 +91,7 @@ export default function MedicalAIWorkflow() {
   // Timeline state - store full SessionSummary for rich tooltips
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
 
   // Real-time encounter timer
   const { timeElapsed, pause, resume } = useEncounterTimer(true);
@@ -122,16 +124,31 @@ export default function MedicalAIWorkflow() {
   // Handler for selecting existing session
   const handleSelectSession = (sessionId: string) => {
     setCurrentSessionId(sessionId);
+    setIsExistingSession(true); // Mark as read-only existing session
     setShowPatientSelector(false);
-    console.log('[MedicalAI] Selected existing session:', sessionId);
+    setCurrentStep('escuchar'); // Start at first step to show content
+    console.log('[MedicalAI] Selected existing session (read-only):', sessionId);
   };
 
   // Handle new patient consultation
   const handleStartNewConsultation = (patient: Patient) => {
     setSelectedPatient(patient);
+    setIsExistingSession(false); // Mark as new session (can record)
     setShowPatientSelector(false);
     setCurrentStep('escuchar');
     setCompletedSteps(new Set());
+  };
+
+  // Copy session ID to clipboard
+  const handleCopySessionId = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent session selection when clicking copy
+    try {
+      await navigator.clipboard.writeText(sessionId);
+      setCopiedSessionId(sessionId);
+      setTimeout(() => setCopiedSessionId(null), 2000); // Reset after 2s
+    } catch (err) {
+      console.error('Failed to copy session ID:', err);
+    }
   };
 
   if (showPatientSelector) {
@@ -365,7 +382,27 @@ export default function MedicalAIWorkflow() {
                               </span>
                             </div>
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-slate-400 font-mono">{session.metadata.session_id.slice(0, 12)}...</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 font-mono">{session.metadata.session_id.slice(0, 12)}...</span>
+                                <div
+                                  onClick={(e) => handleCopySessionId(session.metadata.session_id, e)}
+                                  className="p-1 hover:bg-slate-700/50 rounded transition-colors group/copy cursor-pointer"
+                                  title="Copiar session ID"
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      handleCopySessionId(session.metadata.session_id, e as any);
+                                    }
+                                  }}
+                                >
+                                  {copiedSessionId === session.metadata.session_id ? (
+                                    <Check className="h-3 w-3 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="h-3 w-3 text-slate-500 group-hover/copy:text-cyan-400" />
+                                  )}
+                                </div>
+                              </div>
                               <span className="text-xs text-cyan-400 font-semibold">{duration}</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -484,6 +521,27 @@ export default function MedicalAIWorkflow() {
                 <Clock className="h-4 w-4 text-cyan-400" />
                 <span className="font-medium text-white font-mono">{timeElapsed}</span>
               </div>
+              {currentSessionId && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(currentSessionId);
+                    setCopiedSessionId(currentSessionId);
+                    setTimeout(() => setCopiedSessionId(null), 2000);
+                  }}
+                  className="badge-modern bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/20 transition-all cursor-pointer group"
+                  title="Copiar Session ID"
+                >
+                  <Activity className="h-4 w-4 text-purple-400" />
+                  <span className="font-medium text-white font-mono text-xs max-w-[120px] truncate">
+                    {currentSessionId.split('-')[0]}...
+                  </span>
+                  {copiedSessionId === currentSessionId ? (
+                    <Check className="h-3.5 w-3.5 text-green-400" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5 text-purple-400 opacity-50 group-hover:opacity-100" />
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => {
                   setSelectedPatient(null);
@@ -578,6 +636,7 @@ export default function MedicalAIWorkflow() {
                   patient={selectedPatient || undefined}
                   sessionId={currentSessionId}
                   onSessionCreated={setCurrentSessionId}
+                  readOnly={isExistingSession}
                 />
               </div>
             );
