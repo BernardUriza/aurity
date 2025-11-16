@@ -179,14 +179,14 @@ export function ConversationCapture({
   const inflightRef = useRef<Set<string>>(new Set());
   const fullAudioBlobsRef = useRef<Blob[]>([]);  // Store full audio blob
 
-  // Diarization polling hook (MUST use state, not ref, for reactivity)
+  // Diarization polling hook (use sessionIdRef for consistency)
   const {
     status: diarizationStatus,
     isPolling,
     currentInterval,
     totalPolls,
   } = useDiarizationPolling({
-    sessionId: sessionId, // State (not ref) - triggers useEffect when set
+    sessionId: diarizationJobId || '', // job_id IS the session_id (backend returns same value)
     jobId: diarizationJobId || '',
     enabled: showDiarizationModal && !!diarizationJobId,
     pollInterval: 1000, // Fast polling (1s) - adaptive backoff handles resource usage
