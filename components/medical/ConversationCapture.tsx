@@ -57,6 +57,9 @@ import { CheckpointProgress } from './CheckpointProgress';
 import { H5DebugModal } from '../dev/H5DebugModal';
 import { useH5DebugTools } from '@/hooks/useH5DebugTools';
 
+// Backend URL constant
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
+
 interface ConversationCaptureProps {
   onNext?: () => void;
   onTranscriptionComplete?: (data: TranscriptionData) => void;
@@ -198,40 +201,15 @@ export function ConversationCapture({
         setShowDiarizationModal(false);
         setDiarizationJobId(null);
 
-        console.log('[Workflow] 🎯 Phase 3 complete. Starting Phase 4 (SOAP Generation).');
-        addLog('✅ Diarización completa - iniciando generación de nota SOAP...');
+        console.log('[Workflow] 🎯 Phase 3 complete. Auto-advancing to Phase 4 (Review).');
 
-        // Phase 4: SOAP Generation (NEW)
-        try {
-          const soapResult = await medicalWorkflowApi.startSOAPGeneration(sessionIdRef.current);
-          console.log('[SOAP] Generation started:', soapResult);
-          addLog(`📝 SOAP generation iniciada (job_id: ${soapResult.job_id})`);
+        // Reset session after diarization complete
+        sessionIdRef.current = '';
+        setSessionId('');
+        addLog('🔄 Sesión finalizada - avanzando al siguiente paso');
 
-          // TODO: Poll SOAP status similar to diarization
-          // For now, just auto-advance after short delay
-          setTimeout(() => {
-            addLog('✅ SOAP generation completada (polling TBD)');
-
-            // Phase 5: Finalize (encryption)
-            console.log('[Workflow] 🎯 Phase 4 complete. Ready for Phase 5 (Finalize).');
-
-            // Reset session after all phases complete
-            sessionIdRef.current = '';
-            setSessionId('');
-            addLog('🔄 Workflow completo - listo para nueva sesión');
-
-            // Auto-advance to next step (review screen)
-            onNext?.();
-          }, 3000);
-        } catch (error) {
-          console.error('[SOAP] Failed to start generation:', error);
-          addLog(`❌ Error iniciando SOAP: ${error}`);
-
-          // Still advance even if SOAP fails (graceful degradation)
-          sessionIdRef.current = '';
-          setSessionId('');
-          onNext?.();
-        }
+        // Auto-advance to next workflow step (Phase 4: Review)
+        onNext?.();
       }, 2000);
     },
     onError: (error) => {
@@ -364,20 +342,13 @@ export function ConversationCapture({
           }
         );
 
-        // Case 1: Direct transcription succeeded
-        if (result.status === 'completed' && result.transcription) {
-          addTranscriptionChunk(result.transcription);
+        // Direct transcription (transcript available immediately)
+        if (result.transcript) {
+          addTranscriptionChunk(result.transcript);
         }
-        // Case 2: Worker with polling (session-based job)
-        else if (result.status === 'pending' && result.session_id) {
+        // Worker polling (transcript not available yet, poll job)
+        else if (result.success && result.session_id) {
           const transcript = await pollJobStatus(sessionIdRef.current, chunkNumber);
-          if (transcript) {
-            addTranscriptionChunk(transcript);
-          }
-        }
-        // Case 3: Legacy worker fallback format (deprecated)
-        else if (result.queued && result.job_id) {
-          const transcript = await pollJobStatus(result.job_id, chunkNumber);
           if (transcript) {
             addTranscriptionChunk(transcript);
           }
