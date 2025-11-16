@@ -20,9 +20,12 @@ import { api } from './client';
 // ============================================================================
 
 export interface StreamChunkResponse {
-  success: boolean;
+  success?: boolean; // Legacy field
   chunk_number: number;
   session_id: string;
+  status?: 'pending' | 'in_progress' | 'completed' | 'failed'; // Current backend format
+  total_chunks?: number;
+  processed_chunks?: number;
   audio_hash?: string;
   transcript?: string;
   job_id?: string;
