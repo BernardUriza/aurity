@@ -195,17 +195,19 @@ export function ConversationCapture({
       console.log('[Diarization] ✅ Completed with triple vision');
       addLog('✅ Diarización completada');
 
-      // Keep modal open for 2 seconds to show success, then reset session
+      // Keep modal open for 2 seconds to show success, then auto-advance to next step
       setTimeout(() => {
         setShowDiarizationModal(false);
         setDiarizationJobId(null);
         // NOW it's safe to reset sessionId (after diarization complete)
         sessionIdRef.current = '';
         setSessionId('');
-        addLog('🔄 Sesión finalizada - listo para nueva grabación');
-      }, 2000);
+        addLog('🔄 Sesión finalizada - avanzando al siguiente paso');
 
-      console.log('[Workflow] 🎯 Phase 3 complete. Phase 4 (SOAP) pending implementation.');
+        // Auto-advance to next workflow step (Phase 4: Review)
+        console.log('[Workflow] 🎯 Phase 3 complete. Auto-advancing to Phase 4 (Review).');
+        onNext?.();
+      }, 2000);
     },
     onError: (error) => {
       console.error('[Diarization] ❌ Error:', error);
