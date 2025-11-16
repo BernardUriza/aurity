@@ -22,6 +22,8 @@ export class APIError extends Error {
 
 interface RequestOptions extends RequestInit {
   timeout?: number;
+  retries?: number; // Number of retry attempts (default: 0 for regular requests, 3 for uploads)
+  retryDelay?: number; // Initial retry delay in ms (default: 1000)
 }
 
 async function fetchWithTimeout(
@@ -80,7 +82,14 @@ export async function apiRequest<T>(
 }
 
 /**
- * Upload multipart form data (files, audio chunks, etc.)
+ * Sleep utility for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Upload multipart form data (files, audio chunks, etc.) with retry logic
  */
 export async function apiUpload<T>(
   endpoint: string,
@@ -88,34 +97,69 @@ export async function apiUpload<T>(
   options: RequestOptions = {}
 ): Promise<T> {
   const url = `${BACKEND_URL}${endpoint}`;
+  const { retries = 3, retryDelay = 1000, ...fetchOptions } = options;
 
-  try {
-    const response = await fetchWithTimeout(url, {
-      ...options,
-      method: 'POST',
-      body: formData,
-      // Don't set Content-Type - browser sets it with boundary
-      headers: {
-        ...options.headers,
-      },
-    });
+  let lastError: Error | null = null;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new APIError(
-        response.status,
-        response.statusText,
-        errorText || `Upload failed: ${response.statusText}`
-      );
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = retryDelay * Math.pow(2, attempt - 1);
+        console.log(`[Upload Retry] Attempt ${attempt}/${retries} after ${delay}ms delay`);
+        await sleep(delay);
+      }
+
+      const response = await fetchWithTimeout(url, {
+        ...fetchOptions,
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type - browser sets it with boundary
+        headers: {
+          ...fetchOptions.headers,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new APIError(
+          response.status,
+          response.statusText,
+          errorText || `Upload failed: ${response.statusText}`
+        );
+      }
+
+      // Success - return result
+      if (attempt > 0) {
+        console.log(`[Upload Retry] Success on attempt ${attempt + 1}`);
+      }
+      return await response.json();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Unknown error');
+
+      // Don't retry on HTTP errors (4xx, 5xx) - only retry network errors
+      if (error instanceof APIError) {
+        console.error(`[Upload] HTTP ${error.status} - not retrying`);
+        throw error;
+      }
+
+      // Log retry attempt
+      if (attempt < retries) {
+        console.warn(
+          `[Upload] Attempt ${attempt + 1}/${retries + 1} failed: ${lastError.message}`
+        );
+      } else {
+        console.error(
+          `[Upload] All ${retries + 1} attempts failed: ${lastError.message}`
+        );
+      }
     }
-
-    return await response.json();
-  } catch (error) {
-    if (error instanceof APIError) {
-      throw error;
-    }
-    throw new Error(`Upload error: ${error instanceof Error ? error.message : 'Unknown'}`);
   }
+
+  // All retries exhausted
+  throw new Error(
+    `Upload failed after ${retries + 1} attempts: ${lastError?.message || 'Unknown error'}`
+  );
 }
 
 export const api = {

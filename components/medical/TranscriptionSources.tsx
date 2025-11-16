@@ -13,9 +13,20 @@
 
 import { useState, useEffect } from 'react';
 
+interface ChunkMetrics {
+  chunk_number: number;
+  text: string;
+  provider?: string; // deepgram, azure_whisper
+  polling_attempts?: number;
+  resolution_time_seconds?: number;
+  retry_attempts?: number;
+  confidence?: number;
+  duration?: number;
+}
+
 interface TranscriptionSourcesProps {
   webSpeechTranscripts: string[];
-  whisperChunks: Array<{ chunk_number: number; text: string }>;
+  whisperChunks: Array<ChunkMetrics>;
   fullTranscription: string;
   sessionId?: string;
   isFinalized?: boolean;
@@ -184,23 +195,90 @@ export function TranscriptionSources({
         )}
 
         {activeTab === 'chunks' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {whisperChunks.length === 0 ? (
               <p className="text-slate-400 text-sm italic">
                 Esperando chunks de Whisper (~20s por chunk)...
               </p>
             ) : (
-              whisperChunks.map((chunk, idx) => (
-                <div
-                  key={idx}
-                  className="bg-green-500/10 border border-green-500/20 rounded p-2 text-sm text-green-200"
-                >
-                  <span className="text-green-400 font-mono text-xs mr-2">
-                    [Chunk {chunk.chunk_number}]
-                  </span>
-                  {chunk.text}
-                </div>
-              ))
+              whisperChunks.map((chunk, idx) => {
+                const provider = chunk.provider || 'unknown';
+                const pollingAttempts = chunk.polling_attempts || 0;
+                const resolutionTime = chunk.resolution_time_seconds || 0;
+                const retryAttempts = chunk.retry_attempts || 0;
+                const confidence = chunk.confidence || 0;
+
+                // Color coding for provider
+                const providerColor = provider === 'deepgram'
+                  ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                  : provider === 'azure_whisper'
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                  : 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+
+                // Warning colors for high metrics
+                const pollingColor = pollingAttempts > 5 ? 'text-yellow-400' : 'text-slate-400';
+                const retryColor = retryAttempts > 0 ? 'text-orange-400' : 'text-slate-400';
+                const timeColor = resolutionTime > 10 ? 'text-red-400' : resolutionTime > 5 ? 'text-yellow-400' : 'text-green-400';
+
+                return (
+                  <div
+                    key={idx}
+                    className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-sm"
+                  >
+                    {/* Header with chunk number and provider */}
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="text-green-400 font-mono text-xs font-bold">
+                        [Chunk {chunk.chunk_number}]
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded border ${providerColor} font-medium`}>
+                        {provider === 'deepgram' ? '⚡ Deepgram' : provider === 'azure_whisper' ? '🔷 Azure' : provider}
+                      </span>
+                      {confidence > 0 && (
+                        <span className="text-xs text-slate-400">
+                          {(confidence * 100).toFixed(0)}% conf
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Transcript text */}
+                    <div className="text-green-200 mb-2">
+                      {chunk.text}
+                    </div>
+
+                    {/* Metrics row */}
+                    <div className="flex items-center gap-3 text-xs flex-wrap border-t border-green-500/20 pt-2">
+                      <span className={`flex items-center gap-1 ${timeColor}`}>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {resolutionTime.toFixed(1)}s
+                      </span>
+
+                      <span className={`flex items-center gap-1 ${pollingColor}`} title="Polling attempts">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {pollingAttempts}p
+                      </span>
+
+                      {retryAttempts > 0 && (
+                        <span className={`flex items-center gap-1 ${retryColor}`} title="Retry attempts">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          {retryAttempts}r
+                        </span>
+                      )}
+
+                      {chunk.duration && chunk.duration > 0 && (
+                        <span className="text-slate-400" title="Audio duration">
+                          🎵 {chunk.duration.toFixed(1)}s
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         )}
