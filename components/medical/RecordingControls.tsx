@@ -26,6 +26,7 @@ interface RecordingControlsProps {
   isRecording: boolean;
   isPaused: boolean;
   isProcessing: boolean;
+  isFinalized: boolean; // NEW: Session completed - no more recording allowed
   recordingTime: number;
   transcriptionData: TranscriptionData | null;
   chunkCount: number;
@@ -39,6 +40,7 @@ export function RecordingControls({
   isRecording,
   isPaused,
   isProcessing,
+  isFinalized,
   recordingTime,
   transcriptionData,
   chunkCount,
@@ -50,6 +52,12 @@ export function RecordingControls({
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   const handleClick = async () => {
+    // Prevent recording if session is finalized
+    if (isFinalized) {
+      console.warn('[RecordingControls] ❌ Session finalized - recording not allowed');
+      return;
+    }
+
     // Prevent double-click
     if (isTransitioning || isProcessing) {
       console.warn('[RecordingControls] Ignoring click - already transitioning');
@@ -72,7 +80,7 @@ export function RecordingControls({
     }
   };
 
-  const isDisabled = isProcessing || isTransitioning;
+  const isDisabled = isProcessing || isTransitioning || isFinalized;
 
   return (
     <div className="bg-slate-800 rounded-xl p-8 border border-slate-700">
@@ -128,7 +136,10 @@ export function RecordingControls({
 
         {/* Status Text */}
         <div className="text-center min-h-[28px]">
-          {isTransitioning && (
+          {isFinalized && (
+            <p className="text-green-400 font-medium">✅ Sesión completada - Recarga la página para nueva consulta</p>
+          )}
+          {!isFinalized && isTransitioning && (
             <div className="flex items-center gap-2 text-cyan-400 animate-pulse">
               <Loader2 className="h-5 w-5 animate-spin" />
               <p className="font-medium">
@@ -136,19 +147,19 @@ export function RecordingControls({
               </p>
             </div>
           )}
-          {!isTransitioning && isRecording && (
+          {!isFinalized && !isTransitioning && isRecording && (
             <p className="text-yellow-400 font-medium">Grabando... (Click para pausar)</p>
           )}
-          {!isTransitioning && isPaused && (
+          {!isFinalized && !isTransitioning && isPaused && (
             <p className="text-emerald-400 font-medium">Pausado (Click para reanudar)</p>
           )}
-          {!isTransitioning && isProcessing && (
+          {!isFinalized && !isTransitioning && isProcessing && (
             <div className="flex items-center gap-2 text-cyan-400">
               <Loader2 className="h-5 w-5 animate-spin" />
               <p className="font-medium">Procesando audio...</p>
             </div>
           )}
-          {!isTransitioning && !isRecording && !isPaused && !isProcessing && !transcriptionData && (
+          {!isFinalized && !isTransitioning && !isRecording && !isPaused && !isProcessing && !transcriptionData && (
             <p className="text-slate-400">Presiona para comenzar a grabar</p>
           )}
         </div>

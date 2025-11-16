@@ -117,6 +117,7 @@ export function DialogueFlow({
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // ========================================
   // Data Loading
@@ -174,8 +175,14 @@ export function DialogueFlow({
 
   const stats = useMemo(() => {
     const total = segments.length;
-    const medico = segments.filter((s) => s.speaker.toLowerCase() === 'medico').length;
-    const paciente = segments.filter((s) => s.speaker.toLowerCase() === 'paciente').length;
+    const medico = segments.filter((s) => {
+      const speaker = s.speaker.toLowerCase();
+      return speaker === 'medico' || speaker === 'doctor';
+    }).length;
+    const paciente = segments.filter((s) => {
+      const speaker = s.speaker.toLowerCase();
+      return speaker === 'paciente' || speaker === 'patient';
+    }).length;
     const totalDuration = segments.reduce((sum, s) => sum + s.duration, 0);
 
     return { total, medico, paciente, totalDuration };
@@ -192,14 +199,32 @@ export function DialogueFlow({
 
   const handleSave = useCallback(
     async (id: string) => {
+      if (!sessionId) return;
+
+      // Extract segment index from id (format: "seg-0", "seg-1", etc.)
+      const segmentIndex = parseInt(id.split('-')[1], 10);
+
       // Optimistic update (instant UI feedback)
       addOptimisticUpdate({ type: 'edit', id, text: editText });
       setEditingId(null);
 
-      // TODO: Call backend API to persist edit
-      // await medicalWorkflowApi.updateSegmentText(sessionId, id, editText);
+      try {
+        // Persist to backend
+        await medicalWorkflowApi.updateSegmentText(sessionId, segmentIndex, editText);
+
+        // Update local state with server response (makes optimistic update permanent)
+        setSegments((prev) =>
+          prev.map((seg) =>
+            seg.id === id ? { ...seg, text: editText } : seg
+          )
+        );
+      } catch (err) {
+        console.error('[DialogueFlow] Failed to save segment edit:', err);
+        // Optimistic update will auto-revert since we don't update segments state
+        alert('Error al guardar la edición. Por favor intenta de nuevo.');
+      }
     },
-    [editText, addOptimisticUpdate]
+    [editText, sessionId, addOptimisticUpdate]
   );
 
   const handleCancel = useCallback(() => {
@@ -252,6 +277,29 @@ export function DialogueFlow({
     a.click();
     URL.revokeObjectURL(url);
   }, [segments, sessionId]);
+
+  // ========================================
+  // Auto-scroll to active segment (2025-11-15)
+  // ========================================
+
+  useEffect(() => {
+    if (!isPlaying || !scrollContainerRef.current) return;
+
+    // Find currently playing segment
+    const activeSegment = optimisticSegments.find(
+      (seg) => currentTime >= seg.start_time && currentTime <= seg.end_time
+    );
+
+    if (activeSegment) {
+      const segmentElement = segmentRefs.current.get(activeSegment.id);
+      if (segmentElement && scrollContainerRef.current) {
+        segmentElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }
+    }
+  }, [currentTime, isPlaying, optimisticSegments]);
 
   // ========================================
   // Keyboard Navigation (2025 Best Practice)
@@ -461,6 +509,13 @@ export function DialogueFlow({
             return (
               <div
                 key={segment.id}
+                ref={(el) => {
+                  if (el) {
+                    segmentRefs.current.set(segment.id, el);
+                  } else {
+                    segmentRefs.current.delete(segment.id);
+                  }
+                }}
                 className={`rounded-lg border transition-all ${colors.bg} ${colors.border} ${
                   isCurrentSegment ? 'ring-2 ring-purple-500/50 shadow-lg' : ''
                 }`}

@@ -63,13 +63,35 @@ export interface DiarizationStatusResponse {
 export interface SOAPGenerationResponse {
   job_id: string;
   session_id: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  soap_note?: {
-    subjective: string;
-    objective: string;
-    assessment: string;
-    plan: string;
+  status: 'dispatched' | 'pending' | 'in_progress' | 'completed' | 'failed';
+  message?: string;
+}
+
+export interface SOAPNoteResponse {
+  session_id: string;
+  soap_note: {
+    subjective: {
+      chief_complaint: string;
+      history_present_illness: string;
+      past_medical_history: string;
+    };
+    objective: {
+      vital_signs: string;
+      physical_exam: string;
+    };
+    assessment: {
+      primary_diagnosis: string;
+      differential_diagnoses: string[];
+    };
+    plan: {
+      treatment: string;
+      follow_up: string;
+      studies: string[];
+    };
   };
+  provider: string;
+  completed_at: string;
+  word_count: number;
 }
 
 export interface DiarizationSegment {
@@ -185,7 +207,7 @@ export const medicalWorkflowApi = {
   },
 
   /**
-   * Start SOAP note generation (Phase 4 - NEW)
+   * Start SOAP note generation (Phase 4)
    */
   startSOAPGeneration: async (sessionId: string): Promise<SOAPGenerationResponse> => {
     return api.post<SOAPGenerationResponse>(
@@ -194,11 +216,12 @@ export const medicalWorkflowApi = {
   },
 
   /**
-   * Get SOAP generation status (for polling)
+   * Get SOAP note (after completion)
+   * Use getSessionMonitor() to poll for SOAP generation status
    */
-  getSOAPStatus: async (jobId: string): Promise<SOAPGenerationResponse> => {
-    return api.get<SOAPGenerationResponse>(
-      `/api/workflows/aurity/soap/jobs/${jobId}`
+  getSOAPNote: async (sessionId: string): Promise<SOAPNoteResponse> => {
+    return api.get<SOAPNoteResponse>(
+      `/api/workflows/aurity/sessions/${sessionId}/soap`
     );
   },
 
@@ -228,5 +251,20 @@ export const medicalWorkflowApi = {
     }
 
     return response.text();
+  },
+
+  /**
+   * Update diarization segment text (edit transcription)
+   */
+  updateSegmentText: async (
+    sessionId: string,
+    segmentIndex: number,
+    newText: string
+  ): Promise<DiarizationSegment> => {
+    const response = await api.patch<{ segment: DiarizationSegment }>(
+      `/api/workflows/aurity/sessions/${sessionId}/diarization/segments/${segmentIndex}`,
+      { text: newText }
+    );
+    return response.segment;
   },
 };

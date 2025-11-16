@@ -118,7 +118,7 @@ export async function makeRecorder(
           mimeType,
           numberOfAudioChannels: channels,
           desiredSampRate: opts?.sampleRate ?? 16000,
-          disableLogs: false,
+          disableLogs: true, // Silence verbose RecordRTC library logs
         });
       };
 
@@ -128,15 +128,16 @@ export async function makeRecorder(
         currentRecorder = createRecorder();
         currentRecorder.startRecording();
 
-        if (timeSlice && timeSlice > 0) {
-          console.log(
-            `[RecordRTC Loop] Started chunk recording (${timeSlice}ms) - MIME: ${mimeType}`
-          );
-        } else {
-          console.log(
-            `[RecordRTC Continuous] Started continuous recording (no chunks) - MIME: ${mimeType}`
-          );
-        }
+        // Silenced for production - too verbose
+        // if (timeSlice && timeSlice > 0) {
+        //   console.log(
+        //     `[RecordRTC Loop] Started chunk recording (${timeSlice}ms) - MIME: ${mimeType}`
+        //   );
+        // } else {
+        //   console.log(
+        //     `[RecordRTC Continuous] Started continuous recording (no chunks) - MIME: ${mimeType}`
+        //   );
+        // }
 
         // Only schedule loop if timeSlice is provided
         if (timeSlice && timeSlice > 0) {
@@ -150,9 +151,10 @@ export async function makeRecorder(
               const blob = currentRecorder.getBlob();
 
               if (blob && blob.size > 0) {
-                console.log(
-                  `[RecordRTC Loop] ✅ Chunk ready: ${blob.size} bytes, MIME: ${blob.type}`
-                );
+                // Silenced for production - too verbose
+                // console.log(
+                //   `[RecordRTC Loop] ✅ Chunk ready: ${blob.size} bytes, MIME: ${blob.type}`
+                // );
                 onChunk(blob);
               } else {
                 console.warn('[RecordRTC Loop] ⚠️ Empty blob, skipping');

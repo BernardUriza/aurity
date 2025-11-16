@@ -124,6 +124,7 @@ export function ConversationCapture({
   const [shouldFinalize, setShouldFinalize] = useState(false);
   const [estimatedSecondsRemaining, setEstimatedSecondsRemaining] = useState<number>(0);
   const finalizationStartTimeRef = useRef<number>(0);
+  const [isFinalized, setIsFinalized] = useState(false); // NEW: Flag to prevent recording after completion
 
   // Custom hooks
   const { copiedId, copyToClipboard } = useClipboard();
@@ -196,19 +197,42 @@ export function ConversationCapture({
       console.log('[Diarization] ✅ Completed with triple vision');
       addLog('✅ Diarización completada');
 
+      // Mark session as finalized (prevents new recordings without page reload)
+      setIsFinalized(true);
+
       // Keep modal open briefly to show success, then trigger Phase 4 (SOAP)
       setTimeout(async () => {
         setShowDiarizationModal(false);
         setDiarizationJobId(null);
 
-        console.log('[Workflow] 🎯 Phase 3 complete. Auto-advancing to Phase 4 (Review).');
+        console.log('[Workflow] 🎯 Phase 3 complete. Auto-advancing to Phase 4 (SOAP).');
 
-        // Reset session after diarization complete
-        sessionIdRef.current = '';
-        setSessionId('');
-        addLog('🔄 Sesión finalizada - avanzando al siguiente paso');
+        // Phase 4: Trigger SOAP generation (use sessionId before reset)
+        const currentSessionId = sessionIdRef.current;
+        if (currentSessionId) {
+          try {
+            console.log('[SOAP] 🚀 Starting SOAP generation...', currentSessionId);
+            addLog('📋 Generando notas SOAP...');
 
-        // Auto-advance to next workflow step (Phase 4: Review)
+            const soapResponse = await medicalWorkflowApi.startSOAPGeneration(currentSessionId);
+            console.log('[SOAP] ✅ SOAP generation started:', soapResponse);
+            addLog('✅ Generación SOAP iniciada');
+
+            // Note: Frontend should poll /monitor endpoint for SOAP progress
+            // SOAP note will be retrieved when user navigates to review page
+          } catch (error) {
+            console.error('[SOAP] ❌ Failed to start SOAP generation:', error);
+            addLog('⚠️ Error al generar SOAP (continuando...)');
+          }
+        }
+
+        // DON'T reset session - keep sessionId so user can view SOAP notes in "Notas" tab
+        // Session will be reset when user starts a new consultation
+        // sessionIdRef.current = '';  // ❌ KEEP sessionId for SOAP note retrieval
+        // setSessionId('');           // ❌ KEEP sessionId for SOAP note retrieval
+        addLog('✅ Sesión completada - avanzando a revisión del diálogo');
+
+        // Auto-advance to next workflow step (component stays mounted - no data loss)
         onNext?.();
       }, 2000);
     },
@@ -442,6 +466,13 @@ export function ConversationCapture({
   // Start recording with real-time streaming (simplified with useRecorder hook)
   // NOTE: This is ONLY called for fresh starts (not resume)
   const handleStartRecording = useCallback(async () => {
+    // ⚠️ CRITICAL: Prevent recording after session finalization (user must reload page for new session)
+    if (isFinalized) {
+      console.warn('[Recording] ❌ Cannot start new recording - session is finalized. Reload page for new session.');
+      addLog('⚠️ Sesión completada - recarga la página para nueva consulta');
+      return;
+    }
+
     try {
       // Keep demo audio playing if active (allows recording demo consultation)
       if (isDemoPlaying) {
@@ -494,7 +525,7 @@ export function ConversationCapture({
       console.error('Error starting recording:', err);
       setError('No se pudo acceder al micrófono. Por favor, verifica los permisos.');
     }
-  }, [isDemoPlaying, hookStartRecording, resetMetrics, resetTranscription, addLog, getSessionId, setExternalIsRecording, isWebSpeechSupported, startWebSpeech]);
+  }, [isFinalized, isDemoPlaying, hookStartRecording, resetMetrics, resetTranscription, addLog, getSessionId, setExternalIsRecording, isWebSpeechSupported, startWebSpeech, onSessionCreated]);
 
   // Pause recording (NEW - doesn't reset anything)
   const handlePauseRecording = useCallback(async () => {
@@ -718,11 +749,11 @@ export function ConversationCapture({
         onTranscriptionComplete({ text: finalText });
       }
 
-      // Reset everything EXCEPT sessionId (wait for diarization callback)
+      // Reset only internal state - KEEP transcription visible for review
       setIsPaused(false);
-      resetTranscription();
-      resetMetrics();
-      setChunkStatuses([]);
+      // resetTranscription(); // ❌ COMMENTED: Keep transcription visible after completion
+      // resetMetrics(); // ❌ COMMENTED: Keep metrics visible
+      // setChunkStatuses([]); // ❌ COMMENTED: Keep chunk statuses visible
       chunkNumberRef.current = 0;
       // DO NOT reset sessionId here - the diarization polling needs it!
       // It will be reset in the onComplete/onError callback
@@ -816,6 +847,7 @@ export function ConversationCapture({
         isRecording={isRecording}
         isPaused={isPaused}
         isProcessing={isProcessing}
+        isFinalized={isFinalized}
         recordingTime={recordingTime}
         transcriptionData={transcriptionData}
         chunkCount={chunkNumberRef.current}

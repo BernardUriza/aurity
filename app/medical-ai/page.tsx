@@ -135,8 +135,6 @@ export default function MedicalAIWorkflow() {
     );
   }
 
-  const CurrentComponent = MedicalWorkflowSteps[currentStepIndex].component;
-
   const goToNextStep = () => {
     if (currentStepIndex < MedicalWorkflowSteps.length - 1) {
       // Mark current step as completed
@@ -258,19 +256,37 @@ export default function MedicalAIWorkflow() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Content - Keep ConversationCapture mounted, render others conditionally */}
       <main className="flex-1 bg-slate-900">
         <div className="p-8">
-          <CurrentComponent
-            onNext={goToNextStep}
-            onPrevious={goToPreviousStep}
-            isRecording={isRecording}
-            setIsRecording={setIsRecording}
-            encounterData={encounterData || undefined}
-            patient={selectedPatient || undefined}
-            sessionId={currentSessionId}
-            onSessionCreated={setCurrentSessionId}
-          />
+          {MedicalWorkflowSteps.map((step) => {
+            const StepComponent = step.component;
+            const isActive = step.id === currentStep;
+            const isCapture = step.id === 'escuchar';
+
+            // Always mount ConversationCapture (to preserve state), conditionally mount others
+            if (!isCapture && !isActive && !completedSteps.has(step.id)) {
+              return null; // Don't mount until visited
+            }
+
+            return (
+              <div
+                key={step.id}
+                style={{ display: isActive ? 'block' : 'none' }}
+              >
+                <StepComponent
+                  onNext={goToNextStep}
+                  onPrevious={goToPreviousStep}
+                  isRecording={isRecording}
+                  setIsRecording={setIsRecording}
+                  encounterData={encounterData || undefined}
+                  patient={selectedPatient || undefined}
+                  sessionId={currentSessionId}
+                  onSessionCreated={setCurrentSessionId}
+                />
+              </div>
+            );
+          })}
         </div>
       </main>
     </div>
