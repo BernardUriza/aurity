@@ -346,8 +346,8 @@ export function ConversationCapture({
         if (result.transcript) {
           addTranscriptionChunk(result.transcript);
         }
-        // Worker polling (transcript not available yet, poll job)
-        else if (result.success && result.session_id) {
+        // Worker polling (transcript not available yet, status=pending)
+        else if ((result.status === 'pending' || result.status === 'in_progress') && result.session_id) {
           const transcript = await pollJobStatus(sessionIdRef.current, chunkNumber);
           if (transcript) {
             addTranscriptionChunk(transcript);
@@ -855,7 +855,7 @@ export function ConversationCapture({
               </div>
               {webSpeechInterim && (
                 <div className="px-3 py-1 bg-blue-500/10 text-blue-300 rounded-lg text-xs italic border border-blue-500/20">
-                  "{webSpeechInterim}..."
+                  &ldquo;{webSpeechInterim}...&rdquo;
                 </div>
               )}
             </div>
