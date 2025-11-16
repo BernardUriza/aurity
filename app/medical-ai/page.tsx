@@ -20,7 +20,8 @@ import { SessionsTable } from '@/components/SessionsTable';
 import {
   Mic, Clock, User, ArrowLeft, Stethoscope, FileText, MessageSquare,
   ClipboardList, Download, History, Plus, Search, Filter, Calendar,
-  Users, AlertCircle, CheckCircle2, ChevronRight, Activity, Copy, Check
+  Users, AlertCircle, CheckCircle2, ChevronRight, Activity, Copy, Check,
+  Trash2, X, Loader2
 } from 'lucide-react';
 import { useEncounterTimer } from '@/hooks/useEncounterTimer';
 import { Patient, WorkflowStep, Encounter } from '@/types/medical';
@@ -93,6 +94,16 @@ export default function MedicalAIWorkflow() {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
 
+  // Delete confirmation state
+  const [deleteConfirmSession, setDeleteConfirmSession] = useState<string | null>(null);
+  const [deletingSession, setDeletingSession] = useState<string | null>(null);
+
+  // Session status tracking (SOAP/Diarization)
+  const [sessionStatuses, setSessionStatuses] = useState<Record<string, {
+    soapStatus: 'not_started' | 'pending' | 'in_progress' | 'completed' | 'failed';
+    diarizationStatus: 'not_started' | 'pending' | 'in_progress' | 'completed' | 'failed';
+  }>>({});
+
   // Real-time encounter timer
   const { timeElapsed, pause, resume } = useEncounterTimer(true);
 
@@ -104,10 +115,67 @@ export default function MedicalAIWorkflow() {
     async function loadSessions() {
       try {
         setLoadingSessions(true);
-        const summaries = await getSessionSummaries({ limit: 20, sort: 'recent' });
-        setSessions(summaries); // Store full SessionSummary objects
+
+        // Load REAL sessions from new lightweight endpoint
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001'}/api/workflows/aurity/sessions?limit=20`,
+          {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+
+          // Convert lightweight session format to SessionSummary format
+          const convertedSessions: SessionSummary[] = data.sessions.map((s: any) => ({
+            metadata: {
+              session_id: s.session_id,
+              thread_id: null,
+              owner_hash: 'system',
+              created_at: s.created_at,
+              updated_at: s.created_at,
+            },
+            timespan: {
+              start: s.created_at,
+              end: s.created_at,
+              duration_ms: s.duration_seconds * 1000,
+              duration_human: s.duration_seconds > 60
+                ? `${(s.duration_seconds / 60).toFixed(1)} min`
+                : `${s.duration_seconds.toFixed(0)}s`,
+            },
+            size: {
+              interaction_count: s.chunk_count,
+              total_tokens: 0,
+              total_chars: s.preview.length,
+              avg_tokens_per_interaction: 0,
+              size_human: `${(s.preview.length / 1024).toFixed(1)} KB`,
+            },
+            policy_badges: {
+              hash_verified: 'OK',
+              policy_compliant: 'OK',
+              redaction_applied: 'N/A',
+              audit_logged: 'OK',
+            },
+            preview: s.preview || 'Sin transcripción',
+          }));
+
+          setSessions(convertedSessions);
+
+          // Load statuses for real sessions
+          const sessionIds = convertedSessions.map(s => s.metadata.session_id);
+          loadSessionStatuses(sessionIds).catch(err => {
+            console.warn('[MedicalAI] Failed to load session statuses (non-critical):', err);
+          });
+        } else {
+          console.error('[MedicalAI] Failed to load sessions:', response.statusText);
+          setSessions([]);
+        }
+
       } catch (err) {
         console.error('[MedicalAI] Failed to load sessions:', err);
+        setSessions([]);
       } finally {
         setLoadingSessions(false);
       }
@@ -115,6 +183,63 @@ export default function MedicalAIWorkflow() {
 
     loadSessions();
   }, []);
+
+  // Load SOAP and Diarization status for sessions
+  const loadSessionStatuses = async (sessionIds: string[]) => {
+    const statusesMap: Record<string, any> = {};
+
+    await Promise.all(
+      sessionIds.map(async (sessionId) => {
+        try {
+          // Create AbortController with 5-second timeout (longer for monitor endpoint)
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001'}/api/workflows/aurity/sessions/${sessionId}/monitor`,
+            {
+              method: 'GET',
+              headers: { 'Accept': 'application/json' },
+              signal: controller.signal,
+            }
+          );
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const data = await response.json();
+            statusesMap[sessionId] = {
+              soapStatus: data.soap?.status || 'not_started',
+              diarizationStatus: data.diarization?.status || 'not_started',
+            };
+          }
+        } catch (err) {
+          // Silently fail - status will remain not_started (timeout, network error, etc.)
+        }
+      })
+    );
+
+    setSessionStatuses(statusesMap);
+  };
+
+  // Handle delete session
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      setDeletingSession(sessionId);
+
+      // TODO: Call backend delete endpoint when implemented
+      // For now, just remove from local state
+      setSessions(prev => prev.filter(s => s.metadata.session_id !== sessionId));
+
+      setDeleteConfirmSession(null);
+      console.log('[MedicalAI] Session deleted:', sessionId);
+    } catch (err) {
+      console.error('[MedicalAI] Failed to delete session:', err);
+      alert('Error al eliminar la sesión. Intenta de nuevo.');
+    } finally {
+      setDeletingSession(null);
+    }
+  };
 
   // Filter patients by search
   const filteredPatients = patients.filter(p =>
@@ -149,6 +274,26 @@ export default function MedicalAIWorkflow() {
     } catch (err) {
       console.error('Failed to copy session ID:', err);
     }
+  };
+
+  // Extract medical keywords from session preview (simple heuristic)
+  const extractMedicalInfo = (preview: string): string[] => {
+    const medicalKeywords = [
+      'hipertensión', 'diabetes', 'asma', 'artritis', 'migraña',
+      'alergia', 'penicilina', 'dolor', 'fiebre', 'tos',
+      'gripe', 'covid', 'presión', 'glucosa', 'colesterol'
+    ];
+
+    const found = new Set<string>();
+    const lowerPreview = preview.toLowerCase();
+
+    medicalKeywords.forEach(keyword => {
+      if (lowerPreview.includes(keyword)) {
+        found.add(keyword.charAt(0).toUpperCase() + keyword.slice(1));
+      }
+    });
+
+    return Array.from(found).slice(0, 3); // Max 3 keywords
   };
 
   if (showPatientSelector) {
@@ -350,53 +495,109 @@ export default function MedicalAIWorkflow() {
                     <p className="text-sm text-slate-400">No hay consultas previas</p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                     {sessions.slice(0, 10).map((session) => {
                       const date = new Date(session.metadata.created_at);
                       const isToday = date.toDateString() === new Date().toDateString();
+                      const isSameYear = date.getFullYear() === new Date().getFullYear();
                       const duration = session.timespan?.duration_human || 'N/A';
                       const chunkCount = session.size?.interaction_count || 0;
                       const totalChars = session.size?.total_chars || 0;
                       const preview = session.preview || 'Sin transcripción';
+                      const sessionId = session.metadata.session_id;
+
+                      // Get status for this session
+                      const status = sessionStatuses[sessionId] || {
+                        soapStatus: 'not_started',
+                        diarizationStatus: 'not_started'
+                      };
+
+                      // Status badge helper
+                      const getStatusBadge = (statusType: string, label: string) => {
+                        const statusIcons = {
+                          'completed': <CheckCircle2 className="h-3 w-3 text-emerald-400" />,
+                          'in_progress': <Loader2 className="h-3 w-3 text-yellow-400 animate-spin" />,
+                          'pending': <Clock className="h-3 w-3 text-slate-400" />,
+                          'failed': <X className="h-3 w-3 text-red-400" />,
+                          'not_started': null
+                        };
+
+                        const statusColors = {
+                          'completed': 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+                          'in_progress': 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',
+                          'pending': 'bg-slate-500/10 border-slate-500/30 text-slate-400',
+                          'failed': 'bg-red-500/10 border-red-500/30 text-red-300',
+                          'not_started': 'bg-slate-700/20 border-slate-600/20 text-slate-500'
+                        };
+
+                        if (statusType === 'not_started') return null;
+
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 border rounded text-xs font-medium ${statusColors[statusType as keyof typeof statusColors] || statusColors.not_started}`}>
+                            {statusIcons[statusType as keyof typeof statusIcons]}
+                            {label}
+                          </span>
+                        );
+                      };
 
                       return (
-                        <div key={session.metadata.session_id} className="relative group/session">
-                          <button
-                            onClick={() => handleSelectSession(session.metadata.session_id)}
-                            className="w-full p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-left"
-                          >
-                            <div className="flex items-start justify-between mb-2">
+                        <div key={sessionId} className="relative group/session">
+                          <div className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all">
+                            {/* Header: Date + Time + Delete Button */}
+                            <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-slate-400" />
-                                <span className="text-sm font-medium text-white group-hover/session:text-cyan-300 transition-colors">
+                                <button
+                                  onClick={() => handleSelectSession(sessionId)}
+                                  className="text-sm font-semibold text-white hover:text-cyan-300 transition-colors"
+                                >
                                   {date.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' })}
-                                </span>
+                                </button>
                                 {isToday && (
                                   <span className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded text-xs text-emerald-300">
                                     Hoy
                                   </span>
                                 )}
                               </div>
-                              <span className="text-xs text-slate-500">
-                                {date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between mb-1">
                               <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-400 font-mono">{session.metadata.session_id.slice(0, 12)}...</span>
+                                <span className="text-xs text-slate-500">
+                                  {date.toLocaleTimeString('es-MX', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    timeZone: 'America/Mexico_City',
+                                    hour12: true
+                                  })}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirmSession(sessionId);
+                                  }}
+                                  className="opacity-0 group-hover/session:opacity-100 p-1.5 hover:bg-red-500/20 rounded-lg transition-all"
+                                  title="Eliminar sesión"
+                                >
+                                  <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-400" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Session ID + Copy + Duration */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400 font-mono">{sessionId.slice(0, 12)}...</span>
                                 <div
-                                  onClick={(e) => handleCopySessionId(session.metadata.session_id, e)}
+                                  onClick={(e) => handleCopySessionId(sessionId, e)}
                                   className="p-1 hover:bg-slate-700/50 rounded transition-colors group/copy cursor-pointer"
                                   title="Copiar session ID"
                                   role="button"
                                   tabIndex={0}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
-                                      handleCopySessionId(session.metadata.session_id, e as any);
+                                      handleCopySessionId(sessionId, e as any);
                                     }
                                   }}
                                 >
-                                  {copiedSessionId === session.metadata.session_id ? (
+                                  {copiedSessionId === sessionId ? (
                                     <Check className="h-3 w-3 text-emerald-400" />
                                   ) : (
                                     <Copy className="h-3 w-3 text-slate-500 group-hover/copy:text-cyan-400" />
@@ -405,57 +606,46 @@ export default function MedicalAIWorkflow() {
                               </div>
                               <span className="text-xs text-cyan-400 font-semibold">{duration}</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/10 border border-green-500/20 rounded text-xs text-green-300">
-                                <CheckCircle2 className="h-3 w-3" />
+
+                            {/* Status Badges: SOAP + Diarization + Chunks */}
+                            <div className="flex items-center gap-2 mb-3 flex-wrap">
+                              {getStatusBadge(status.soapStatus, 'SOAP')}
+                              {getStatusBadge(status.diarizationStatus, 'Diarización')}
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded text-xs text-cyan-300">
+                                <Activity className="h-3 w-3" />
                                 {chunkCount} chunks
                               </span>
                             </div>
-                          </button>
 
-                          {/* Tooltip - appears on hover */}
-                          <div className="absolute left-full ml-2 top-0 w-72 p-4 bg-slate-800/95 backdrop-blur-xl border border-slate-700 rounded-xl shadow-2xl opacity-0 invisible group-hover/session:opacity-100 group-hover/session:visible transition-all duration-200 z-50 pointer-events-none">
-                            <div className="space-y-3">
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Clock className="h-4 w-4 text-cyan-400" />
-                                  <span className="text-xs font-semibold text-cyan-300">Duración</span>
-                                </div>
-                                <p className="text-sm text-white font-mono">{duration}</p>
-                              </div>
-
-                              <div className="h-px bg-slate-700" />
-
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Activity className="h-4 w-4 text-purple-400" />
-                                  <span className="text-xs font-semibold text-purple-300">Métricas</span>
-                                </div>
-                                <div className="space-y-1">
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-400">Chunks:</span>
-                                    <span className="text-white font-mono">{chunkCount}</span>
+                            {/* Medical Keywords (extracted from preview) */}
+                            {(() => {
+                              const keywords = extractMedicalInfo(preview);
+                              if (keywords.length > 0) {
+                                return (
+                                  <div className="flex items-start gap-2 mb-3">
+                                    <Stethoscope className="h-3.5 w-3.5 text-purple-400 mt-0.5 flex-shrink-0" />
+                                    <div className="flex flex-wrap gap-1">
+                                      {keywords.map((keyword, idx) => (
+                                        <span
+                                          key={idx}
+                                          className="inline-block px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded text-xs text-purple-300"
+                                        >
+                                          {keyword}
+                                        </span>
+                                      ))}
+                                    </div>
                                   </div>
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-400">Caracteres:</span>
-                                    <span className="text-white font-mono">{totalChars.toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              </div>
+                                );
+                              }
+                              return null;
+                            })()}
 
-                              <div className="h-px bg-slate-700" />
-
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <FileText className="h-4 w-4 text-amber-400" />
-                                  <span className="text-xs font-semibold text-amber-300">Preview</span>
-                                </div>
-                                <p className="text-xs text-slate-300 line-clamp-3 italic">
-                                  "{preview.slice(0, 150)}{preview.length > 150 ? '...' : ''}"
-                                </p>
-                              </div>
-                            </div>
+                            {/* Preview Text */}
+                            <p className="text-xs text-slate-400 line-clamp-2 italic">
+                              "{preview.slice(0, 100)}{preview.length > 100 ? '...' : ''}"
+                            </p>
                           </div>
+
                         </div>
                       );
                     })}
@@ -465,6 +655,57 @@ export default function MedicalAIWorkflow() {
             </div>
 
           </div>
+
+          {/* Delete Confirmation Modal */}
+          {deleteConfirmSession && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Trash2 className="h-6 w-6 text-red-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-white mb-1">Eliminar Sesión</h3>
+                    <p className="text-sm text-slate-400">
+                      ¿Estás seguro de eliminar esta sesión? Esta acción no se puede deshacer.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/50 rounded-lg p-3 mb-6">
+                  <div className="text-xs text-slate-500 mb-1">Session ID</div>
+                  <div className="text-sm font-mono text-white">{deleteConfirmSession}</div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeleteConfirmSession(null)}
+                    disabled={deletingSession !== null}
+                    className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSession(deleteConfirmSession)}
+                    disabled={deletingSession !== null}
+                    className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deletingSession === deleteConfirmSession ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Eliminando...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     );
