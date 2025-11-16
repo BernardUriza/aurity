@@ -29,6 +29,13 @@ interface ChunkStatus {
   latency?: number;
   transcript?: string;
   error?: string;
+  // NEW: Backend metrics for adaptive load balancing
+  provider?: string; // deepgram, azure_whisper
+  resolution_time_seconds?: number; // Backend resolution time
+  retry_attempts?: number; // Fallback attempts
+  polling_attempts?: number; // Frontend polling attempts
+  confidence?: number; // Transcription confidence
+  duration?: number; // Audio duration
 }
 
 interface UseChunkProcessorConfig {
@@ -138,7 +145,10 @@ export function useChunkProcessor(
             // Extract transcript from chunk
             const transcript = targetChunk.transcript;
 
-            // Update chunk status to completed
+            // Calculate frontend polling attempts (how many loops we did)
+            const pollingAttempts = attempt + 1;
+
+            // Update chunk status to completed with backend metrics
             setChunkStatuses((prev) =>
               prev.map((c) =>
                 c.index === chunkNumber
@@ -148,6 +158,13 @@ export function useChunkProcessor(
                       endTime,
                       latency,
                       transcript: transcript || '',
+                      // NEW: Include backend metrics for display
+                      provider: targetChunk.provider,
+                      resolution_time_seconds: targetChunk.resolution_time_seconds,
+                      retry_attempts: targetChunk.retry_attempts,
+                      polling_attempts: pollingAttempts,
+                      confidence: targetChunk.confidence,
+                      duration: targetChunk.duration,
                     }
                   : c
               )

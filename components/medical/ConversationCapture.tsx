@@ -106,6 +106,18 @@ export function ConversationCapture({
   const [error, setError] = useState<string | null>(null);
   const [webSpeechTranscripts, setWebSpeechTranscripts] = useState<string[]>([]); // WebSpeech preview (separate)
 
+  // Loaded chunk metrics (for displaying in TranscriptionSources when opening saved session)
+  const [loadedChunkMetrics, setLoadedChunkMetrics] = useState<Array<{
+    chunk_number: number;
+    text: string;
+    provider?: string;
+    polling_attempts?: number;
+    resolution_time_seconds?: number;
+    retry_attempts?: number;
+    confidence?: number;
+    duration?: number;
+  }>>([]);
+
   // Checkpoint state (for visual feedback during pause)
   const [checkpointState, setCheckpointState] = useState<{
     isCreating: boolean;
@@ -262,41 +274,83 @@ export function ConversationCapture({
       setSessionId(externalSessionId);
       setIsFinalized(true); // Mark as finalized to prevent recording
 
-      // Load existing transcription chunks
+      // Load existing transcription chunks AND Triple Vision sources
       const loadExistingData = async () => {
         try {
           addLog('📖 Cargando sesión existente...');
-          const data = await medicalWorkflowApi.getTranscriptionChunks(externalSessionId);
 
-          console.log('[ConversationCapture] Loaded chunks:', data.total_chunks);
+          // Load all 3 transcription sources (Triple Vision)
+          const sources = await medicalWorkflowApi.getTranscriptionSources(externalSessionId);
 
-          // Populate chunk statuses
-          const loadedStatuses = data.chunks.map((chunk) => ({
-            chunkNumber: chunk.chunk_number,
-            status: 'completed' as const,
-            timestamp: new Date(chunk.created_at).toISOString(),
-            latency: 0,
-          }));
-          setChunkStatuses(loadedStatuses);
-
-          // Populate transcription data
-          data.chunks.forEach((chunk) => {
-            if (chunk.transcript) {
-              addTranscriptionChunk({
-                text: chunk.transcript,
-                timestamp: new Date(chunk.created_at).toISOString(),
-                chunkNumber: chunk.chunk_number,
-                isFinal: true,
-              });
-            }
+          console.log('[ConversationCapture] Loaded transcription sources:', {
+            webspeech_count: sources.webspeech_final.length,
+            chunks_count: sources.transcription_per_chunks.length,
+            full_length: sources.full_transcription.length,
           });
+
+          // 1. Populate WebSpeech transcripts
+          if (sources.webspeech_final.length > 0) {
+            setWebSpeechTranscripts(sources.webspeech_final);
+            console.log('[ConversationCapture] ✅ WebSpeech loaded:', sources.webspeech_final.length);
+          }
+
+          // 2. Populate chunk transcripts (Whisper/Deepgram)
+          if (sources.transcription_per_chunks.length > 0) {
+            // Populate chunk statuses
+            const loadedStatuses = sources.transcription_per_chunks.map((chunk) => ({
+              chunkNumber: chunk.chunk_number,
+              status: 'completed' as const,
+              timestamp: new Date().toISOString(), // Use current time for existing chunks
+              latency: 0,
+              transcript: chunk.transcript,
+            }));
+            setChunkStatuses(loadedStatuses);
+
+            // Populate chunk metrics with ALL fields (for TranscriptionSources display)
+            const chunkMetrics = sources.transcription_per_chunks.map((chunk) => ({
+              chunk_number: chunk.chunk_number,
+              text: chunk.transcript,
+              provider: chunk.provider,
+              polling_attempts: chunk.polling_attempts,
+              resolution_time_seconds: chunk.resolution_time_seconds,
+              retry_attempts: chunk.retry_attempts,
+              confidence: chunk.confidence,
+              duration: chunk.duration,
+            }));
+            setLoadedChunkMetrics(chunkMetrics);
+
+            // Populate transcription data (for streaming view)
+            sources.transcription_per_chunks.forEach((chunk) => {
+              if (chunk.transcript) {
+                addTranscriptionChunk({
+                  text: chunk.transcript,
+                  timestamp: new Date().toISOString(),
+                  chunkNumber: chunk.chunk_number,
+                  isFinal: true,
+                });
+              }
+            });
+
+            console.log('[ConversationCapture] ✅ Chunks loaded:', sources.transcription_per_chunks.length);
+          }
+
+          // 3. Full transcription is available via sources.full_transcription
+          // TranscriptionSources component will display it automatically
 
           // Load audio file
           const audioUrl = `${BACKEND_URL}/api/workflows/aurity/sessions/${externalSessionId}/audio`;
           setPausedAudioUrl(audioUrl);
           setIsPaused(true); // Show audio player
 
-          addLog(`✅ Sesión cargada: ${data.total_chunks} chunks, ${data.total_duration.toFixed(1)}s`);
+          const totalDuration = sources.transcription_per_chunks.reduce(
+            (sum, chunk) => sum + chunk.duration,
+            0
+          );
+
+          addLog(
+            `✅ Sesión cargada: ${sources.transcription_per_chunks.length} chunks, ${totalDuration.toFixed(1)}s` +
+            (sources.webspeech_final.length > 0 ? `, ${sources.webspeech_final.length} webspeech` : '')
+          );
         } catch (error) {
           console.error('[ConversationCapture] Failed to load session:', error);
           addLog(`❌ Error cargando sesión: ${error}`);
@@ -549,6 +603,7 @@ export function ConversationCapture({
       // Reset transcription (Phase 6 - uses hook)
       resetTranscription();
       setWebSpeechTranscripts([]); // Reset WebSpeech transcripts
+      setLoadedChunkMetrics([]); // Reset loaded chunk metrics (from saved sessions)
 
       // Reset monitoring metrics
       resetMetrics();
@@ -1000,9 +1055,24 @@ export function ConversationCapture({
       {(isRecording || isPaused || isFinalized || chunkNumberRef.current > 0) && (
         <TranscriptionSources
           webSpeechTranscripts={webSpeechTranscripts}
-          whisperChunks={chunkStatuses
-            .filter((c) => c.status === 'completed' && c.transcript)
-            .map((c) => ({ chunk_number: c.index, text: c.transcript || '' }))}
+          whisperChunks={
+            // Use loaded chunk metrics (saved sessions) OR live chunk statuses
+            loadedChunkMetrics.length > 0
+              ? loadedChunkMetrics
+              : chunkStatuses
+                  .filter((c) => c.status === 'completed' && c.transcript)
+                  .map((c) => ({
+                    chunk_number: c.index,
+                    text: c.transcript || '',
+                    // Include backend metrics for display
+                    provider: c.provider,
+                    resolution_time_seconds: c.resolution_time_seconds,
+                    retry_attempts: c.retry_attempts,
+                    polling_attempts: c.polling_attempts,
+                    confidence: c.confidence,
+                    duration: c.duration,
+                  }))
+          }
           fullTranscription={transcriptionData?.text || ''}
           sessionId={sessionIdRef.current}
           isFinalized={isFinalized}
