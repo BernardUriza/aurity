@@ -100,26 +100,58 @@ export function useWebSpeech(config: UseWebSpeechConfig = {}): UseWebSpeechRetur
       }
     };
 
+    // Track consecutive errors for smart retry
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 3;
+
     recognition.onerror = (event: any) => {
-      console.error('[WebSpeech] Error:', event.error);
+      // Ignore common non-critical errors
       if (event.error === 'no-speech') {
-        // Ignore no-speech errors (normal silence)
-        return;
+        return; // Normal silence, don't log
       }
+
+      consecutiveErrors++;
+
+      // Only log first few errors to avoid spam
+      if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+        console.warn(
+          `[WebSpeech] Error ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}:`,
+          event.error,
+          '(using backend transcription)'
+        );
+      } else if (consecutiveErrors === MAX_CONSECUTIVE_ERRORS + 1) {
+        console.warn(
+          '[WebSpeech] Too many errors - suppressing further logs. Backend transcription active.'
+        );
+      }
+
       setError(event.error);
     };
 
     recognition.onend = () => {
-      console.log('[WebSpeech] Ended');
       setIsListening(false);
 
       // Auto-restart if not manually stopped (continuous mode)
       if (continuous && !isStoppingRef.current) {
-        console.log('[WebSpeech] Auto-restarting...');
+        // Stop auto-restart after too many errors
+        if (consecutiveErrors > MAX_CONSECUTIVE_ERRORS) {
+          console.warn(
+            '[WebSpeech] Auto-restart disabled after multiple failures. Backend transcription active.'
+          );
+          return;
+        }
+
+        // Only log restart on first few attempts
+        if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+          console.log('[WebSpeech] Auto-restarting...');
+        }
+
         try {
           recognition.start();
         } catch (err) {
-          console.error('[WebSpeech] Restart failed:', err);
+          if (consecutiveErrors <= MAX_CONSECUTIVE_ERRORS) {
+            console.error('[WebSpeech] Restart failed:', err);
+          }
         }
       }
     };

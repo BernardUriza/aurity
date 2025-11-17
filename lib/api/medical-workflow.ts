@@ -426,4 +426,28 @@ export const medicalWorkflowApi = {
       `/api/workflows/aurity/sessions/${sessionId}/chunks`
     );
   },
+
+  /**
+   * Get all 3 transcription sources for a saved session (Triple Vision)
+   */
+  getTranscriptionSources: async (sessionId: string): Promise<{
+    webspeech_final: string[];
+    transcription_per_chunks: Array<{
+      chunk_number: number;
+      transcript: string;
+      timestamp_start: number;
+      timestamp_end: number;
+      duration: number;
+      provider: string;
+      confidence: number;
+      resolution_time_seconds: number;
+      retry_attempts: number;
+      polling_attempts: number;
+    }>;
+    full_transcription: string;
+  }> => {
+    return api.get(
+      `/api/workflows/aurity/sessions/${sessionId}/transcription-sources`
+    );
+  },
 };
