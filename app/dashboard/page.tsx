@@ -1,11 +1,16 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import { KPICard, KPIStatus } from "../../components/KPICard"
 import { PageHeader } from "../../components/PageHeader"
 import { dashboardHeader } from "../../config/page-headers"
 import { getKPIMetrics } from "../../lib/api/kpis"
 import type { KPIMetrics } from "../../lib/api/kpis"
+import { FIAvatar } from "../../components/dashboard/FIAvatar"
+import { DoctorControlPanel } from "../../components/dashboard/DoctorControlPanel"
+import { PatientMetrics } from "../../components/dashboard/PatientMetrics"
+import { SlideManager } from "../../components/dashboard/SlideManager"
 import {
   Activity,
   Clock,
@@ -19,9 +24,18 @@ import Link from "next/link"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams()
+  const mode = searchParams.get('mode') // 'control' for doctor view, null for patient TV view
+
   const [metrics, setMetrics] = useState<KPIMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [doctorMessage, setDoctorMessage] = useState<string | null>(null)
+  const [slides, setSlides] = useState<any[]>([])
+  const [isLoadingSlides, setIsLoadingSlides] = useState(false)
+  const [carouselIndex, setCarouselIndex] = useState(0)
+  const [totalCarouselItems, setTotalCarouselItems] = useState(0)
+  const [carouselContent, setCarouselContent] = useState<any[]>([])
 
   useEffect(() => {
     async function fetchMetrics() {
@@ -41,6 +55,48 @@ export default function DashboardPage() {
     // Refresh every 30 seconds
     const interval = setInterval(fetchMetrics, 30000)
     return () => clearInterval(interval)
+  }, [])
+
+  // Fetch slides for preview navigation
+  useEffect(() => {
+    async function fetchSlides() {
+      if (mode !== 'control') return
+
+      setIsLoadingSlides(true)
+      try {
+        const backendURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001'
+        const response = await fetch(`${backendURL}/api/workflows/aurity/clinic-media/list?active_only=true`)
+        if (!response.ok) throw new Error('Failed to fetch slides')
+
+        const data = await response.json()
+        setSlides(data.media || [])
+      } catch (error) {
+        console.error('Failed to fetch slides:', error)
+      } finally {
+        setIsLoadingSlides(false)
+      }
+    }
+
+    fetchSlides()
+  }, [mode])
+
+  const handlePrevSlide = () => {
+    setCarouselIndex((prev) => (prev - 1 + totalCarouselItems) % Math.max(totalCarouselItems, 1))
+  }
+
+  const handleNextSlide = () => {
+    setCarouselIndex((prev) => (prev + 1) % Math.max(totalCarouselItems, 1))
+  }
+
+  const handleIndexChange = useCallback((index: number) => {
+    setCarouselIndex(index);
+  }, [])
+
+  const handleContentLoad = useCallback((total: number, contentArray?: any[]) => {
+    setTotalCarouselItems(total);
+    if (contentArray) {
+      setCarouselContent(contentArray);
+    }
   }, [])
 
   if (loading && !metrics) {
@@ -96,6 +152,43 @@ export default function DashboardPage() {
     asOf: metrics.asOf,
   })
 
+  // PATIENT TV MODE (Default)
+  if (mode !== 'control') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        {/* TV UI - Large, readable, auto-refreshing */}
+        <div className="mx-auto max-w-[1920px] px-8 py-12">
+          {/* Live Indicator */}
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse shadow-lg shadow-purple-500/50"></div>
+            <span className="text-2xl font-bold text-purple-400 tracking-wide">SALA DE ESPERA</span>
+            <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse shadow-lg shadow-purple-500/50"></div>
+          </div>
+
+          {/* Patient-Friendly Metrics */}
+          <div className="mb-12">
+            <PatientMetrics
+              waitingCount={Math.floor(Math.random() * 5) + 1} // Mock data
+              avgWaitTime={Math.floor(Math.random() * 30) + 15}
+              patientsToday={sessionsToday}
+              nextAppointment="10:30"
+            />
+          </div>
+
+          {/* FI Avatar with rotating content */}
+          <div className="max-w-4xl mx-auto">
+            <FIAvatar
+              mode="broadcast"
+              clinicName="Clínica AURITY"
+              doctorMessage={doctorMessage}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // DOCTOR CONTROL MODE (?mode=control)
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -105,10 +198,119 @@ export default function DashboardPage() {
         <div className="mx-auto max-w-[1920px] px-8 py-12">
 
           {/* Live Indicator */}
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
-            <span className="text-2xl font-bold text-green-400 tracking-wide">LIVE MONITORING</span>
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
+              <span className="text-2xl font-bold text-green-400 tracking-wide">DOCTOR CONTROL MODE</span>
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
+            </div>
+            <Link
+              href="/dashboard"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors"
+            >
+              Ver Vista de Paciente
+            </Link>
+          </div>
+
+          {/* Control Panel + TV Preview (2 Column Layout) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+            {/* LEFT: Admin Controls */}
+            <div className="space-y-6">
+              {/* Messages & Content Upload */}
+              <DoctorControlPanel
+                onMessageSend={(message) => setDoctorMessage(message)}
+                currentMessage={doctorMessage}
+                clinicName="Clínica AURITY"
+                doctorId="demo-doctor-001"
+                clinicId="aurity-clinic-001"
+              />
+
+              {/* Slide Order Manager */}
+              <div className="bg-slate-800/50 border border-slate-700 rounded-lg overflow-hidden">
+                <div className="px-6 py-4 bg-slate-900/50 border-b border-slate-700">
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                    Orden de Slides
+                  </h2>
+                  <p className="text-sm text-slate-400 mt-1">Arrastra para reordenar, activa/desactiva para controlar visibilidad</p>
+                </div>
+                <div className="p-6">
+                  <SlideManager
+                    clinicId="aurity-clinic-001"
+                    carouselContent={carouselContent}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT: TV Preview */}
+            <div className="lg:sticky lg:top-8 h-fit">
+              <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden">
+                <div className="px-6 py-4 bg-slate-900/50 border-b border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Vista Previa TV
+                      </h2>
+                      <p className="text-sm text-slate-400 mt-1">
+                        {totalCarouselItems > 0 ? `Slide ${carouselIndex + 1} de ${totalCarouselItems}` : 'Carousel unificado'}
+                      </p>
+                    </div>
+
+                    {/* Navigation Controls */}
+                    {totalCarouselItems > 0 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handlePrevSlide}
+                          className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                          title="Anterior"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={handleNextSlide}
+                          className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                          title="Siguiente"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preview Content */}
+                <div className="p-8">
+                  {isLoadingSlides ? (
+                    <div className="text-center py-12">
+                      <svg className="w-8 h-8 animate-spin text-purple-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <p className="text-sm text-slate-400 mt-2">Cargando slides...</p>
+                    </div>
+                  ) : (
+                    <FIAvatar
+                      mode="broadcast"
+                      clinicName="Clínica AURITY"
+                      doctorMessage={doctorMessage}
+                      clinicSlides={slides}
+                      externalCurrentIndex={carouselIndex}
+                      onIndexChange={handleIndexChange}
+                      onContentLoad={handleContentLoad}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
       {/* Primary KPIs - Extra Large for TV visibility */}

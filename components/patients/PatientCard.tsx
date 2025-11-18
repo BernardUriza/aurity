@@ -45,9 +45,17 @@ export const PatientCard: React.FC<PatientCardProps> = ({
   };
 
   return (
-    <button
+    <div
       onClick={() => onClick(patient)}
-      className={`group relative p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left overflow-hidden ${className}`}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick(patient);
+        }
+      }}
+      className={`group relative p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left overflow-hidden cursor-pointer ${className}`}
     >
       <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all -z-10" />
 
@@ -137,6 +145,6 @@ export const PatientCard: React.FC<PatientCardProps> = ({
           )}
         </div>
       )}
-    </button>
+    </div>
   );
 };

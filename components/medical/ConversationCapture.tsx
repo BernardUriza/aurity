@@ -69,6 +69,7 @@ interface ConversationCaptureProps {
   onSessionCreated?: (sessionId: string) => void; // Callback when session ID is generated
   sessionId?: string; // Existing session ID (for read-only mode)
   readOnly?: boolean; // Read-only mode for existing sessions
+  patient?: { id: string; name: string; age: number }; // Selected patient from parent
   className?: string;
 }
 
@@ -96,6 +97,7 @@ export function ConversationCapture({
   onSessionCreated,
   sessionId: externalSessionId,
   readOnly = false,
+  patient,
   className = ''
 }: ConversationCaptureProps) {
   // State
@@ -270,6 +272,18 @@ export function ConversationCapture({
   // Refs (audio level refs for breaking circular dependency)
   const audioLevelRef = useRef<number>(0);
   const isSilentRef = useRef<boolean>(true);
+
+  // Effect: Initialize patient info from parent's selected patient
+  useEffect(() => {
+    if (patient && !patientInfo) {
+      console.log('[ConversationCapture] Initializing patient info from parent:', patient);
+      setPatientInfo({
+        patient_name: patient.name,
+        patient_age: patient.age.toString(),
+        patient_id: patient.id,
+      });
+    }
+  }, [patient, patientInfo]);
 
   // Effect: Initialize read-only mode with existing session
   useEffect(() => {

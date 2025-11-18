@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { PageHeader } from '@/components/PageHeader';
 import { UserDisplay } from '@/components/UserDisplay';
@@ -47,6 +48,7 @@ const MedicalWorkflowSteps = [
 ];
 
 export default function MedicalAIWorkflow() {
+  const router = useRouter();
   const [showPatientSelector, setShowPatientSelector] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState<MedicalPatient | null>(null);
 

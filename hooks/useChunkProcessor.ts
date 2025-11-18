@@ -60,7 +60,7 @@ export function useChunkProcessor(
 ): UseChunkProcessorReturn {
   const {
     backendUrl = 'http://localhost:7001',
-    maxAttempts = 60, // 60 attempts * 1000ms = 60s timeout
+    maxAttempts = 10, // 10 attempts * 1000ms = 10s timeout (backend has STT load balancer)
     pollInterval = 1000, // 1000ms (1s) between polls - reduced load on HDF5 SWMR
   } = config;
 
@@ -113,9 +113,9 @@ export function useChunkProcessor(
 
           if (!targetChunk) {
             // Chunk not yet in job metadata
-            if (attempt % 10 === 0) {
+            if (attempt % 5 === 0 || attempt >= maxAttempts - 2) {
               console.log(
-                `[CHUNK ${chunkNumber}] ⏳ Chunk not found in job yet (attempt ${attempt + 1})`
+                `[CHUNK ${chunkNumber}] ⏳ Chunk not found in job yet (attempt ${attempt + 1}/${maxAttempts})`
               );
             }
             await new Promise((resolve) => setTimeout(resolve, pollInterval));
@@ -214,10 +214,10 @@ export function useChunkProcessor(
             return null;
           } else if (targetChunk.status === 'pending' || targetChunk.status === 'processing') {
             // Still processing, wait and continue polling
-            if (attempt % 10 === 0) {
-              // Log every 5 seconds (10 attempts * 500ms)
+            if (attempt % 5 === 0 || attempt >= maxAttempts - 2) {
+              // Log every 5 attempts OR when close to timeout
               console.log(
-                `[CHUNK ${chunkNumber}] ⏳ Polling... (${targetChunk.status}, attempt ${attempt + 1})`
+                `[CHUNK ${chunkNumber}] ⏳ Polling... (${targetChunk.status}, attempt ${attempt + 1}/${maxAttempts})`
               );
             }
             await new Promise((resolve) => setTimeout(resolve, pollInterval));
@@ -236,15 +236,20 @@ export function useChunkProcessor(
         }
       }
 
-      // Timeout - fail silently, LLM will use webspeech/fulltext
-      // Don't log error - this is expected for slow Whisper processing
+      // Timeout after maxAttempts - chunk will be marked as unresolved
+      console.warn(
+        `[CHUNK ${chunkNumber}] ⚠️ Timeout after ${maxAttempts} attempts (${(maxAttempts * pollInterval) / 1000}s). Backend may be overloaded or STT service unavailable.`
+      );
+      addLog(`⚠️ Chunk ${chunkNumber} timeout después de ${maxAttempts} intentos - transcripción incompleta`);
+
       setChunkStatuses((prev) =>
         prev.map((c) =>
           c.index === chunkNumber
-            ? { ...c, status: 'unresolved' as const, transcript: null }
+            ? { ...c, status: 'unresolved' as const, transcript: null, error: 'Timeout - backend no respondió' }
             : c
         )
       );
+      setBackendHealth('degraded');
       return null;
     },
     [backendUrl, maxAttempts, pollInterval, addLog]

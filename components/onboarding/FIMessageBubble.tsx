@@ -1,0 +1,367 @@
+/**
+ * FIMessageBubble Component
+ *
+ * Card: FI-ONBOARD-002
+ * Displays Free-Intelligence messages with persona-based styling
+ */
+
+import type { FIMessage } from '@/types/assistant';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+/**
+ * Persona-based styling configuration
+ * Maps backend personas to visual themes
+ */
+const PERSONA_STYLES = {
+  // Onboarding Guide - Sovereignty theme (emerald)
+  onboarding_guide: {
+    border: 'border-emerald-600/60',
+    bg: 'bg-emerald-950/20',
+    glow: 'shadow-emerald-500/10',
+    icon: '🏠', // Residencia local
+    label: 'FREE-INTELLIGENCE',
+    labelColor: 'text-emerald-300',
+  },
+
+  // General Assistant - Neutral theme (slate)
+  general_assistant: {
+    border: 'border-slate-600/60',
+    bg: 'bg-slate-900/20',
+    glow: 'shadow-slate-500/10',
+    icon: '💬',
+    label: 'FREE-INTELLIGENCE',
+    labelColor: 'text-slate-300',
+  },
+
+  // Clinical Advisor - Evidence-based theme (blue)
+  clinical_advisor: {
+    border: 'border-blue-600/60',
+    bg: 'bg-blue-950/20',
+    glow: 'shadow-blue-500/10',
+    icon: '📊', // Evidence-based
+    label: 'FREE-INTELLIGENCE · CLINICAL',
+    labelColor: 'text-blue-300',
+  },
+
+  // SOAP Editor - Precision theme (cyan)
+  soap_editor: {
+    border: 'border-cyan-600/60',
+    bg: 'bg-cyan-950/20',
+    glow: 'shadow-cyan-500/10',
+    icon: '📝', // Documentation
+    label: 'FREE-INTELLIGENCE · SOAP',
+    labelColor: 'text-cyan-300',
+  },
+
+  // Waiting Room Host - Welcoming theme (purple)
+  waiting_room_host: {
+    border: 'border-purple-600/60',
+    bg: 'bg-purple-950/20',
+    glow: 'shadow-purple-500/10',
+    icon: '👋', // Bienvenida
+    label: 'FREE-INTELLIGENCE · SALA DE ESPERA',
+    labelColor: 'text-purple-300',
+  },
+} as const;
+
+/**
+ * Fallback style for unknown personas
+ */
+const FALLBACK_STYLE = {
+  border: 'border-slate-600/60',
+  bg: 'bg-slate-900/20',
+  glow: 'shadow-slate-500/10',
+  icon: '🤖',
+  label: 'FREE-INTELLIGENCE',
+  labelColor: 'text-slate-300',
+};
+
+export interface FIMessageBubbleProps {
+  /** Message to display */
+  message: FIMessage;
+
+  /** Show timestamp */
+  showTimestamp?: boolean;
+
+  /** Animate entrance */
+  animate?: boolean;
+
+  /** Additional CSS classes */
+  className?: string;
+}
+
+/**
+ * Message bubble for Free-Intelligence responses
+ *
+ * Features:
+ * - Persona-based visual styling
+ * - Neo-minimalist glassmorphism design
+ * - Smooth entrance animations
+ * - Accessible markup
+ *
+ * @example
+ * ```tsx
+ * <FIMessageBubble
+ *   message={{
+ *     role: 'assistant',
+ *     content: 'Hola, soy Free-Intelligence...',
+ *     timestamp: '2025-11-18T12:00:00Z',
+ *     metadata: { tone: 'onboarding_guide', phase: 'welcome' }
+ *   }}
+ *   showTimestamp
+ *   animate
+ * />
+ * ```
+ */
+export function FIMessageBubble({
+  message,
+  showTimestamp = false,
+  animate = true,
+  className = '',
+}: FIMessageBubbleProps) {
+  // Get persona from metadata (fallback to general_assistant)
+  const persona = message.metadata?.tone || 'general_assistant';
+
+  // Get style for persona (with fallback)
+  const style = PERSONA_STYLES[persona as keyof typeof PERSONA_STYLES] || FALLBACK_STYLE;
+
+  // Format timestamp
+  const formattedTime = showTimestamp
+    ? new Date(message.timestamp).toLocaleTimeString('es-MX', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+
+  return (
+    <div
+      className={`
+        flex items-start gap-3
+        ${animate ? 'animate-fade-in-up' : ''}
+        ${className}
+      `}
+      role="article"
+      aria-label="Free-Intelligence message"
+    >
+      {/* Message Bubble */}
+      <div
+        className={`
+          flex-1 max-w-[85%]
+          p-4 rounded-2xl rounded-tl-sm
+          border ${style.border}
+          ${style.bg}
+          backdrop-blur-xl
+          shadow-lg ${style.glow}
+          transition-all duration-300
+          hover:shadow-xl
+        `}
+      >
+        {/* Header: Label + Icon */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`text-xs font-semibold tracking-wide ${style.labelColor}`}>
+            {style.label}
+          </span>
+          <span className="text-base" role="img" aria-label={`Persona: ${persona}`}>
+            {style.icon}
+          </span>
+          {showTimestamp && formattedTime && (
+            <span className="ml-auto text-xs text-slate-400/60 font-light">
+              {formattedTime}
+            </span>
+          )}
+        </div>
+
+        {/* Message Content */}
+        <div className="text-sm text-slate-200 leading-relaxed prose prose-invert max-w-none">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              // Headings with gradients
+              h1: ({ children }) => (
+                <h1 className="text-xl font-extrabold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mt-4 mb-3 leading-tight">
+                  {children}
+                </h1>
+              ),
+              h2: ({ children }) => (
+                <h2 className="text-lg font-bold bg-gradient-to-r from-emerald-300 to-emerald-100 bg-clip-text text-transparent mt-4 mb-2 leading-tight">
+                  {children}
+                </h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-base font-semibold text-emerald-200/90 mt-3 mb-2 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/60"></span>
+                  {children}
+                </h3>
+              ),
+
+              // Text formatting with enhanced styles
+              strong: ({ children }) => (
+                <strong className="font-bold text-white bg-gradient-to-r from-slate-100 to-slate-50 bg-clip-text text-transparent">
+                  {children}
+                </strong>
+              ),
+              em: ({ children }) => (
+                <em className="italic text-slate-300 not-italic font-medium">
+                  {children}
+                </em>
+              ),
+              code: ({ children }) => (
+                <code className="px-2 py-0.5 bg-gradient-to-r from-emerald-950/40 to-cyan-950/40 border border-emerald-500/20 rounded-md text-emerald-300 font-mono text-xs shadow-sm">
+                  {children}
+                </code>
+              ),
+
+              // Links with hover glow
+              a: ({ href, children }) => (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 hover:text-cyan-300 underline decoration-cyan-500/50 hover:decoration-cyan-400 underline-offset-2 transition-all duration-200 hover:shadow-sm hover:shadow-cyan-500/20"
+                >
+                  {children} ↗
+                </a>
+              ),
+
+              // Lists with custom bullets
+              ul: ({ children }) => (
+                <ul className="list-none space-y-1.5 my-3">
+                  {children}
+                </ul>
+              ),
+              ol: ({ children }) => (
+                <ol className="list-none space-y-1.5 my-3 counter-reset-[item]">
+                  {children}
+                </ol>
+              ),
+              li: ({ children }) => {
+                // Check if this is a checkbox item (GitHub Flavored Markdown)
+                const content = String(children);
+                if (content.includes('[ ]')) {
+                  return (
+                    <li className="flex items-start gap-2 text-slate-200">
+                      <span className="flex-shrink-0 w-4 h-4 mt-0.5 border-2 border-slate-500/60 rounded" />
+                      <span>{content.replace('[ ]', '').trim()}</span>
+                    </li>
+                  );
+                }
+                if (content.includes('[x]') || content.includes('[X]')) {
+                  return (
+                    <li className="flex items-start gap-2 text-slate-200">
+                      <span className="flex-shrink-0 w-4 h-4 mt-0.5 bg-emerald-500/20 border-2 border-emerald-500/60 rounded flex items-center justify-center">
+                        <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </span>
+                      <span>{content.replace(/\[x\]|\[X\]/i, '').trim()}</span>
+                    </li>
+                  );
+                }
+                // Regular bullet
+                return (
+                  <li className="flex items-start gap-2 text-slate-200 group">
+                    <span className="flex-shrink-0 w-1.5 h-1.5 mt-2 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 group-hover:shadow-sm group-hover:shadow-emerald-400/50 transition-shadow" />
+                    <span className="flex-1">{children}</span>
+                  </li>
+                );
+              },
+
+              // Paragraphs with better spacing
+              p: ({ children }) => (
+                <p className="mb-3 last:mb-0 text-slate-200/95 leading-relaxed">
+                  {children}
+                </p>
+              ),
+
+              // Code blocks with enhanced styling
+              pre: ({ children }) => (
+                <pre className="bg-gradient-to-br from-slate-950/80 to-slate-900/80 backdrop-blur-sm p-4 rounded-xl overflow-x-auto my-3 border border-emerald-500/10 shadow-lg shadow-emerald-500/5 font-mono text-xs leading-relaxed">
+                  {children}
+                </pre>
+              ),
+
+              // Horizontal rule with gradient
+              hr: () => (
+                <hr className="my-4 border-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+              ),
+
+              // Blockquote with accent
+              blockquote: ({ children }) => (
+                <blockquote className="relative border-l-4 border-emerald-500/50 pl-4 pr-4 py-2 my-3 italic text-slate-300/90 bg-emerald-950/10 rounded-r-lg">
+                  <div className="absolute -left-2 top-2 w-4 h-4 bg-emerald-500/20 rounded-full blur-sm"></div>
+                  {children}
+                </blockquote>
+              ),
+
+              // Tables (GitHub Flavored Markdown)
+              table: ({ children }) => (
+                <div className="overflow-x-auto my-3">
+                  <table className="min-w-full border border-slate-700/50 rounded-lg overflow-hidden">
+                    {children}
+                  </table>
+                </div>
+              ),
+              thead: ({ children }) => (
+                <thead className="bg-slate-800/60">
+                  {children}
+                </thead>
+              ),
+              tbody: ({ children }) => (
+                <tbody className="divide-y divide-slate-700/30">
+                  {children}
+                </tbody>
+              ),
+              tr: ({ children }) => (
+                <tr className="hover:bg-slate-800/20 transition-colors">
+                  {children}
+                </tr>
+              ),
+              th: ({ children }) => (
+                <th className="px-4 py-2 text-left text-xs font-semibold text-emerald-300 uppercase tracking-wider">
+                  {children}
+                </th>
+              ),
+              td: ({ children }) => (
+                <td className="px-4 py-2 text-sm text-slate-300">
+                  {children}
+                </td>
+              ),
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
+        </div>
+
+        {/* Phase Badge (optional) */}
+        {message.metadata?.phase && (
+          <div className="mt-3 pt-3 border-t border-slate-700/30">
+            <span className="text-xs text-slate-400/60 font-medium">
+              Phase: {message.metadata.phase}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * Animation keyframes (add to global CSS or Tailwind config)
+ *
+ * @keyframes fade-in-up {
+ *   from {
+ *     opacity: 0;
+ *     transform: translateY(10px);
+ *   }
+ *   to {
+ *     opacity: 1;
+ *     transform: translateY(0);
+ *   }
+ * }
+ *
+ * .animate-fade-in-up {
+ *   animation: fade-in-up 0.4s ease-out;
+ * }
+ */
