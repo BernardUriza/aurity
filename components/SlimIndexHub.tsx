@@ -5,14 +5,14 @@
  * Card: FI-UI-FEAT-209
  *
  * Minimal navigation hub - header + tiles + keyboard shortcuts only
- * Removed: KPIs, search, help modal, badges, online status
- * Target: ~100 lines (63% reduction from full IndexHub)
+ * Updated: HIPAA G-003 - Integrated UserDisplay in header
  */
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { NAV_ROUTES, getRouteByShortcut } from "@/lib/navigation";
 import { AccessTile } from "./AccessTile";
+import { UserDisplay } from "./UserDisplay";
 
 export function SlimIndexHub() {
   const router = useRouter();
@@ -41,7 +41,7 @@ export function SlimIndexHub() {
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col">
-      {/* Minimal Header */}
+      {/* Minimal Header with Auth */}
       <header className="border-b border-slate-800 bg-slate-900/95 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -49,6 +49,8 @@ export function SlimIndexHub() {
               <h1 className="text-xl font-bold text-slate-50">Aurity Framework</h1>
               <span className="text-sm text-slate-400">v0.1.0</span>
             </div>
+            {/* User Authentication Display - Integrated */}
+            <UserDisplay />
           </div>
         </div>
       </header>
@@ -132,37 +134,6 @@ export function SlimIndexHub() {
           </div>
         </div>
 
-        {/* Component Showcase Link */}
-        <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-800/50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-purple-300">Component Showcase</h3>
-              <p className="text-sm text-slate-400 mt-1">Explore all UI components with live examples</p>
-            </div>
-            <a
-              href="/showcase"
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
-            >
-              View Showcase →
-            </a>
-          </div>
-        </div>
-
-        {/* Chunk Breakdown Testing Link */}
-        <div className="mb-8 p-4 bg-gradient-to-r from-orange-900/20 to-yellow-900/20 border border-orange-800/50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-orange-300">Chunk Breakdown (Debug)</h3>
-              <p className="text-sm text-slate-400 mt-1">Inspect audio chunks with EBML headers and transcription details</p>
-            </div>
-            <a
-              href="/test-chunks"
-              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors font-medium"
-            >
-              Test Chunks →
-            </a>
-          </div>
-        </div>
 
         {/* Navigation Tiles Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

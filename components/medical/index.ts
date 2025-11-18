@@ -17,6 +17,8 @@
 export { ConversationCapture } from './ConversationCapture';
 export { DialogueFlow } from './DialogueFlow';
 export { ClinicalNotes } from './ClinicalNotes';
+export { EvidencePackViewer } from './EvidencePackViewer';
 export { OrderEntry } from './OrderEntry';
 export { SummaryExport } from './SummaryExport';
 export { DiarizationProcessingModal } from './DiarizationProcessingModal';
+export { PatientInfoModal, type PatientInfo } from './PatientInfoModal';

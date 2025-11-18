@@ -123,7 +123,7 @@ export function ChunkBreakdown({
     const startTime = performance.now();
     try {
       const response = await fetch(
-        `${apiBaseUrl}/internal/transcribe/sessions/${sessionId}/chunks`
+        `${apiBaseUrl}/api/workflows/aurity/sessions/${sessionId}/chunks`
       );
 
       const endTime = performance.now();

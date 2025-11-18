@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { PolicyViewer } from "@/components/PolicyViewer";
 import { GlobalPolicyBanner } from "@/components/GlobalPolicyBanner";
+import { UserDisplay } from "@/components/UserDisplay";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -55,14 +56,17 @@ export default function PolicyPage() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Link */}
-        <Link
-          href="/"
-          className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition mb-6"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back to Home</span>
-        </Link>
+        {/* Header with Back Link and UserDisplay */}
+        <div className="flex items-center justify-between mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Home</span>
+          </Link>
+          <UserDisplay />
+        </div>
 
         {/* Loading State */}
         {loading && (

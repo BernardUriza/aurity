@@ -150,6 +150,28 @@ export interface SessionSummary {
   preview: string;
 }
 
+/**
+ * SessionListItem - Lightweight session list from /sessions endpoint
+ * Includes patient_name and doctor_name (extracted from diarization or metadata)
+ */
+export interface SessionListItem {
+  session_id: string;
+  created_at: string;
+  has_transcription: boolean;
+  has_diarization: boolean;
+  has_soap: boolean;
+  chunk_count: number;
+  duration_seconds: number;
+  preview: string;
+  patient_name: string;
+  doctor_name: string;
+}
+
+export interface SessionsListResponse {
+  sessions: SessionListItem[];
+  total: number;
+}
+
 export interface EventResponse {
   event_id: string;
   event_type: string;
@@ -227,6 +249,38 @@ export async function getSessionSummaries(params?: {
     }
 
     // No cache available, rethrow error
+    throw error;
+  }
+}
+
+/**
+ * Get lightweight sessions list with patient/doctor names
+ * Uses /sessions endpoint (sessions_list.py) NOT /timeline/sessions
+ *
+ * This endpoint is MUCH faster and includes patient_name + doctor_name
+ * extracted from session metadata or diarization results.
+ */
+export async function getSessionsList(params?: {
+  limit?: number;
+  offset?: number;
+}): Promise<SessionsListResponse> {
+  const { limit = 20, offset = 0 } = params || {};
+
+  const url = new URL(`${API_BASE_URL}/sessions`);
+  url.searchParams.set('limit', limit.toString());
+  url.searchParams.set('offset', offset.toString());
+
+  try {
+    const response = await fetchWithRetry(url.toString());
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch sessions list: ${response.statusText}`);
+    }
+
+    const data: SessionsListResponse = await response.json();
+    return data;
+  } catch (error) {
+    console.error('[Timeline API] Failed to fetch sessions list:', error);
     throw error;
   }
 }

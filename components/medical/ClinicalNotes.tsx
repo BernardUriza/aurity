@@ -297,7 +297,9 @@ export function ClinicalNotes({
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         const isNoDataError = errorMsg.includes('No SOAP data found') ||
-                             errorMsg.includes('404');
+                             errorMsg.includes('404') ||
+                             errorMsg.includes('Task SOAP_GENERATION does not exist') ||
+                             errorMsg.includes('SOAP task not found');
 
         if (isNoDataError) {
           console.log('[ClinicalNotes] No SOAP data yet, will poll...');

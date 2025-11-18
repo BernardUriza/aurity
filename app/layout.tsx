@@ -4,13 +4,14 @@
 // Next.js 14 root layout component
 // Sprint: SPR-2025W44
 // Version: 0.1.0
-// Updated: FI-UI-FEAT-204 - Added GlobalPolicyBanner
+// Updated: HIPAA G-003 - Auth0 Integration + Always-Visible User Display
 // =============================================================================
 
 import type { Metadata } from 'next';
 import './globals.css';
 import { GlobalPolicyBanner } from '@/components/GlobalPolicyBanner';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { Auth0Provider } from '@/components/Auth0Provider';
 
 export const metadata: Metadata = {
   title: 'Aurity Framework',
@@ -30,10 +31,12 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className="min-h-screen bg-slate-900 antialiased">
-        <ThemeProvider>
-          <GlobalPolicyBanner />
-          {children}
-        </ThemeProvider>
+        <Auth0Provider>
+          <ThemeProvider>
+            <GlobalPolicyBanner />
+            {children}
+          </ThemeProvider>
+        </Auth0Provider>
       </body>
     </html>
   );

@@ -3,113 +3,82 @@
 /**
  * Personal History Timeline Page
  *
- * FI-UI-FEAT-004: Modo historia personal
- *
- * Vista interactiva donde el usuario explora:
- * - Mis decisiones
- * - Mis conversaciones
- * - Mi evolución temporal
+ * Connected to real HDF5 sessions via Timeline API
+ * Shows user's medical consultation history
  */
 
 import React, { useState, useEffect } from 'react';
+import { getSessionSummaries } from '@/lib/api/timeline';
+import { UserDisplay } from '@/components/UserDisplay';
 
-interface TimelineEvent {
+interface Session {
   id: string;
   timestamp: string;
-  type: 'conversation' | 'decision' | 'milestone';
   title: string;
   summary: string;
   metadata: {
-    sessionId?: string;
-    tags?: string[];
-    sentiment?: 'positive' | 'neutral' | 'negative';
+    sessionId: string;
+    interactions: number;
+    duration?: string;
   };
 }
 
 export default function HistoryPage() {
-  const [events, setEvents] = useState<TimelineEvent[]>([]);
-  const [filter, setFilter] = useState<string>('all');
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
     start: '',
     end: '',
   });
 
-  // Mock data initialization
+  // Load real sessions from HDF5
   useEffect(() => {
-    const mockEvents: TimelineEvent[] = [
-      {
-        id: '1',
-        timestamp: '2025-10-29T10:00:00Z',
-        type: 'conversation',
-        title: 'Consulta sobre arquitectura de sistema',
-        summary: 'Discusión sobre diseño event-sourced y políticas append-only',
-        metadata: {
-          sessionId: 'session_20251029_100000',
-          tags: ['arquitectura', 'event-sourcing'],
-          sentiment: 'positive',
-        },
-      },
-      {
-        id: '2',
-        timestamp: '2025-10-28T15:30:00Z',
-        type: 'decision',
-        title: 'Decisión: Usar HDF5 para storage',
-        summary: 'Selección de HDF5 sobre SQLite por append-only y compresión',
-        metadata: {
-          tags: ['storage', 'decisión-técnica'],
-          sentiment: 'positive',
-        },
-      },
-      {
-        id: '3',
-        timestamp: '2025-10-27T09:15:00Z',
-        type: 'milestone',
-        title: 'Sprint 1 completado',
-        summary: '5/5 cards completadas. Sistema de configuración y logging operativo',
-        metadata: {
-          tags: ['sprint', 'milestone'],
-          sentiment: 'positive',
-        },
-      },
-    ];
+    async function loadSessions() {
+      try {
+        setLoading(true);
+        const summaries = await getSessionSummaries({ limit: 100 });
 
-    setEvents(mockEvents);
+        const sessionData: Session[] = summaries.map((summary: any) => ({
+          id: summary.metadata.session_id,
+          timestamp: summary.metadata.created_at,
+          title: `Medical Session ${summary.metadata.session_id.substring(0, 8)}`,
+          summary: `${summary.size.interaction_count} interactions · ${summary.timespan.duration_human}`,
+          metadata: {
+            sessionId: summary.metadata.session_id,
+            interactions: summary.size.interaction_count,
+            duration: summary.timespan.duration_human,
+          },
+        }));
+
+        setSessions(sessionData);
+        setError(null);
+      } catch (err) {
+        console.error('[History] Failed to load sessions:', err);
+        setError('Failed to load session history');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadSessions();
   }, []);
 
-  const filteredEvents = events.filter(event => {
-    // Filter by type
-    if (filter !== 'all' && event.type !== filter) return false;
-
+  const filteredSessions = sessions.filter(session => {
     // Filter by search query
-    if (searchQuery && !event.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !event.summary.toLowerCase().includes(searchQuery.toLowerCase())) {
+    if (searchQuery && !session.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !session.summary.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !session.metadata.sessionId.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
 
     // Filter by date range
-    if (dateRange.start && new Date(event.timestamp) < new Date(dateRange.start)) return false;
-    if (dateRange.end && new Date(event.timestamp) > new Date(dateRange.end)) return false;
+    if (dateRange.start && new Date(session.timestamp) < new Date(dateRange.start)) return false;
+    if (dateRange.end && new Date(session.timestamp) > new Date(dateRange.end)) return false;
 
     return true;
   });
-
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case 'conversation': return '💬';
-      case 'decision': return '🎯';
-      case 'milestone': return '🏆';
-      default: return '📌';
-    }
-  };
-
-  const getSentimentColor = (sentiment?: string) => {
-    switch (sentiment) {
-      case 'positive': return 'text-emerald-500';
-      case 'negative': return 'text-rose-500';
-      default: return 'text-slate-400';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -119,14 +88,15 @@ export default function HistoryPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-100">
-                Mi Historia Personal
+                Medical Session History
               </h1>
               <p className="text-sm text-slate-500 mt-1">
-                Memoria longitudinal · Simetría contextual
+                {loading ? 'Loading...' : `${filteredSessions.length} sessions · Real HDF5 data`}
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <UserDisplay />
               <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-xl border border-slate-700 transition-colors">
                 <span>⇣</span>
                 <span className="hidden sm:inline">Exportar</span>
@@ -153,31 +123,6 @@ export default function HistoryPage() {
               />
             </div>
 
-            {/* Filter by Type */}
-            <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm p-4">
-              <h3 className="text-sm font-semibold text-slate-400 mb-3">Tipo de Evento</h3>
-              <div className="space-y-2">
-                {[
-                  { value: 'all', label: 'Todos', icon: '📋' },
-                  { value: 'conversation', label: 'Conversaciones', icon: '💬' },
-                  { value: 'decision', label: 'Decisiones', icon: '🎯' },
-                  { value: 'milestone', label: 'Hitos', icon: '🏆' },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => setFilter(option.value)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      filter === option.value
-                        ? 'bg-slate-800 text-slate-100'
-                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-300'
-                    }`}
-                  >
-                    <span>{option.icon}</span>
-                    <span>{option.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Date Range */}
             <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm p-4">
@@ -200,52 +145,59 @@ export default function HistoryPage() {
 
             {/* Stats */}
             <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm p-4">
-              <h3 className="text-sm font-semibold text-slate-400 mb-3">Estadísticas</h3>
+              <h3 className="text-sm font-semibold text-slate-400 mb-3">Statistics</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Total eventos</span>
-                  <span className="text-slate-300 font-medium">{filteredEvents.length}</span>
+                  <span className="text-slate-500">Total Sessions</span>
+                  <span className="text-slate-300 font-medium">{filteredSessions.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Conversaciones</span>
+                  <span className="text-slate-500">Total Interactions</span>
                   <span className="text-slate-300 font-medium">
-                    {events.filter(e => e.type === 'conversation').length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Decisiones</span>
-                  <span className="text-slate-300 font-medium">
-                    {events.filter(e => e.type === 'decision').length}
+                    {sessions.reduce((sum, s) => sum + s.metadata.interactions, 0)}
                   </span>
                 </div>
               </div>
             </div>
           </aside>
 
-          {/* Timeline */}
+          {/* Sessions List */}
           <main className="lg:col-span-9">
             <div className="space-y-4">
-              {filteredEvents.length === 0 ? (
+              {loading ? (
+                <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm p-12 text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+                  <p className="text-slate-400">Loading sessions from HDF5...</p>
+                </div>
+              ) : error ? (
+                <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm p-12 text-center">
+                  <div className="mb-4">
+                    <span className="text-6xl">⚠️</span>
+                  </div>
+                  <p className="text-slate-400">{error}</p>
+                </div>
+              ) : filteredSessions.length === 0 ? (
                 <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm p-12 text-center">
                   <div className="mb-4">
                     <span className="text-6xl">🔍</span>
                   </div>
-                  <p className="text-slate-400">No se encontraron eventos</p>
+                  <p className="text-slate-400">No sessions found</p>
                   <p className="text-sm text-slate-500 mt-2">
-                    Intenta ajustar los filtros de búsqueda
+                    Try adjusting your search filters
                   </p>
                 </div>
               ) : (
-                filteredEvents.map((event, idx) => (
+                filteredSessions.map((session) => (
                   <div
-                    key={event.id}
-                    className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm p-6 hover:ring-white/10 transition-all"
+                    key={session.id}
+                    className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm p-6 hover:ring-white/10 transition-all cursor-pointer"
+                    onClick={() => window.location.href = `/timeline?session=${session.metadata.sessionId}`}
                   >
                     <div className="flex items-start gap-4">
                       {/* Icon */}
                       <div className="flex-shrink-0">
                         <div className="h-10 w-10 rounded-full bg-slate-800 ring-1 ring-slate-700 flex items-center justify-center text-xl">
-                          {getEventIcon(event.type)}
+                          🏥
                         </div>
                       </div>
 
@@ -254,22 +206,19 @@ export default function HistoryPage() {
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <h3 className="text-base font-semibold text-slate-100 mb-1">
-                              {event.title}
+                              {session.title}
                             </h3>
                             <p className="text-sm text-slate-400 leading-relaxed">
-                              {event.summary}
+                              {session.summary}
                             </p>
                           </div>
-                          <span className={`text-2xl ${getSentimentColor(event.metadata.sentiment)}`}>
-                            {event.metadata.sentiment === 'positive' ? '✓' :
-                             event.metadata.sentiment === 'negative' ? '✗' : '—'}
-                          </span>
+                          <span className="text-2xl text-emerald-500">→</span>
                         </div>
 
                         {/* Metadata */}
                         <div className="mt-3 flex items-center gap-3 flex-wrap">
                           <span className="text-xs text-slate-500">
-                            {new Date(event.timestamp).toLocaleString('es-MX', {
+                            {new Date(session.timestamp).toLocaleString('en-US', {
                               year: 'numeric',
                               month: 'short',
                               day: 'numeric',
@@ -278,20 +227,13 @@ export default function HistoryPage() {
                             })}
                           </span>
 
-                          {event.metadata.tags?.map((tag) => (
-                            <span
-                              key={tag}
-                              className="inline-flex items-center px-2 py-0.5 rounded-lg bg-slate-800/60 text-xs text-slate-400 ring-1 ring-slate-700"
-                            >
-                              {tag}
-                            </span>
-                          ))}
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-slate-800/60 text-xs text-slate-400 ring-1 ring-slate-700 font-mono">
+                            {session.metadata.sessionId.substring(0, 8)}...
+                          </span>
 
-                          {event.metadata.sessionId && (
-                            <button className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">
-                              Ver sesión →
-                            </button>
-                          )}
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-950/30 text-xs text-emerald-400 ring-1 ring-emerald-900">
+                            {session.metadata.interactions} interactions
+                          </span>
                         </div>
                       </div>
                     </div>

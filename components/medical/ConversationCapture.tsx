@@ -48,6 +48,7 @@ import { RecordingControls } from './RecordingControls';
 import { AudioLevelVisualizer } from './AudioLevelVisualizer';
 import { AdvancedMetrics } from './AdvancedMetrics';
 import { WorkflowProgress } from './WorkflowProgress';
+import { PatientInfoModal, type PatientInfo } from './PatientInfoModal';
 import { StreamingTranscript } from './StreamingTranscript';
 import { PausedAudioPreview } from './PausedAudioPreview';
 import { FinalTranscription } from './FinalTranscription';
@@ -141,6 +142,8 @@ export function ConversationCapture({
   const [estimatedSecondsRemaining, setEstimatedSecondsRemaining] = useState<number>(0);
   const finalizationStartTimeRef = useRef<number>(0);
   const [isFinalized, setIsFinalized] = useState(false); // NEW: Flag to prevent recording after completion
+  const [showPatientInfoModal, setShowPatientInfoModal] = useState(false);
+  const [patientInfo, setPatientInfo] = useState<PatientInfo | null>(null);
 
   // Custom hooks
   const { copiedId, copyToClipboard } = useClipboard();
@@ -473,6 +476,8 @@ export function ConversationCapture({
             timestampStart,
             timestampEnd,
             filename: `${chunkNumber}${guessExt(blob.type)}`,
+            // Include patient info in first chunk only
+            ...(chunkNumber === 0 && patientInfo ? { patientInfo } : {}),
           }
         );
 
@@ -495,7 +500,7 @@ export function ConversationCapture({
         inflightRef.current.delete(key);
       }
     },
-    [setChunkStatuses, addLog, pollJobStatus, addTranscriptionChunk]
+    [setChunkStatuses, addLog, pollJobStatus, addTranscriptionChunk, patientInfo]
   );
 
   // Initialize useRecorder with chunk processing
@@ -583,6 +588,13 @@ export function ConversationCapture({
       return;
     }
 
+    // ⚠️ REQUIRED: Patient info must be provided before starting recording
+    if (!patientInfo) {
+      console.log('[Recording] Patient info required - showing modal');
+      setShowPatientInfoModal(true);
+      return;
+    }
+
     try {
       // Keep demo audio playing if active (allows recording demo consultation)
       if (isDemoPlaying) {
@@ -636,7 +648,20 @@ export function ConversationCapture({
       console.error('Error starting recording:', err);
       setError('No se pudo acceder al micrófono. Por favor, verifica los permisos.');
     }
-  }, [isFinalized, isDemoPlaying, hookStartRecording, resetMetrics, resetTranscription, addLog, getSessionId, setExternalIsRecording, isWebSpeechSupported, startWebSpeech, onSessionCreated]);
+  }, [isFinalized, isDemoPlaying, hookStartRecording, resetMetrics, resetTranscription, addLog, getSessionId, setExternalIsRecording, isWebSpeechSupported, startWebSpeech, onSessionCreated, patientInfo]);
+
+  // Handle patient info submission from modal
+  const handlePatientInfoSubmit = useCallback((info: PatientInfo) => {
+    console.log('[PatientInfo] Received patient info:', info);
+    setPatientInfo(info);
+    setShowPatientInfoModal(false);
+
+    // Automatically start recording after patient info is provided
+    // (Need to delay slightly to allow state to update)
+    setTimeout(() => {
+      handleStartRecording();
+    }, 100);
+  }, [handleStartRecording]);
 
   // Pause recording (NEW - doesn't reset anything)
   const handlePauseRecording = useCallback(async () => {
@@ -1140,6 +1165,13 @@ export function ConversationCapture({
           setIsWaitingForChunks(false);
           setShouldFinalize(false);
         }}
+      />
+
+      {/* Patient Info Modal - Required before starting recording */}
+      <PatientInfoModal
+        isOpen={showPatientInfoModal}
+        onClose={() => setShowPatientInfoModal(false)}
+        onSubmit={handlePatientInfoSubmit}
       />
     </div>
   );

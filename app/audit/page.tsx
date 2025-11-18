@@ -12,6 +12,7 @@
 
 import { useState, useEffect } from "react";
 import { AuditTable } from "../../components/AuditTable";
+import { UserDisplay } from "../../components/UserDisplay";
 import { getAuditLogs, getAuditOperations } from "../../lib/api/audit";
 import type { AuditLogEntry, AuditOperation } from "../../types/audit";
 
@@ -79,8 +80,11 @@ export default function AuditPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-slate-50">Audit Log</h1>
-          <div className="text-sm text-slate-400">
-            {logs.length} events {selectedOperation !== "ALL" && `(${selectedOperation})`}
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-slate-400">
+              {logs.length} events {selectedOperation !== "ALL" && `(${selectedOperation})`}
+            </div>
+            <UserDisplay />
           </div>
         </div>
 

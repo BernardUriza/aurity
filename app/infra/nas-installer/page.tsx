@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RealNASTab } from "@/components/infra/RealNASTab";
 import { PCSimulationTab } from "@/components/infra/PCSimulationTab";
 import { VerificationTab } from "@/components/infra/VerificationTab";
+import { UserDisplay } from "@/components/UserDisplay";
 import { SERVICES } from "@/lib/nas-config";
 
 export default function NASInstallerPage() {
@@ -41,6 +42,7 @@ export default function NASInstallerPage() {
                 <h1 className="text-lg font-semibold text-slate-50">NAS Installer</h1>
               </div>
             </div>
+            <UserDisplay />
           </div>
         </div>
       </header>

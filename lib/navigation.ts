@@ -7,16 +7,13 @@
 
 import {
   LayoutDashboard,
-  List,
   Clock,
-  Download,
   Shield,
-  Eye,
   FileText,
-  Database,
   Server,
-  Radio,
   Stethoscope,
+  BookOpen,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,21 +29,12 @@ export interface NavRoute {
 
 export const NAV_ROUTES: NavRoute[] = [
   {
-    id: "diarization",
-    title: "Diarización (ASR+Qwen)",
-    description: "Transcripción + clasificación de hablantes",
-    href: "/diarization",
-    icon: Radio,
-    shortcut: "1",
-    badge: "ASR",
-  },
-  {
     id: "medical-ai",
     title: "Medical AI Workflow",
     description: "Workflow médico completo con IA",
     href: "/medical-ai",
     icon: Stethoscope,
-    shortcut: "2",
+    shortcut: "1",
     badge: "AI",
   },
   {
@@ -55,15 +43,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "KPIs y métricas del sistema",
     href: "/dashboard",
     icon: LayoutDashboard,
-    shortcut: "3",
-  },
-  {
-    id: "sessions",
-    title: "Sessions",
-    description: "Explorar todas las sesiones",
-    href: "/sessions",
-    icon: List,
-    shortcut: "3",
+    shortcut: "2",
   },
   {
     id: "timeline",
@@ -71,15 +51,15 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Vista cronológica de eventos",
     href: "/timeline",
     icon: Clock,
-    shortcut: "4",
+    shortcut: "3",
   },
   {
-    id: "export",
-    title: "Export/Verify",
-    description: "Exportar y verificar integridad",
-    href: "/export",
-    icon: Download,
-    shortcut: "5",
+    id: "history",
+    title: "History",
+    description: "Historial de sesiones médicas",
+    href: "/history",
+    icon: BookOpen,
+    shortcut: "4",
   },
   {
     id: "policy",
@@ -87,15 +67,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Configuración de políticas",
     href: "/policy",
     icon: Shield,
-    shortcut: "6",
-  },
-  {
-    id: "viewer",
-    title: "Viewer",
-    description: "Vista detallada de interacciones",
-    href: "/viewer",
-    icon: Eye,
-    shortcut: "7",
+    shortcut: "5",
   },
   {
     id: "audit",
@@ -103,15 +75,15 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Log de auditoría del sistema",
     href: "/audit",
     icon: FileText,
-    shortcut: "8",
+    shortcut: "6",
   },
   {
-    id: "demo",
-    title: "Demo Loader",
-    description: "Cargar dataset de demostración",
-    href: "/demo",
-    icon: Database,
-    shortcut: "9",
+    id: "onboarding",
+    title: "Onboarding",
+    description: "Guía de bienvenida al sistema",
+    href: "/onboarding",
+    icon: UserPlus,
+    shortcut: "7",
   },
   {
     id: "nas-installer",
@@ -119,7 +91,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Guía de instalación en NAS / PC",
     href: "/infra/nas-installer",
     icon: Server,
-    shortcut: "0",
+    shortcut: "8",
   },
 ];
 

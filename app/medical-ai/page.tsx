@@ -5,89 +5,65 @@
  * Production medical consultation workflow with AI-powered transcription
  *
  * Modern medical-grade UI with improved CRUD operations and clinical workflow
+ *
+ * PROTECTED ROUTE: Requires Auth0 authentication + MEDICO or ADMIN role
  */
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
 import {
   ConversationCapture,
   DialogueFlow,
   ClinicalNotes,
+  EvidencePackViewer,
   OrderEntry,
   SummaryExport
 } from '@/components/medical';
 import { SessionsTable } from '@/components/SessionsTable';
+import { UserDisplay } from '@/components/UserDisplay';
+import { PatientSelector, PatientModal } from '@/components/patients';
 import {
   Mic, Clock, User, ArrowLeft, Stethoscope, FileText, MessageSquare,
   ClipboardList, Download, History, Plus, Search, Filter, Calendar,
   Users, AlertCircle, CheckCircle2, ChevronRight, Activity, Copy, Check,
-  Trash2, X, Loader2
+  Trash2, X, Loader2, Shield
 } from 'lucide-react';
 import { useEncounterTimer } from '@/hooks/useEncounterTimer';
-import { Patient, WorkflowStep, Encounter } from '@/types/medical';
-import { getSessionSummaries, type SessionSummary } from '@/lib/api/timeline';
+import { Patient as MedicalPatient, WorkflowStep, Encounter } from '@/types/medical';
+import { getSessionSummaries, getSessionsList, type SessionListItem } from '@/lib/api/timeline';
+import { SessionSummary, SessionTaskStatus, Patient } from '@/types/patient';
+import { fetchPatients } from '@/lib/api/patients';
 
 // Workflow steps
 const MedicalWorkflowSteps = [
   { id: 'escuchar', label: 'Escuchar', icon: Mic, component: ConversationCapture, color: 'emerald' },
   { id: 'revisar', label: 'Revisar', icon: MessageSquare, component: DialogueFlow, color: 'cyan' },
   { id: 'notas', label: 'Notas SOAP', icon: FileText, component: ClinicalNotes, color: 'purple' },
+  { id: 'evidencia', label: 'Evidencia', icon: Shield, component: EvidencePackViewer, color: 'indigo' },
   { id: 'ordenes', label: 'Órdenes', icon: ClipboardList, component: OrderEntry, color: 'amber' },
   { id: 'resumen', label: 'Finalizar', icon: Download, component: SummaryExport, color: 'rose' },
-];
-
-// Patient data (TODO: Fetch from FI backend API in production)
-const patients: Patient[] = [
-  {
-    id: '1',
-    name: 'María García López',
-    age: 45,
-    gender: 'Femenino',
-    medicalHistory: ['Hipertensión', 'Diabetes Tipo 2'],
-    allergies: ['Penicilina'],
-    chronicConditions: ['Hipertensión', 'Diabetes Tipo 2']
-  },
-  {
-    id: '2',
-    name: 'Juan Pérez Rodríguez',
-    age: 62,
-    gender: 'Masculino',
-    medicalHistory: ['Asma', 'Artritis'],
-    chronicConditions: ['Asma', 'Artritis'],
-    currentMedications: ['Salbutamol', 'Ibuprofeno']
-  },
-  {
-    id: '3',
-    name: 'Ana Martínez Sánchez',
-    age: 33,
-    gender: 'Femenino',
-    medicalHistory: [],
-    allergies: []
-  },
-  {
-    id: '4',
-    name: 'Carlos Hernández Mora',
-    age: 28,
-    gender: 'Masculino',
-    medicalHistory: ['Migraña'],
-    chronicConditions: ['Migraña']
-  },
 ];
 
 export default function MedicalAIWorkflow() {
   const router = useRouter();
   const [showPatientSelector, setShowPatientSelector] = useState(true);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<MedicalPatient | null>(null);
+
+  // Patient management state
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loadingPatients, setLoadingPatients] = useState(false);
+  const [patientsError, setPatientsError] = useState<string | null>(null);
+  const [showPatientModal, setShowPatientModal] = useState(false);
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('escuchar');
   const [isRecording, setIsRecording] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [encounterData, setEncounterData] = useState<Partial<Encounter> | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [isExistingSession, setIsExistingSession] = useState(false);
+  const [sessionDuration, setSessionDuration] = useState<string>(''); // Duration of existing session
 
-  // Search and filters
-  const [patientSearch, setPatientSearch] = useState('');
-  const [sessionFilter, setSessionFilter] = useState<'all' | 'today' | 'week'>('all');
+  // Search and filters are now handled internally by PatientList and SessionList components
 
   // Timeline state - store full SessionSummary for rich tooltips
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -99,16 +75,33 @@ export default function MedicalAIWorkflow() {
   const [deletingSession, setDeletingSession] = useState<string | null>(null);
 
   // Session status tracking (SOAP/Diarization)
-  const [sessionStatuses, setSessionStatuses] = useState<Record<string, {
-    soapStatus: 'not_started' | 'pending' | 'in_progress' | 'completed' | 'failed';
-    diarizationStatus: 'not_started' | 'pending' | 'in_progress' | 'completed' | 'failed';
-  }>>({});
+  const [sessionStatuses, setSessionStatuses] = useState<Record<string, SessionTaskStatus>>({});
 
-  // Real-time encounter timer
-  const { timeElapsed, pause, resume } = useEncounterTimer(true);
+  // Real-time encounter timer (only run when starting new consultation, not viewing existing)
+  const isNewConsultation = selectedPatient && !isExistingSession;
+  const { timeElapsed, pause, resume } = useEncounterTimer(isNewConsultation);
 
   const currentStepIndex = MedicalWorkflowSteps.findIndex(step => step.id === currentStep);
   const progress = ((currentStepIndex + 1) / MedicalWorkflowSteps.length) * 100;
+
+  // Load patients on mount
+  useEffect(() => {
+    async function loadPatients() {
+      try {
+        setLoadingPatients(true);
+        setPatientsError(null);
+        const fetchedPatients = await fetchPatients({ limit: 100 });
+        setPatients(fetchedPatients);
+      } catch (err) {
+        console.error('Failed to load patients:', err);
+        setPatientsError(err instanceof Error ? err.message : 'Error al cargar pacientes');
+      } finally {
+        setLoadingPatients(false);
+      }
+    }
+
+    loadPatients();
+  }, []);
 
   // Load previous sessions on mount (sorted by most recent first)
   useEffect(() => {
@@ -159,6 +152,9 @@ export default function MedicalAIWorkflow() {
               audit_logged: 'OK',
             },
             preview: s.preview || 'Sin transcripción',
+            // NEW: Include patient and doctor names from backend
+            patient_name: s.patient_name || 'Paciente',
+            doctor_name: s.doctor_name || '',
           }));
 
           setSessions(convertedSessions);
@@ -241,24 +237,36 @@ export default function MedicalAIWorkflow() {
     }
   };
 
-  // Filter patients by search
-  const filteredPatients = patients.filter(p =>
-    p.name.toLowerCase().includes(patientSearch.toLowerCase())
-  );
-
   // Handler for selecting existing session
   const handleSelectSession = (sessionId: string) => {
+    // Find the session to get its duration
+    const selectedSession = sessions.find(s => s.metadata.session_id === sessionId);
+    const duration = selectedSession?.timespan?.duration_human || '00:00';
+
     setCurrentSessionId(sessionId);
     setIsExistingSession(true); // Mark as read-only existing session
+    setSessionDuration(duration); // Store the recorded duration
     setShowPatientSelector(false);
     setCurrentStep('escuchar'); // Start at first step to show content
-    console.log('[MedicalAI] Selected existing session (read-only):', sessionId);
+    console.log('[MedicalAI] Selected existing session (read-only):', sessionId, 'Duration:', duration);
   };
 
   // Handle new patient consultation
   const handleStartNewConsultation = (patient: Patient) => {
-    setSelectedPatient(patient);
+    // Convert Patient to MedicalPatient format
+    const medicalPatient: MedicalPatient = {
+      id: patient.id,
+      name: patient.name,
+      age: patient.age,
+      gender: patient.gender,
+      medicalHistory: patient.medicalHistory || [],
+      allergies: patient.allergies || [],
+      chronicConditions: patient.chronicConditions || [],
+      currentMedications: patient.currentMedications || [],
+    };
+    setSelectedPatient(medicalPatient);
     setIsExistingSession(false); // Mark as new session (can record)
+    setSessionDuration(''); // Clear recorded duration (will use live timer)
     setShowPatientSelector(false);
     setCurrentStep('escuchar');
     setCompletedSteps(new Set());
@@ -322,339 +330,48 @@ export default function MedicalAIWorkflow() {
                   </div>
                 </div>
               </div>
+              {/* User Authentication Display - Always Visible */}
+              <UserDisplay />
             </div>
           </div>
         </header>
 
         <main className="max-w-7xl mx-auto px-6 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* LEFT: Patient Selector - 2/3 width */}
-            <div className="lg:col-span-2 space-y-4">
-              {/* Search Bar */}
-              <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 rounded-xl flex items-center justify-center">
-                    <Plus className="h-6 w-6 text-emerald-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-lg font-bold text-white">Nueva Consulta</h2>
-                    <p className="text-sm text-slate-400">Busca y selecciona un paciente</p>
-                  </div>
-                  <div className="badge-modern bg-emerald-500/10 border-emerald-500/20">
-                    <Users className="h-4 w-4 text-emerald-400" />
-                    <span className="text-emerald-300 font-semibold">{filteredPatients.length} pacientes</span>
-                  </div>
-                </div>
-
-                {/* Search Input */}
-                <div className="relative mb-4">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nombre del paciente..."
-                    value={patientSearch}
-                    onChange={(e) => setPatientSearch(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                  />
-                </div>
-
-                {/* Patient Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                  {filteredPatients.length === 0 ? (
-                    <div className="col-span-2 py-12 text-center">
-                      <Users className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-                      <p className="text-slate-400">No se encontraron pacientes</p>
-                    </div>
-                  ) : (
-                    filteredPatients.map((patient) => (
-                      <button
-                        key={patient.id}
-                        onClick={() => handleStartNewConsultation(patient)}
-                        className="group relative p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left overflow-hidden"
-                      >
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all -z-10" />
-
-                        {/* Patient Header */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
-                              {patient.name}
-                            </h3>
-                            <div className="flex items-center gap-3 mt-1">
-                              <span className="text-sm text-slate-400">{patient.age} años</span>
-                              <span className="text-xs text-slate-500">•</span>
-                              <span className="text-sm text-slate-400">{patient.gender}</span>
-                            </div>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
-                        </div>
-
-                        {/* Medical Info */}
-                        {(patient.allergies?.length > 0 || patient.chronicConditions?.length > 0) && (
-                          <div className="space-y-2">
-                            {patient.allergies && patient.allergies.length > 0 && (
-                              <div className="flex items-start gap-2">
-                                <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs text-slate-500 mb-1">Alergias</p>
-                                  <div className="flex flex-wrap gap-1">
-                                    {patient.allergies.map((allergy, idx) => (
-                                      <span key={idx} className="inline-block px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-300">
-                                        {allergy}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            {patient.chronicConditions && patient.chronicConditions.length > 0 && (
-                              <div className="flex items-start gap-2">
-                                <Activity className="h-4 w-4 text-cyan-400 mt-0.5 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs text-slate-500 mb-1">Condiciones crónicas</p>
-                                  <div className="flex flex-wrap gap-1">
-                                    {patient.chronicConditions.slice(0, 2).map((condition, idx) => (
-                                      <span key={idx} className="inline-block px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded text-xs text-cyan-300 truncate">
-                                        {condition}
-                                      </span>
-                                    ))}
-                                    {patient.chronicConditions.length > 2 && (
-                                      <span className="inline-block px-2 py-0.5 text-xs text-slate-400">
-                                        +{patient.chronicConditions.length - 2}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
+          {/* Error Loading Patients */}
+          {patientsError && (
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-300">Error al cargar pacientes</p>
+                <p className="text-sm text-red-400 mt-1">{patientsError}</p>
               </div>
             </div>
+          )}
 
-            {/* RIGHT: Sessions Timeline - 1/3 width */}
-            <div className="lg:col-span-1">
-              <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-6 shadow-xl sticky top-24">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-cyan-500/20 to-purple-500/20 rounded-xl flex items-center justify-center">
-                    <History className="h-6 w-6 text-cyan-400" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-lg font-bold text-white">Consultas Anteriores</h2>
-                    <p className="text-sm text-slate-400">Continúa una sesión</p>
-                  </div>
-                </div>
+          {/* SOLID Patient & Session Selector */}
+          <PatientSelector
+            patients={patients}
+            sessions={sessions}
+            sessionStatuses={sessionStatuses}
+            onSelectPatient={handleStartNewConsultation}
+            onSelectSession={handleSelectSession}
+            onDeleteSession={(sessionId) => setDeleteConfirmSession(sessionId)}
+            onCopySessionId={handleCopySessionId}
+            copiedSessionId={copiedSessionId}
+            loadingSessions={loadingSessions}
+            extractMedicalInfo={extractMedicalInfo}
+            onAddPatient={() => setShowPatientModal(true)}
+          />
 
-                {/* Session Filters */}
-                <div className="flex gap-2 mb-4">
-                  <button
-                    onClick={() => setSessionFilter('all')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      sessionFilter === 'all'
-                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                        : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:bg-slate-800'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  <button
-                    onClick={() => setSessionFilter('today')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      sessionFilter === 'today'
-                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                        : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:bg-slate-800'
-                    }`}
-                  >
-                    Hoy
-                  </button>
-                  <button
-                    onClick={() => setSessionFilter('week')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      sessionFilter === 'week'
-                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                        : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:bg-slate-800'
-                    }`}
-                  >
-                    Semana
-                  </button>
-                </div>
-
-                {loadingSessions ? (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <div className="animate-spin h-10 w-10 border-4 border-cyan-500 border-t-transparent rounded-full mb-3" />
-                    <span className="text-sm text-slate-400">Cargando sesiones...</span>
-                  </div>
-                ) : sessions.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <History className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-                    <p className="text-sm text-slate-400">No hay consultas previas</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    {sessions.slice(0, 10).map((session) => {
-                      const date = new Date(session.metadata.created_at);
-                      const isToday = date.toDateString() === new Date().toDateString();
-                      const isSameYear = date.getFullYear() === new Date().getFullYear();
-                      const duration = session.timespan?.duration_human || 'N/A';
-                      const chunkCount = session.size?.interaction_count || 0;
-                      const totalChars = session.size?.total_chars || 0;
-                      const preview = session.preview || 'Sin transcripción';
-                      const sessionId = session.metadata.session_id;
-
-                      // Get status for this session
-                      const status = sessionStatuses[sessionId] || {
-                        soapStatus: 'not_started',
-                        diarizationStatus: 'not_started'
-                      };
-
-                      // Status badge helper
-                      const getStatusBadge = (statusType: string, label: string) => {
-                        const statusIcons = {
-                          'completed': <CheckCircle2 className="h-3 w-3 text-emerald-400" />,
-                          'in_progress': <Loader2 className="h-3 w-3 text-yellow-400 animate-spin" />,
-                          'pending': <Clock className="h-3 w-3 text-slate-400" />,
-                          'failed': <X className="h-3 w-3 text-red-400" />,
-                          'not_started': null
-                        };
-
-                        const statusColors = {
-                          'completed': 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
-                          'in_progress': 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300',
-                          'pending': 'bg-slate-500/10 border-slate-500/30 text-slate-400',
-                          'failed': 'bg-red-500/10 border-red-500/30 text-red-300',
-                          'not_started': 'bg-slate-700/20 border-slate-600/20 text-slate-500'
-                        };
-
-                        if (statusType === 'not_started') return null;
-
-                        return (
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 border rounded text-xs font-medium ${statusColors[statusType as keyof typeof statusColors] || statusColors.not_started}`}>
-                            {statusIcons[statusType as keyof typeof statusIcons]}
-                            {label}
-                          </span>
-                        );
-                      };
-
-                      return (
-                        <div key={sessionId} className="relative group/session">
-                          <div className="p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all">
-                            {/* Header: Date + Time + Delete Button */}
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-slate-400" />
-                                <button
-                                  onClick={() => handleSelectSession(sessionId)}
-                                  className="text-sm font-semibold text-white hover:text-cyan-300 transition-colors"
-                                >
-                                  {date.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' })}
-                                </button>
-                                {isToday && (
-                                  <span className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded text-xs text-emerald-300">
-                                    Hoy
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-500">
-                                  {date.toLocaleTimeString('es-MX', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    timeZone: 'America/Mexico_City',
-                                    hour12: true
-                                  })}
-                                </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeleteConfirmSession(sessionId);
-                                  }}
-                                  className="opacity-0 group-hover/session:opacity-100 p-1.5 hover:bg-red-500/20 rounded-lg transition-all"
-                                  title="Eliminar sesión"
-                                >
-                                  <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-400" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Session ID + Copy + Duration */}
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-400 font-mono">{sessionId.slice(0, 12)}...</span>
-                                <div
-                                  onClick={(e) => handleCopySessionId(sessionId, e)}
-                                  className="p-1 hover:bg-slate-700/50 rounded transition-colors group/copy cursor-pointer"
-                                  title="Copiar session ID"
-                                  role="button"
-                                  tabIndex={0}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      handleCopySessionId(sessionId, e as any);
-                                    }
-                                  }}
-                                >
-                                  {copiedSessionId === sessionId ? (
-                                    <Check className="h-3 w-3 text-emerald-400" />
-                                  ) : (
-                                    <Copy className="h-3 w-3 text-slate-500 group-hover/copy:text-cyan-400" />
-                                  )}
-                                </div>
-                              </div>
-                              <span className="text-xs text-cyan-400 font-semibold">{duration}</span>
-                            </div>
-
-                            {/* Status Badges: SOAP + Diarization + Chunks */}
-                            <div className="flex items-center gap-2 mb-3 flex-wrap">
-                              {getStatusBadge(status.soapStatus, 'SOAP')}
-                              {getStatusBadge(status.diarizationStatus, 'Diarización')}
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/20 rounded text-xs text-cyan-300">
-                                <Activity className="h-3 w-3" />
-                                {chunkCount} chunks
-                              </span>
-                            </div>
-
-                            {/* Medical Keywords (extracted from preview) */}
-                            {(() => {
-                              const keywords = extractMedicalInfo(preview);
-                              if (keywords.length > 0) {
-                                return (
-                                  <div className="flex items-start gap-2 mb-3">
-                                    <Stethoscope className="h-3.5 w-3.5 text-purple-400 mt-0.5 flex-shrink-0" />
-                                    <div className="flex flex-wrap gap-1">
-                                      {keywords.map((keyword, idx) => (
-                                        <span
-                                          key={idx}
-                                          className="inline-block px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded text-xs text-purple-300"
-                                        >
-                                          {keyword}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })()}
-
-                            {/* Preview Text */}
-                            <p className="text-xs text-slate-400 line-clamp-2 italic">
-                              "{preview.slice(0, 100)}{preview.length > 100 ? '...' : ''}"
-                            </p>
-                          </div>
-
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </div>
+          {/* Patient Creation Modal */}
+          <PatientModal
+            isOpen={showPatientModal}
+            onClose={() => setShowPatientModal(false)}
+            onSuccess={(newPatient) => {
+              setPatients(prev => [...prev, newPatient]);
+              setShowPatientModal(false);
+            }}
+          />
 
           {/* Delete Confirmation Modal */}
           {deleteConfirmSession && (
@@ -727,7 +444,8 @@ export default function MedicalAIWorkflow() {
   const currentStepData = MedicalWorkflowSteps[currentStepIndex];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <ProtectedRoute requireRoles={['MEDICO', 'ADMIN']}>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Modern Header */}
       <header className="border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/80 sticky top-0 z-50">
         <div className="px-6 py-4">
@@ -760,7 +478,9 @@ export default function MedicalAIWorkflow() {
               </div>
               <div className="badge-modern bg-cyan-500/10 border-cyan-500/20">
                 <Clock className="h-4 w-4 text-cyan-400" />
-                <span className="font-medium text-white font-mono">{timeElapsed}</span>
+                <span className="font-medium text-white font-mono">
+                  {isExistingSession && sessionDuration ? sessionDuration : timeElapsed}
+                </span>
               </div>
               {currentSessionId && (
                 <button
@@ -792,6 +512,8 @@ export default function MedicalAIWorkflow() {
               >
                 Cambiar Paciente
               </button>
+              {/* User Authentication Display - Always Visible */}
+              <UserDisplay />
             </div>
           </div>
 
@@ -885,5 +607,6 @@ export default function MedicalAIWorkflow() {
         </div>
       </main>
     </div>
+    </ProtectedRoute>
   );
 }

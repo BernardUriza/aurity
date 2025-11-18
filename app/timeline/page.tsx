@@ -12,31 +12,43 @@
  * - Refresh and export actions
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SessionHeader } from '@/aurity/modules/fi-timeline';
-import {
-  generateMockSessionHeader,
-  generateMockSessionHeaderWithStatus,
-} from '@/aurity/modules/fi-timeline';
 import type { SessionHeaderData } from '@/aurity/modules/fi-timeline';
+import { UserDisplay } from '@/components/UserDisplay';
 import { getSessionSummaries, getSessionDetail } from '@/lib/api/timeline';
+import { EventTimeline, type TimelineEvent } from '@/components/EventTimeline';
+import { timelineEventConfig } from '@/lib/timeline-config';
+import { ChunkBreakdown } from '@/components/ChunkBreakdown';
+import { Activity, CheckCircle2, Zap, Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 export default function TimelinePage() {
   const [sessionData, setSessionData] = useState<SessionHeaderData | null>(null);
   const [sessionEvents, setSessionEvents] = useState<any[]>([]);
-  const [statusScenario, setStatusScenario] = useState<string>('all-ok');
   const [loadTime, setLoadTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
-  const [useRealAPI, setUseRealAPI] = useState(true);
+  const [availableSessions, setAvailableSessions] = useState<any[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'events' | 'chunks'>('events');
+
+  // Load available sessions list
+  useEffect(() => {
+    async function fetchSessions() {
+      try {
+        const sessions = await getSessionSummaries({ limit: 20 });
+        setAvailableSessions(sessions);
+      } catch (err) {
+        console.error('[Timeline] Failed to load sessions list:', err);
+      }
+    }
+
+    fetchSessions();
+  }, []);
 
   // Initialize session data on client only (avoid hydration mismatch)
   useEffect(() => {
     async function loadSession() {
-      if (!useRealAPI) {
-        setSessionData(generateMockSessionHeader());
-        return;
-      }
-
       try {
         const start = performance.now();
 
@@ -86,26 +98,63 @@ export default function TimelinePage() {
       } catch (err) {
         console.error('[Timeline] API error:', err);
         setError(String(err));
-
-        // Fallback to mock data
-        setSessionData(generateMockSessionHeader());
-        setUseRealAPI(false);
       }
     }
 
     loadSession();
-  }, [useRealAPI]);
+  }, []);
+
+  // Load specific session
+  const loadSpecificSession = async (sessionId: string) => {
+    if (!sessionId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const start = performance.now();
+
+      const detail = await getSessionDetail(sessionId);
+
+      if (!detail || !detail.metadata || !detail.metadata.session_id) {
+        throw new Error('Invalid session detail format from API');
+      }
+
+      const elapsed = performance.now() - start;
+      setLoadTime(elapsed);
+
+      setSessionData({
+        metadata: {
+          session_id: detail.metadata.session_id,
+          thread_id: detail.metadata.thread_id || undefined,
+          owner_hash: detail.metadata.owner_hash || undefined,
+          created_at: detail.metadata.created_at,
+          is_persisted: true,
+          last_active: detail.timespan.end || detail.metadata.updated_at || new Date().toISOString(),
+          interaction_count: detail.size.interaction_count,
+        },
+        timespan: detail.timespan,
+        size: {
+          ...detail.size,
+          total_prompts_chars: 0,
+          total_responses_chars: 0,
+        },
+        policy_badges: detail.policy_badges,
+      });
+
+      setSessionEvents(detail.events || []);
+      setError(null);
+      console.log('[Timeline] Loaded session', sessionId, 'in', elapsed.toFixed(0), 'ms');
+    } catch (err) {
+      console.error('[Timeline] Failed to load session:', err);
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRefresh = () => {
     console.log('[Timeline] Refreshing session data...');
-    if (useRealAPI) {
-      // Trigger re-fetch from API
-      setSessionData(null);
-      setError(null);
-      // useEffect will reload
-    } else {
-      setSessionData(generateMockSessionHeader());
-    }
+    window.location.reload();
   };
 
   const handleExport = () => {
@@ -113,39 +162,55 @@ export default function TimelinePage() {
     alert('Export functionality will be implemented in FI-UI-FEAT-105');
   };
 
-  const handleScenarioChange = (scenario: string) => {
-    setStatusScenario(scenario);
+  // Transform sessionEvents to TimelineEvent format
+  const timelineEvents = useMemo<TimelineEvent[]>(() => {
+    return sessionEvents.map((event, idx) => ({
+      id: event.event_id || `event-${idx}`,
+      timestamp: event.timestamp,
+      type: event.event_type,
+      content: event.summary || event.what,
+      metadata: {
+        event_number: idx + 1,
+        chunk_number: event.chunk_number,
+        who: event.who,
+        tags: event.tags || [],
+        confidence: event.confidence_score,
+        causality: event.causality,
+        // Audio-related metadata
+        audio_hash: event.audio_hash,
+        stt_provider: event.stt_provider,
+        provider: event.provider,
+        duration: event.duration,
+        language: event.language,
+        latency_ms: event.latency_ms,
+        audio_quality: event.audio_quality,
+        timestamp_start: event.timestamp_start,
+        timestamp_end: event.timestamp_end,
+      },
+    }));
+  }, [sessionEvents]);
 
-    switch (scenario) {
-      case 'all-ok':
-        setSessionData(
-          generateMockSessionHeaderWithStatus('OK', 'OK', 'N/A', 'OK')
-        );
-        break;
-      case 'hash-fail':
-        setSessionData(
-          generateMockSessionHeaderWithStatus('FAIL', 'OK', 'N/A', 'OK')
-        );
-        break;
-      case 'policy-fail':
-        setSessionData(
-          generateMockSessionHeaderWithStatus('OK', 'FAIL', 'N/A', 'OK')
-        );
-        break;
-      case 'redaction-ok':
-        setSessionData(
-          generateMockSessionHeaderWithStatus('OK', 'OK', 'OK', 'OK')
-        );
-        break;
-      case 'all-pending':
-        setSessionData(
-          generateMockSessionHeaderWithStatus('PENDING', 'PENDING', 'PENDING', 'PENDING')
-        );
-        break;
-      default:
-        setSessionData(generateMockSessionHeader());
-    }
-  };
+  // Calculate metrics (for events with transcriptions)
+  const metrics = useMemo(() => {
+    const transcriptionEvents = timelineEvents.filter(e => e.type.toLowerCase() === 'transcription');
+    const totalEvents = transcriptionEvents.length;
+    const validEvents = transcriptionEvents.filter(e => e.content?.trim().length > 0).length;
+    const emptyEvents = totalEvents - validEvents;
+    const totalDuration = transcriptionEvents.reduce((sum, e) => sum + (e.metadata?.duration || 0), 0);
+    const avgDuration = totalEvents > 0 ? totalDuration / totalEvents : 0;
+    const successRate = totalEvents > 0 ? (validEvents / totalEvents) * 100 : 0;
+    const avgLatency = transcriptionEvents.reduce((sum, e) => sum + (e.metadata?.latency_ms || 0), 0) / (totalEvents || 1);
+
+    return {
+      totalEvents,
+      validEvents,
+      emptyEvents,
+      totalDuration,
+      avgDuration,
+      successRate,
+      avgLatency,
+    };
+  }, [timelineEvents]);
 
   // Loading state while session data initializes
   if (!sessionData) {
@@ -161,6 +226,11 @@ export default function TimelinePage() {
 
   return (
     <div className="timeline-page min-h-screen bg-slate-950">
+      {/* Top Navigation */}
+      <div className="flex justify-end p-4">
+        <UserDisplay />
+      </div>
+
       {/* SessionHeader (sticky) */}
       <SessionHeader
         session={sessionData}
@@ -175,71 +245,89 @@ export default function TimelinePage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Aside - Demo Controls */}
           <aside className="lg:col-span-4 space-y-4">
-            {/* Demo Controls Card */}
+            {/* Session Selector Card */}
             <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold tracking-tight text-slate-100">
-                    Demo Controls
+                    Session Selector
                   </h2>
-                  <span className="text-xs text-slate-500">Interactive</span>
+                  <span className="text-xs text-emerald-500">Required</span>
                 </div>
 
                 <div className="space-y-4">
-                  {/* Scenario selector */}
+                  {/* Current Session Display */}
+                  {sessionData && (
+                    <div className="p-3 bg-emerald-950/30 border border-emerald-900 rounded-xl">
+                      <div className="text-xs text-emerald-400 mb-1">Current Session</div>
+                      <div className="text-sm font-mono text-slate-200 break-all">
+                        {sessionData.metadata.session_id}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Session Dropdown */}
+                  {availableSessions.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-400 mb-2">
+                        Recent Sessions ({availableSessions.length})
+                      </label>
+                      <select
+                        value={selectedSessionId}
+                        onChange={(e) => setSelectedSessionId(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-sm font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 transition-colors"
+                      >
+                        <option value="">Select a session...</option>
+                        {availableSessions.map((session) => (
+                          <option key={session.metadata.session_id} value={session.metadata.session_id}>
+                            {session.metadata.session_id.substring(0, 8)}... ({session.metadata.created_at})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Manual Session ID Input */}
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-2">
-                      Policy Status Scenario
+                      Or paste Session ID
                     </label>
-                    <select
-                      value={statusScenario}
-                      onChange={(e) => handleScenarioChange(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-[15px] leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 transition-colors"
-                    >
-                      <option value="all-ok">All OK (Hash ✓, Policy ✓, Audit ✓)</option>
-                      <option value="hash-fail">Hash FAIL (integrity violated)</option>
-                      <option value="policy-fail">Policy FAIL (mutation detected)</option>
-                      <option value="redaction-ok">Redaction OK (PII removed)</option>
-                      <option value="all-pending">All PENDING (verification in progress)</option>
-                    </select>
+                    <input
+                      type="text"
+                      value={selectedSessionId}
+                      onChange={(e) => setSelectedSessionId(e.target.value)}
+                      placeholder="e.g., 1958eb21-34a3-49df-99e5-a74ca1db19db"
+                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-sm font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 transition-colors placeholder:text-slate-500"
+                    />
                   </div>
 
-                  {/* Action buttons */}
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={handleRefresh}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
-                    >
-                      <span className="text-base">↻</span>
-                      Refresh Session
-                    </button>
-                    <button
-                      onClick={handleExport}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 border border-slate-600 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
-                    >
-                      <span className="text-base">⇣</span>
-                      Export Session
-                    </button>
-                  </div>
+                  {/* Load Button */}
+                  <button
+                    onClick={() => loadSpecificSession(selectedSessionId)}
+                    disabled={!selectedSessionId || loading}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-slate-500 border border-emerald-500 disabled:border-slate-600 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-base">⇨</span>
+                        Load Session
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* API Status Card */}
+            {/* Session Info Card */}
             <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm">
               <div className="p-6">
-                <h3 className="text-sm font-semibold text-slate-400 mb-3">API Status</h3>
+                <h3 className="text-sm font-semibold text-slate-400 mb-3">Session Info</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Data Source</span>
-                    <span className={`inline-flex items-center rounded-xl px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
-                      useRealAPI
-                        ? 'bg-emerald-950/30 text-emerald-300 ring-emerald-900'
-                        : 'bg-amber-950/30 text-amber-300 ring-amber-900'
-                    }`}>
-                      {useRealAPI ? '🟢 API (port 9002)' : '🟡 Mock Data'}
-                    </span>
-                  </div>
                   {loadTime > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500">Load Time</span>
@@ -257,12 +345,6 @@ export default function TimelinePage() {
                       ⚠️ {error}
                     </div>
                   )}
-                  <button
-                    onClick={() => setUseRealAPI(!useRealAPI)}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-colors"
-                  >
-                    {useRealAPI ? 'Switch to Mock Data' : 'Try Real API'}
-                  </button>
                 </div>
               </div>
             </div>
@@ -303,79 +385,215 @@ export default function TimelinePage() {
                 Session Timeline
               </h1>
               <p className="text-sm text-slate-500">
-                FI-UI-FEAT-100: Encabezado Contextual de Sesión
+                Medical events with audio transcription · Provider info · Technical details
               </p>
             </div>
 
-            {/* Medical Events Timeline */}
-            <div className="rounded-2xl border ring-1 ring-white/5 bg-slate-900 shadow-sm">
-              <div className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
-                  <h3 className="text-lg font-semibold tracking-tight text-slate-100">
-                    Session Events ({sessionEvents.length})
-                  </h3>
+            {/* Tab Navigation */}
+            <div className="flex gap-2 border-b border-slate-700">
+              <button
+                onClick={() => setActiveTab('events')}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'events'
+                    ? 'text-emerald-400 border-b-2 border-emerald-400'
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                Medical Events
+              </button>
+              <button
+                onClick={() => setActiveTab('chunks')}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'chunks'
+                    ? 'text-emerald-400 border-b-2 border-emerald-400'
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+              >
+                Audio Chunks (with Gantt)
+              </button>
+            </div>
+
+            {/* Tab Content: Medical Events */}
+            {activeTab === 'events' && (
+              <>
+                {/* Metrics Dashboard */}
+            {metrics.totalEvents > 0 && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Total Events */}
+                <div className="p-4 rounded-lg border bg-slate-800/50 border-slate-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-blue-400" />
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Total Events
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-slate-50">
+                      {metrics.totalEvents}
+                    </span>
+                  </div>
                 </div>
 
-                {sessionEvents.length > 0 ? (
-                  <div className="space-y-3">
-                    {sessionEvents.map((event, idx) => (
-                      <div
-                        key={event.event_id}
-                        className="rounded-lg bg-slate-800/60 border border-slate-700 p-4 hover:bg-slate-800 transition-colors"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono text-slate-500">#{idx + 1}</span>
-                            <span className="text-sm font-medium text-slate-300">
-                              {event.event_type.replace(/_/g, ' ')}
-                            </span>
-                            {event.event_type === 'critical_pattern_detected' && (
-                              <span className="text-red-400 text-lg">⚠️</span>
-                            )}
-                          </div>
-                          <span className="text-xs text-slate-500">
-                            {new Date(event.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
+                {/* Success Rate */}
+                <div className="p-4 rounded-lg border bg-slate-800/50 border-slate-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Success Rate
+                      </span>
+                    </div>
+                    {metrics.successRate > 80 ? (
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                    ) : metrics.successRate > 50 ? (
+                      <Minus className="w-4 h-4 text-slate-500" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4 text-red-400" />
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-slate-50">
+                      {metrics.successRate.toFixed(1)}
+                    </span>
+                    <span className="text-sm text-slate-400">%</span>
+                  </div>
+                </div>
 
-                        <div className="text-slate-100 mb-2 font-medium">{event.what}</div>
+                {/* Avg Latency */}
+                <div className="p-4 rounded-lg border bg-slate-800/50 border-slate-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-yellow-400" />
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Avg Latency
+                      </span>
+                    </div>
+                    {metrics.avgLatency < 100 ? (
+                      <TrendingUp className="w-4 h-4 text-green-400" />
+                    ) : metrics.avgLatency < 300 ? (
+                      <Minus className="w-4 h-4 text-slate-500" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4 text-red-400" />
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-slate-50">
+                      {metrics.avgLatency.toFixed(0)}
+                    </span>
+                    <span className="text-sm text-slate-400">ms</span>
+                  </div>
+                </div>
 
-                        {event.summary && event.summary !== event.what && (
-                          <div className="text-sm text-slate-400 mb-3">{event.summary}</div>
-                        )}
+                {/* Total Duration */}
+                <div className="p-4 rounded-lg border bg-slate-800/50 border-slate-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-purple-400" />
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                        Total Duration
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-slate-50">
+                      {metrics.totalDuration.toFixed(1)}
+                    </span>
+                    <span className="text-sm text-slate-400">s</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
-                        <div className="flex items-center gap-3 text-xs">
-                          <span className="text-slate-500">by <span className="text-slate-400 font-mono">{event.who}</span></span>
-                          {event.tags && event.tags.length > 0 && (
-                            <div className="flex gap-1 flex-wrap">
-                              {event.tags.map((tag: string) => (
-                                <span
-                                  key={tag}
-                                  className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-400"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
+            {/* Timeline Trace (Gantt Chart) */}
+            {metrics.totalEvents > 0 && (
+              <div className="p-4 rounded-lg border bg-slate-800/30 border-slate-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-semibold text-slate-300">
+                    Timeline Trace
+                  </h4>
+                  {timelineEvents.some(e => e.metadata?.timestamp_start !== undefined) ? (
+                    <span className="text-xs text-slate-500">
+                      {Math.max(...timelineEvents.map(e => e.metadata?.timestamp_end || 0)).toFixed(1)}s total
+                    </span>
+                  ) : (
+                    <span className="text-xs text-amber-400">
+                      No timestamp data available
+                    </span>
+                  )}
+                </div>
+
+                {timelineEvents.some(e => e.metadata?.timestamp_start !== undefined) ? (
+                  <div className="relative space-y-2">
+                    {timelineEvents
+                      .filter(e => e.metadata?.timestamp_start !== undefined && e.metadata?.timestamp_end !== undefined)
+                      .map((event) => {
+                        const maxTimestamp = Math.max(...timelineEvents.map(e => e.metadata?.timestamp_end || 0));
+                        const left = ((event.metadata?.timestamp_start || 0) / maxTimestamp) * 100;
+                        const width = (((event.metadata?.timestamp_end || 0) - (event.metadata?.timestamp_start || 0)) / maxTimestamp) * 100;
+                        const hasTranscript = event.content.trim().length > 0;
+
+                        return (
+                          <div
+                            key={event.id}
+                            className="relative"
+                            title={`Event ${event.metadata?.event_number}: ${event.metadata?.timestamp_start?.toFixed(1)}s → ${event.metadata?.timestamp_end?.toFixed(1)}s`}
+                          >
+                            <div className="h-8 rounded flex items-center px-2 text-xs font-mono bg-slate-700">
+                              <span className="text-slate-400">
+                                {event.metadata?.event_number}
+                              </span>
                             </div>
-                          )}
-                        </div>
-
-                        {event.causality && event.causality.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-slate-700">
-                            <span className="text-xs text-slate-500">
-                              Triggered by: {event.causality[0].explanation}
-                            </span>
+                            <div
+                              className={`absolute top-0 h-8 rounded transition-all ${
+                                hasTranscript
+                                  ? 'bg-green-500/40 border border-green-500/60'
+                                  : 'bg-yellow-500/40 border border-yellow-500/60'
+                              }`}
+                              style={{
+                                left: `${left}%`,
+                                width: `${width}%`,
+                              }}
+                            />
                           </div>
-                        )}
-                      </div>
-                    ))}
+                        );
+                      })}
                   </div>
                 ) : (
-                  <p className="text-slate-500 text-center py-8">No events loaded yet</p>
+                  <div className="text-center py-8 text-slate-500 text-sm">
+                    Events don't have timestamp_start/timestamp_end data for gantt visualization.
+                    <br />
+                    <span className="text-xs text-slate-600">
+                      (Available in transcription events from /chunks endpoint)
+                    </span>
+                  </div>
                 )}
               </div>
-            </div>
+            )}
+
+            {/* Unified Timeline (Medical Events) */}
+            <EventTimeline
+              events={timelineEvents}
+              config={timelineEventConfig}
+              isLoading={false}
+              error={error}
+              onRefresh={handleRefresh}
+              showHeader={false}
+              className="rounded-2xl border ring-1 ring-white/5 shadow-sm"
+            />
+              </>
+            )}
+
+            {/* Tab Content: Audio Chunks */}
+            {activeTab === 'chunks' && sessionData && (
+              <ChunkBreakdown
+                sessionId={sessionData.metadata.session_id}
+                autoRefresh={false}
+                darkMode={true}
+                apiBaseUrl={process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001'}
+              />
+            )}
 
           </main>
         </div>

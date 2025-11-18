@@ -1,170 +1,69 @@
 "use client";
 
 /**
- * Global Policy Banner Component
- * Card: FI-UI-FEAT-204 (Updated with Service Health)
+ * Data Sovereignty Banner
+ * Inspired by Aurity Philosophy: Data Sovereignty, HIPAA, Local-first
  *
- * Displays security status banner with service health monitoring
- * Polls /api/system/health every 10 seconds
+ * Communicates core principles: 100% Local, HIPAA Ready, Immutable Storage
  */
 
-import { useEffect, useState } from "react";
-import { ShieldCheck, X, AlertTriangle } from "lucide-react";
-import { ServiceStatus } from "./ServiceStatus";
-
-interface ServiceHealth {
-  ok: boolean;
-  message?: string;
-  latency_ms?: number;
-}
-
-interface SystemHealthResponse {
-  ok: boolean;
-  services: {
-    backend?: ServiceHealth;
-    diarization?: ServiceHealth;
-    llm?: ServiceHealth;
-    policy?: ServiceHealth;
-  };
-  version: string;
-  time: string;
-}
-
-interface PolicyData {
-  sovereignty?: {
-    egress?: {
-      default?: string;
-      allowlist?: string[];
-    };
-  };
-  privacy?: {
-    phi?: {
-      enabled?: boolean;
-    };
-  };
-}
+import { useState } from "react";
+import { Shield, Lock, Database, X } from "lucide-react";
 
 export function GlobalPolicyBanner() {
-  const [health, setHealth] = useState<SystemHealthResponse | null>(null);
-  const [policy, setPolicy] = useState<PolicyData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [dismissed, setDismissed] = useState(false);
-  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    // Fetch initial policy and health
-    const fetchInitialData = async () => {
-      try {
-        // Skip policy and health checks in development/showcase mode
-        // These endpoints are optional for the showcase
-        setLoading(false);
-
-        // TODO: Implement policy API route if needed
-        // TODO: Implement health API route if needed
-      } catch (err) {
-        console.error('Failed to load initial data:', err);
-        setError(true);
-        setLoading(false);
-      }
-    };
-
-    fetchInitialData();
-
-    // Poll health endpoint every 10 seconds (disabled for showcase mode)
-    // TODO: Re-enable when /api/system/health endpoint is implemented
-    // const healthInterval = setInterval(async () => {
-    //   try {
-    //     const baseUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:7001';
-    //     const res = await fetch(`${baseUrl}/api/system/health`);
-    //     if (res.ok) {
-    //       const data = await res.json();
-    //       setHealth(data);
-    //     }
-    //   } catch (err) {
-    //     console.error('Health poll failed:', err);
-    //   }
-    // }, 10000); // 10 seconds
-
-    // return () => clearInterval(healthInterval);
-  }, []);
-
-  if (loading || dismissed) {
-    return null;
-  }
-
-  // Determine banner type
-  const egressBlocked = policy?.sovereignty?.egress?.default === 'deny';
-  const phiDisabled = !policy?.privacy?.phi?.enabled;
-  const isSecureMode = egressBlocked && phiDisabled;
-  const hasUnhealthyServices = health && !health.ok;
-
-  // Show banner if either secure mode OR unhealthy services
-  const showBanner = isSecureMode || hasUnhealthyServices;
-
-  if (!showBanner && !error) {
+  if (dismissed) {
     return null;
   }
 
   return (
-    <div
-      className={`border-b backdrop-blur-sm ${
-        hasUnhealthyServices
-          ? "bg-yellow-900/20 border-yellow-800/50"
-          : isSecureMode
-          ? "bg-green-900/20 border-green-800/50"
-          : "bg-blue-900/20 border-blue-800/50"
-      }`}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+    <div className="border-b backdrop-blur-sm bg-emerald-900/20 border-emerald-800/50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            {/* Left: Security Status */}
-            <div className="flex items-center space-x-2">
-              {hasUnhealthyServices ? (
-                <AlertTriangle className="h-5 w-5 text-yellow-400" />
-              ) : (
-                <ShieldCheck className="h-5 w-5 text-green-400" />
-              )}
-              <span
-                className={`text-sm font-medium ${
-                  hasUnhealthyServices
-                    ? "text-yellow-200"
-                    : "text-green-200"
-                }`}
-              >
-                {hasUnhealthyServices
-                  ? "⚠️ Degraded Services"
-                  : isSecureMode
-                  ? "🔒 Modo Seguro"
-                  : "✓ System Healthy"}
+          {/* Data Sovereignty Principles */}
+          <div className="flex items-center gap-6">
+            {/* Local-First */}
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-emerald-400" />
+              <span className="text-sm font-medium text-emerald-200">
+                100% Local
               </span>
-              {isSecureMode && (
-                <span className="text-sm text-green-300/70">
-                  Egreso bloqueado, sin redacción PHI
-                </span>
-              )}
+              <span className="text-xs text-emerald-300/60">
+                No cloud dependencies
+              </span>
             </div>
 
-            {/* Right: Service Status Chips */}
-            {health && <ServiceStatus services={health.services} />}
+            {/* HIPAA Ready */}
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-emerald-400" />
+              <span className="text-sm font-medium text-emerald-200">
+                HIPAA Ready
+              </span>
+              <span className="text-xs text-emerald-300/60">
+                AES-GCM-256
+              </span>
+            </div>
+
+            {/* Immutable Storage */}
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-emerald-400" />
+              <span className="text-sm font-medium text-emerald-200">
+                Append-Only
+              </span>
+              <span className="text-xs text-emerald-300/60">
+                HDF5 immutable
+              </span>
+            </div>
           </div>
 
+          {/* Dismiss Button */}
           <button
             onClick={() => setDismissed(true)}
-            className={`p-1 rounded transition ${
-              hasUnhealthyServices
-                ? "hover:bg-yellow-800/30"
-                : "hover:bg-green-800/30"
-            }`}
-            title="Cerrar"
+            className="p-1 rounded hover:bg-emerald-800/30 transition"
+            title="Dismiss"
           >
-            <X
-              className={`h-5 w-5 ${
-                hasUnhealthyServices
-                  ? "text-yellow-300"
-                  : "text-green-300"
-              }`}
-            />
+            <X className="h-4 w-4 text-emerald-300" />
           </button>
         </div>
       </div>

@@ -56,12 +56,12 @@ export interface KPIChipsResponse {
  * Fetch KPI metrics (summary view)
  */
 export async function getKPIMetrics(window: string = "5m"): Promise<KPIMetrics> {
-  const response = await fetch(`${API_BASE}/api/kpis?window=${window}&view=summary`, {
+  const response = await fetch(`${API_BASE}/api/workflows/aurity/kpis?window=${window}&view=summary`, {
     cache: "no-store", // Always fetch fresh data for dashboard
   })
 
   if (!response.ok) {
-    throw new Error(`KPIs API failed: ${response.status}`)
+    throw new Error(`KPIs API failed: ${response.status} - ${response.url}`)
   }
 
   return response.json()
@@ -71,12 +71,12 @@ export async function getKPIMetrics(window: string = "5m"): Promise<KPIMetrics> 
  * Fetch KPI chips (UI-ready format)
  */
 export async function getKPIChips(window: string = "5m"): Promise<KPIChipsResponse> {
-  const response = await fetch(`${API_BASE}/api/kpis?window=${window}&view=chips`, {
+  const response = await fetch(`${API_BASE}/api/workflows/aurity/kpis?window=${window}&view=chips`, {
     cache: "no-store",
   })
 
   if (!response.ok) {
-    throw new Error(`KPIs API failed: ${response.status}`)
+    throw new Error(`KPIs API failed: ${response.status} - ${response.url}`)
   }
 
   return response.json()

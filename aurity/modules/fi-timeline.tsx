@@ -8,20 +8,27 @@
 import React from 'react';
 
 export interface SessionHeaderData {
-  session_id: string;
-  created_at: string;
-  updated_at: string;
-  timespan?: {
-    start: string;
-    end: string;
-    duration_ms: number;
+  metadata: {
+    session_id: string;
+    created_at: string;
+    thread_id?: string;
+    owner_hash?: string;
+    is_persisted: boolean;
+    last_active: string;
+    interaction_count: number;
+  };
+  timespan: {
+    start?: string;
+    end?: string;
+    duration_ms?: number;
     duration_human: string;
   };
-  size?: {
+  size: {
     interaction_count: number;
     total_tokens: number;
     total_chars: number;
-    size_human: string;
+    total_prompts_chars: number;
+    total_responses_chars: number;
   };
   policy_badges?: {
     hash_verified: string;
@@ -31,32 +38,76 @@ export interface SessionHeaderData {
   };
 }
 
-export const SessionHeader: React.FC<{ data: SessionHeaderData }> = ({ data }) => {
-  // Guard against undefined data
-  if (!data) {
+interface SessionHeaderProps {
+  session: SessionHeaderData | null;
+  sticky?: boolean;
+  onRefresh?: () => void;
+  onExport?: () => void;
+}
+
+export const SessionHeader: React.FC<SessionHeaderProps> = ({ session, sticky = false, onRefresh, onExport }) => {
+  // Guard against undefined/null session
+  if (!session || !session.metadata) {
     return (
-      <div className="bg-slate-800 p-4 rounded-lg mb-4">
+      <div className={`bg-slate-800 p-4 rounded-lg mb-4 ${sticky ? 'sticky top-0 z-20' : ''}`}>
         <h2 className="text-xl font-bold text-white mb-2">Loading session...</h2>
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-800 p-4 rounded-lg mb-4">
-      <h2 className="text-xl font-bold text-white mb-2">Session: {data.session_id || 'Unknown'}</h2>
-      <p className="text-slate-300 text-sm">Created: {data.created_at || 'Unknown'}</p>
-      {data.timespan && (
-        <p className="text-slate-300 text-sm">Duration: {data.timespan.duration_human}</p>
-      )}
+    <div className={`bg-slate-800 p-4 rounded-lg mb-4 border-b border-slate-700 ${sticky ? 'sticky top-0 z-20 backdrop-blur' : ''}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white mb-2">
+            Session: {session.metadata.session_id.substring(0, 8)}...
+          </h2>
+          <p className="text-slate-300 text-sm">
+            Created: {new Date(session.metadata.created_at).toLocaleString()}
+          </p>
+          {session.timespan && (
+            <p className="text-slate-300 text-sm">
+              Duration: {session.timespan.duration_human} · {session.size.interaction_count} interactions
+            </p>
+          )}
+        </div>
+
+        {(onRefresh || onExport) && (
+          <div className="flex items-center gap-2">
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors"
+              >
+                ↻ Refresh
+              </button>
+            )}
+            {onExport && (
+              <button
+                onClick={onExport}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm transition-colors"
+              >
+                ⇣ Export
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
 export function generateMockSessionHeader(): SessionHeaderData {
   return {
-    session_id: 'session_20251115_000000',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    metadata: {
+      session_id: 'session_20251115_000000',
+      created_at: new Date().toISOString(),
+      thread_id: 'thread_mock_001',
+      owner_hash: 'mock_hash',
+      is_persisted: true,
+      last_active: new Date().toISOString(),
+      interaction_count: 5,
+    },
     timespan: {
       start: new Date().toISOString(),
       end: new Date().toISOString(),
@@ -67,7 +118,8 @@ export function generateMockSessionHeader(): SessionHeaderData {
       interaction_count: 5,
       total_tokens: 1000,
       total_chars: 5000,
-      size_human: '1K tokens',
+      total_prompts_chars: 2000,
+      total_responses_chars: 3000,
     },
     policy_badges: {
       hash_verified: 'OK',
@@ -78,15 +130,20 @@ export function generateMockSessionHeader(): SessionHeaderData {
   };
 }
 
-export function generateMockSessionHeaderWithStatus(status: string): SessionHeaderData {
+export function generateMockSessionHeaderWithStatus(
+  hashStatus: string,
+  policyStatus: string,
+  redactionStatus: string,
+  auditStatus: string
+): SessionHeaderData {
   const data = generateMockSessionHeader();
   return {
     ...data,
     policy_badges: {
-      hash_verified: status === 'all-ok' ? 'OK' : 'FAIL',
-      policy_compliant: status === 'all-ok' ? 'OK' : 'FAIL',
-      redaction_applied: status === 'all-ok' ? 'OK' : 'N/A',
-      audit_logged: status === 'all-ok' ? 'OK' : 'FAIL',
+      hash_verified: hashStatus,
+      policy_compliant: policyStatus,
+      redaction_applied: redactionStatus,
+      audit_logged: auditStatus,
     },
   };
 }

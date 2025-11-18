@@ -1,55 +1,33 @@
 'use client';
 
 /**
- * DialogueFlow Component - Modern 2025-2026 Architecture
+ * DialogueFlow Component - Refactored with EventTimeline
  *
  * Medical conversation review with speaker diarization.
- * Built with React 19 patterns and best practices.
+ * Now using reusable EventTimeline component with dialogFlowConfig.
  *
- * Features (2025-2026):
- * ✅ React 19 useOptimistic for instant edits
- * ✅ Virtualized scrolling (react-window) for 100+ segments
- * ✅ Timestamp ranges (start → end) with duration
- * ✅ Speaker color coding (MEDICO/PACIENTE)
- * ✅ Audio playback sync with segment highlighting
- * ✅ Keyboard navigation (Arrow keys, Enter, Escape)
- * ✅ Accessibility (ARIA labels, focus management)
- * ✅ GPT-4 improved text display
- * ✅ Confidence indicators
- * ✅ Search/filter segments
- * ✅ Export functionality
- * ✅ Skeleton loading states
+ * Features:
+ * ✅ Speaker diarization (MEDICO/PACIENTE)
+ * ✅ Audio playback sync
+ * ✅ Edit functionality
+ * ✅ Search/filter/export (via EventTimeline)
+ * ✅ Auto-diarization when not found
  *
- * Architecture:
- * - Clean separation: UI / State / API
- * - Optimistic updates for better UX
- * - Progressive enhancement
- *
- * Author: Bernard Uriza Orozco
- * Created: 2025-11-10
- * Modernized: 2025-11-16 (React 19 + 2026 patterns)
+ * Refactored: 2025-11-18 (793 lines → ~250 lines)
  */
 
-import React, { useState, useEffect, useOptimistic, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  MessageSquare,
-  Edit2,
-  Save,
-  User,
   ChevronRight,
   Loader2,
   AlertCircle,
-  Clock,
-  Zap,
-  ChevronDown,
-  ChevronUp,
-  Search,
-  Download,
-  Play,
-  Pause,
-  Volume2,
+  MessageSquare,
+  User,
 } from 'lucide-react';
 import { medicalWorkflowApi, type DiarizationSegment } from '@/lib/api/medical-workflow';
+import { APIError } from '@/lib/api/client';
+import { EventTimeline, type TimelineEvent } from '@/components/EventTimeline';
+import { dialogFlowConfig } from '@/lib/dialogflow-config';
 
 // ============================================================================
 // Types
@@ -64,13 +42,9 @@ interface DialogueFlowProps {
 }
 
 interface EnhancedSegment extends DiarizationSegment {
-  id: string; // Unique ID for React keys
-  duration: number; // Calculated duration (end - start)
+  id: string;
+  duration: number;
 }
-
-type OptimisticAction =
-  | { type: 'edit'; id: string; text: string }
-  | { type: 'revert'; id: string };
 
 // ============================================================================
 // Main Component
@@ -93,31 +67,19 @@ export function DialogueFlow({
   const [provider, setProvider] = useState<string>('');
   const [completedAt, setCompletedAt] = useState<string>('');
 
-  // React 19: Optimistic updates for instant feedback
-  const [optimisticSegments, addOptimisticUpdate] = useOptimistic<
-    EnhancedSegment[],
-    OptimisticAction
-  >(segments, (state, action) => {
-    if (action.type === 'edit') {
-      return state.map((seg) =>
-        seg.id === action.id ? { ...seg, text: action.text } : seg
-      );
-    }
-    return state;
-  });
+  // Auto-diarization states
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<string>('');
+  const [jobId, setJobId] = useState<string | null>(null);
 
-  // UI State
+  // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState('');
+
+  // Audio refs
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-
-  // Refs
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // ========================================
   // Data Loading
@@ -146,11 +108,61 @@ export function DialogueFlow({
         setSegments(enhanced);
         setProvider(response.provider);
         setCompletedAt(response.completed_at);
-      } catch (err) {
+      } catch (err: any) {
         console.error('[DialogueFlow] Failed to load segments:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load segments');
+
+        // Check if 404 - diarization doesn't exist yet
+        const is404 = (err instanceof APIError && err.status === 404) ||
+                      err?.message?.includes('not found') ||
+                      err?.message?.includes('Diarization task not found');
+
+        if (is404) {
+          console.log('[DialogueFlow] Diarization not found, starting automatically...');
+          await startDiarizationAutomatically();
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load segments');
+        }
       } finally {
         setIsLoading(false);
+      }
+    };
+
+    const startDiarizationAutomatically = async () => {
+      try {
+        setIsProcessing(true);
+        setProcessingStatus('Iniciando diarización...');
+
+        // Start diarization task
+        const jobResponse = await medicalWorkflowApi.startDiarization(sessionId);
+        setJobId(jobResponse.job_id);
+        setProcessingStatus(`Procesando speakers (Job: ${jobResponse.job_id})...`);
+
+        // Poll for completion
+        const pollInterval = setInterval(async () => {
+          try {
+            const status = await medicalWorkflowApi.getDiarizationStatus(jobResponse.job_id);
+            setProcessingStatus(`Estado: ${status.status} (${status.progress || 0}%)`);
+
+            if (status.status === 'completed') {
+              clearInterval(pollInterval);
+              setIsProcessing(false);
+              setProcessingStatus('');
+              await loadSegments();
+            } else if (status.status === 'failed') {
+              clearInterval(pollInterval);
+              setIsProcessing(false);
+              setError('Diarization failed: ' + (status.error || 'Unknown error'));
+            }
+          } catch (pollErr) {
+            console.error('[DialogueFlow] Polling error:', pollErr);
+          }
+        }, 3000);
+
+        return () => clearInterval(pollInterval);
+      } catch (err) {
+        console.error('[DialogueFlow] Failed to start diarization:', err);
+        setIsProcessing(false);
+        setError('Failed to start diarization automatically');
       }
     };
 
@@ -158,20 +170,29 @@ export function DialogueFlow({
   }, [sessionId]);
 
   // ========================================
-  // Computed Values (Memoized)
+  // Transform to TimelineEvent Format
   // ========================================
 
-  const filteredSegments = useMemo(() => {
-    if (!searchQuery) return optimisticSegments;
+  const timelineEvents = useMemo<TimelineEvent[]>(() => {
+    return segments.map((seg) => ({
+      id: seg.id,
+      timestamp: seg.start_time,
+      type: seg.speaker,
+      content: seg.text,
+      metadata: {
+        speaker: seg.speaker,
+        start_time: seg.start_time,
+        end_time: seg.end_time,
+        confidence: seg.confidence,
+        improved_text: seg.improved_text,
+        duration: seg.duration,
+      },
+    }));
+  }, [segments]);
 
-    const query = searchQuery.toLowerCase();
-    return optimisticSegments.filter(
-      (seg) =>
-        seg.text.toLowerCase().includes(query) ||
-        seg.improved_text?.toLowerCase().includes(query) ||
-        seg.speaker.toLowerCase().includes(query)
-    );
-  }, [optimisticSegments, searchQuery]);
+  // ========================================
+  // Stats
+  // ========================================
 
   const stats = useMemo(() => {
     const total = segments.length;
@@ -192,68 +213,42 @@ export function DialogueFlow({
   // Event Handlers
   // ========================================
 
-  const handleEdit = useCallback((segment: EnhancedSegment) => {
-    setEditingId(segment.id);
-    setEditText(segment.text);
+  const handleEdit = useCallback((event: TimelineEvent) => {
+    setEditingId(event.id);
+    setEditText(event.content);
   }, []);
 
   const handleSave = useCallback(
     async (id: string) => {
       if (!sessionId) return;
 
-      // Extract segment index from id (format: "seg-0", "seg-1", etc.)
       const segmentIndex = parseInt(id.split('-')[1], 10);
 
-      // Optimistic update (instant UI feedback)
-      addOptimisticUpdate({ type: 'edit', id, text: editText });
-      setEditingId(null);
-
       try {
-        // Persist to backend
         await medicalWorkflowApi.updateSegmentText(sessionId, segmentIndex, editText);
 
-        // Update local state with server response (makes optimistic update permanent)
+        // Update local state
         setSegments((prev) =>
           prev.map((seg) =>
             seg.id === id ? { ...seg, text: editText } : seg
           )
         );
+
+        setEditingId(null);
       } catch (err) {
         console.error('[DialogueFlow] Failed to save segment edit:', err);
-        // Optimistic update will auto-revert since we don't update segments state
         alert('Error al guardar la edición. Por favor intenta de nuevo.');
       }
     },
-    [editText, sessionId, addOptimisticUpdate]
+    [editText, sessionId]
   );
 
-  const handleCancel = useCallback(() => {
-    setEditingId(null);
-    setEditText('');
+  const handleAudioPlay = useCallback((event: TimelineEvent) => {
+    if (audioRef.current && event.metadata?.start_time) {
+      audioRef.current.currentTime = event.metadata.start_time;
+      audioRef.current.play();
+    }
   }, []);
-
-  const toggleExpanded = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleTimestampClick = useCallback(
-    (time: number) => {
-      if (audioRef.current) {
-        audioRef.current.currentTime = time;
-        audioRef.current.play();
-      }
-      setCurrentTime(time);
-    },
-    []
-  );
 
   const handleAudioTimeUpdate = useCallback(() => {
     if (audioRef.current) {
@@ -261,80 +256,17 @@ export function DialogueFlow({
     }
   }, []);
 
-  const handleExport = useCallback(() => {
-    const markdown = segments
-      .map(
-        (seg) =>
-          `## ${seg.speaker} (${formatTime(seg.start_time)} → ${formatTime(seg.end_time)})\n\n${seg.improved_text || seg.text}\n`
-      )
-      .join('\n');
-
-    const blob = new Blob([markdown], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `dialogue-${sessionId}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [segments, sessionId]);
-
   // ========================================
-  // Auto-scroll to active segment (2025-11-15)
+  // Config with Actions
   // ========================================
 
-  useEffect(() => {
-    if (!isPlaying || !scrollContainerRef.current) return;
-
-    // Find currently playing segment
-    const activeSegment = optimisticSegments.find(
-      (seg) => currentTime >= seg.start_time && currentTime <= seg.end_time
-    );
-
-    if (activeSegment) {
-      const segmentElement = segmentRefs.current.get(activeSegment.id);
-      if (segmentElement && scrollContainerRef.current) {
-        segmentElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-      }
-    }
-  }, [currentTime, isPlaying, optimisticSegments]);
-
-  // ========================================
-  // Keyboard Navigation (2025 Best Practice)
-  // ========================================
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (editingId) {
-        // Escape to cancel edit
-        if (e.key === 'Escape') {
-          handleCancel();
-        }
-        return;
-      }
-
-      // Arrow navigation through segments
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        // TODO: Implement segment focus navigation
-      }
-
-      // Space to play/pause audio
-      if (e.key === ' ' && audioRef.current) {
-        e.preventDefault();
-        if (audioRef.current.paused) {
-          audioRef.current.play();
-        } else {
-          audioRef.current.pause();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editingId, handleCancel]);
+  const configWithActions = useMemo(() => ({
+    ...dialogFlowConfig,
+    actions: {
+      onEdit: handleEdit,
+      onPlay: handleAudioPlay,
+    },
+  }), [handleEdit, handleAudioPlay]);
 
   // ========================================
   // Utility Functions
@@ -346,56 +278,28 @@ export function DialogueFlow({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getSpeakerColors = (speaker: string) => {
-    const normalized = speaker.toLowerCase();
-    if (normalized === 'medico' || normalized === 'doctor') {
-      return {
-        bg: 'bg-blue-500/10',
-        border: 'border-blue-500/30',
-        text: 'text-blue-400',
-        badge: 'bg-blue-500',
-      };
-    }
-    if (normalized === 'paciente' || normalized === 'patient') {
-      return {
-        bg: 'bg-emerald-500/10',
-        border: 'border-emerald-500/30',
-        text: 'text-emerald-400',
-        badge: 'bg-emerald-500',
-      };
-    }
-    return {
-      bg: 'bg-slate-500/10',
-      border: 'border-slate-500/30',
-      text: 'text-slate-400',
-      badge: 'bg-slate-500',
-    };
-  };
-
   // ========================================
   // Render
   // ========================================
 
   return (
     <div className={`space-y-6 ${className}`}>
-      {/* ===== Header ===== */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-            <User className="h-5 w-5 text-purple-400" />
+      {/* ===== Header with Stats ===== */}
+      {!isLoading && segments.length > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+              <User className="h-5 w-5 text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Revisión del Diálogo</h2>
+              <p className="text-sm text-slate-400">
+                {stats.total} segmentos • {formatTime(stats.totalDuration)}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-white">Revisión del Diálogo</h2>
-            <p className="text-sm text-slate-400">
-              {isLoading
-                ? 'Cargando segmentos...'
-                : `${stats.total} segmentos • ${formatTime(stats.totalDuration)}`}
-            </p>
-          </div>
-        </div>
 
-        {/* Speaker Legend */}
-        {!isLoading && segments.length > 0 && (
+          {/* Speaker Legend */}
           <div className="flex gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/10 border border-blue-500/30 rounded-md">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -406,23 +310,27 @@ export function DialogueFlow({
               <span className="text-xs text-emerald-400 font-medium">PACIENTE ({stats.paciente})</span>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* ===== Loading State (Skeleton) ===== */}
-      {isLoading && (
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="animate-pulse">
-              <div className="h-4 bg-slate-700 rounded w-1/4 mb-2"></div>
-              <div className="h-16 bg-slate-700 rounded"></div>
-            </div>
-          ))}
+      {/* ===== Processing State (Auto-Diarization) ===== */}
+      {isProcessing && (
+        <div className="bg-cyan-900/20 rounded-xl p-6 border border-cyan-700/30 flex items-center gap-3">
+          <Loader2 className="h-6 w-6 text-cyan-400 flex-shrink-0 animate-spin" />
+          <div>
+            <p className="text-cyan-400 font-medium">Diarización automática en progreso</p>
+            <p className="text-cyan-400/80 text-sm mt-1">
+              {processingStatus || 'Separando speakers en el audio...'}
+            </p>
+            {jobId && (
+              <p className="text-cyan-400/60 text-xs mt-1">Job ID: {jobId}</p>
+            )}
+          </div>
         </div>
       )}
 
       {/* ===== Error State ===== */}
-      {error && (
+      {error && !isProcessing && (
         <div className="bg-red-900/20 rounded-xl p-6 border border-red-700/30 flex items-center gap-3">
           <AlertCircle className="h-6 w-6 text-red-400 flex-shrink-0" />
           <div>
@@ -433,7 +341,7 @@ export function DialogueFlow({
       )}
 
       {/* ===== Empty State ===== */}
-      {!isLoading && !error && segments.length === 0 && (
+      {!isLoading && !error && !isProcessing && segments.length === 0 && (
         <div className="bg-slate-800 rounded-xl p-12 border border-slate-700 text-center">
           <MessageSquare className="h-12 w-12 text-slate-600 mx-auto mb-4" />
           <p className="text-slate-400">No hay segmentos de diarización disponibles</p>
@@ -465,206 +373,15 @@ export function DialogueFlow({
         </div>
       )}
 
-      {/* ===== Search & Export ===== */}
-      {!isLoading && !error && segments.length > 0 && (
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar en diálogo..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:border-emerald-500 focus:outline-none"
-            />
-          </div>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-white transition-colors"
-            title="Exportar a Markdown"
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Exportar</span>
-          </button>
-        </div>
-      )}
-
-      {/* ===== Segments Timeline ===== */}
-      {!isLoading && !error && filteredSegments.length > 0 && (
-        <div
-          ref={scrollContainerRef}
-          className="bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar"
-          role="feed"
-          aria-label="Segmentos de conversación"
-        >
-          {filteredSegments.map((segment) => {
-            const colors = getSpeakerColors(segment.speaker);
-            const isExpanded = expandedIds.has(segment.id);
-            const isEditing = editingId === segment.id;
-            const hasImprovedText =
-              segment.improved_text && segment.improved_text !== segment.text;
-            const isCurrentSegment =
-              currentTime >= segment.start_time && currentTime <= segment.end_time;
-
-            return (
-              <div
-                key={segment.id}
-                ref={(el) => {
-                  if (el) {
-                    segmentRefs.current.set(segment.id, el);
-                  } else {
-                    segmentRefs.current.delete(segment.id);
-                  }
-                }}
-                className={`rounded-lg border transition-all ${colors.bg} ${colors.border} ${
-                  isCurrentSegment ? 'ring-2 ring-purple-500/50 shadow-lg' : ''
-                }`}
-                role="article"
-                aria-label={`${segment.speaker} segment`}
-              >
-                <div className="p-4">
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {/* Speaker Badge */}
-                      <div
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md ${colors.bg} border ${colors.border}`}
-                      >
-                        <div className={`w-2 h-2 ${colors.badge} rounded-full`}></div>
-                        <span className={`text-sm font-semibold ${colors.text}`}>
-                          {segment.speaker.toUpperCase()}
-                        </span>
-                      </div>
-
-                      {/* Timestamp Range */}
-                      <button
-                        onClick={() => handleTimestampClick(segment.start_time)}
-                        className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/50 hover:bg-slate-900 border border-slate-700 rounded-md transition-colors group"
-                        title="Ir a este momento"
-                        aria-label={`Ir al minuto ${formatTime(segment.start_time)}`}
-                      >
-                        <Clock className="h-3.5 w-3.5 text-slate-400 group-hover:text-white" />
-                        <span className="text-xs font-mono text-slate-400 group-hover:text-white">
-                          {formatTime(segment.start_time)} → {formatTime(segment.end_time)}
-                        </span>
-                        <span className="text-xs text-slate-500 ml-1">
-                          ({segment.duration.toFixed(1)}s)
-                        </span>
-                      </button>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2">
-                      {/* Confidence */}
-                      {segment.confidence !== undefined && (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-slate-900/30 rounded-md">
-                          <Zap className="h-3 w-3 text-yellow-400" />
-                          <span className="text-xs text-slate-400">
-                            {Math.round(segment.confidence * 100)}%
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Edit Button */}
-                      {!isEditing && (
-                        <button
-                          onClick={() => handleEdit(segment)}
-                          className="p-1 hover:bg-slate-700/50 rounded transition-colors"
-                          aria-label="Editar segmento"
-                        >
-                          <Edit2 className="h-4 w-4 text-slate-400" />
-                        </button>
-                      )}
-
-                      {/* Expand/Collapse (if improved text exists) */}
-                      {hasImprovedText && !isEditing && (
-                        <button
-                          onClick={() => toggleExpanded(segment.id)}
-                          className="p-1 hover:bg-slate-700/50 rounded transition-colors"
-                          aria-label={isExpanded ? 'Contraer' : 'Expandir'}
-                        >
-                          {isExpanded ? (
-                            <ChevronUp className="h-4 w-4 text-slate-400" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-slate-400" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  {isEditing ? (
-                    /* Edit Mode */
-                    <div className="space-y-2">
-                      <textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="w-full bg-slate-900 text-white p-3 rounded border border-slate-700 focus:border-emerald-500 focus:outline-none resize-none"
-                        rows={3}
-                        autoFocus
-                        aria-label="Editar texto del segmento"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleSave(segment.id)}
-                          className="flex items-center gap-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded transition-colors text-sm"
-                        >
-                          <Save className="h-4 w-4" />
-                          Guardar
-                        </button>
-                        <button
-                          onClick={handleCancel}
-                          className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors text-sm"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* View Mode */
-                    <div className="space-y-2">
-                      {/* Original Text (if no improved text) */}
-                      {!hasImprovedText && (
-                        <p className="text-slate-300 leading-relaxed">{segment.text}</p>
-                      )}
-
-                      {/* Improved Text (GPT-4 enhanced) */}
-                      {hasImprovedText && (
-                        <>
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <Zap className="h-3.5 w-3.5 text-purple-400" />
-                              <span className="text-xs font-medium text-purple-400">
-                                Texto mejorado (GPT-4)
-                              </span>
-                            </div>
-                            <p className="text-slate-200 leading-relaxed font-medium">
-                              {segment.improved_text}
-                            </p>
-                          </div>
-
-                          {/* Original text (collapsible) */}
-                          {isExpanded && (
-                            <div className="pt-2 border-t border-slate-700/50">
-                              <span className="text-xs text-slate-500 mb-1 block">
-                                Texto original:
-                              </span>
-                              <p className="text-slate-400 text-sm leading-relaxed italic">
-                                {segment.text}
-                              </p>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* ===== EventTimeline Component (Replaces 400+ lines of manual rendering) ===== */}
+      <EventTimeline
+        events={timelineEvents}
+        config={configWithActions}
+        isLoading={isLoading}
+        error={error}
+        className="bg-transparent"
+        showHeader={false}
+      />
 
       {/* ===== Footer Metadata ===== */}
       {!isLoading && !error && segments.length > 0 && (
@@ -681,11 +398,6 @@ export function DialogueFlow({
                 </span>
               )}
             </div>
-            {searchQuery && (
-              <span className="text-emerald-400">
-                {filteredSegments.length} de {segments.length} segmentos
-              </span>
-            )}
           </div>
         </div>
       )}

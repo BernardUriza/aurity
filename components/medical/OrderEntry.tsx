@@ -94,8 +94,22 @@ export function OrderEntry({
       setLastRefresh(new Date());
       console.log(`[OrderEntry] Loaded ${fetchedOrders.length} orders`);
     } catch (err) {
-      console.error('[OrderEntry] Failed to load orders:', err);
-      setError('Error al cargar órdenes médicas');
+      const errorMsg = err instanceof Error ? err.message : String(err);
+
+      // Check if it's a "task not found" error (orders not initialized yet)
+      const isNoDataError = errorMsg.includes('not found') ||
+                           errorMsg.includes('404') ||
+                           errorMsg.includes('does not exist');
+
+      if (isNoDataError) {
+        console.log('[OrderEntry] Orders not initialized yet, will continue polling...');
+        // Don't show error - this is expected when SOAP hasn't created orders yet
+        setOrders([]);
+        setLastRefresh(new Date());
+      } else {
+        console.error('[OrderEntry] Failed to load orders:', err);
+        setError('Error al cargar órdenes médicas');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

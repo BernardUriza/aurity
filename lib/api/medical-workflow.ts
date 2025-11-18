@@ -185,12 +185,34 @@ export const medicalWorkflowApi = {
       timestampStart?: number;
       timestampEnd?: number;
       filename?: string;
+      patientInfo?: {
+        patient_name?: string;
+        patient_age?: string;
+        patient_id?: string;
+        chief_complaint?: string;
+      };
     }
   ): Promise<StreamChunkResponse> => {
     const formData = new FormData();
     formData.append('session_id', sessionId);
     formData.append('chunk_number', chunkNumber.toString());
     formData.append('mime', audioBlob.type || '');
+
+    // Include patient info in first chunk only
+    if (chunkNumber === 0 && options?.patientInfo) {
+      if (options.patientInfo.patient_name) {
+        formData.append('patient_name', options.patientInfo.patient_name);
+      }
+      if (options.patientInfo.patient_age) {
+        formData.append('patient_age', options.patientInfo.patient_age);
+      }
+      if (options.patientInfo.patient_id) {
+        formData.append('patient_id', options.patientInfo.patient_id);
+      }
+      if (options.patientInfo.chief_complaint) {
+        formData.append('chief_complaint', options.patientInfo.chief_complaint);
+      }
+    }
 
     const filename = options?.filename || `chunk_${chunkNumber.toString().padStart(3, '0')}.webm`;
     formData.append('audio', audioBlob, filename);

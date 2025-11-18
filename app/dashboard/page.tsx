@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { KPICard, KPIStatus } from "../../components/KPICard"
+import { UserDisplay } from "../../components/UserDisplay"
 import { getKPIMetrics } from "../../lib/api/kpis"
 import type { KPIMetrics } from "../../lib/api/kpis"
 import {
@@ -14,6 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react"
 import Link from "next/link"
+import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<KPIMetrics | null>(null)
@@ -87,15 +89,19 @@ export default function DashboardPage() {
   const timelineStatus = getLatencyStatus(p95Timeline, 300)
 
   return (
-    <div className="container mx-auto p-6">
+    <ProtectedRoute>
+      <div className="container mx-auto p-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-          System Dashboard
-        </h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          Real-time operational metrics · Last updated: {new Date(metrics.asOf).toLocaleTimeString()}
-        </p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+            System Dashboard
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Real-time operational metrics · Last updated: {new Date(metrics.asOf).toLocaleTimeString()}
+          </p>
+        </div>
+        <UserDisplay />
       </div>
 
       {/* KPI Grid */}
@@ -224,10 +230,10 @@ export default function DashboardPage() {
         </h2>
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/sessions"
+            href="/history"
             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
           >
-            View All Sessions
+            View Session History
             <ExternalLink className="h-4 w-4" />
           </Link>
           <Link
@@ -247,5 +253,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+    </ProtectedRoute>
   )
 }
