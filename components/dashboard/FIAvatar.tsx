@@ -333,7 +333,7 @@ export function FIAvatar({
     }
 
     loadDynamicContent();
-  }, [clinicSlides, onContentLoad]); // Re-run when clinic slides change
+  }, [clinicSlides]); // Re-run when clinic slides change (onContentLoad removed to prevent infinite loop)
 
   // Inject doctor message at the beginning if provided
   useEffect(() => {
