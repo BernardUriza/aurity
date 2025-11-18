@@ -48,18 +48,10 @@ export const NAV_ROUTES: NavRoute[] = [
   {
     id: "timeline",
     title: "Timeline",
-    description: "Vista cronológica de eventos",
+    description: "Conversación continua con navegación",
     href: "/timeline",
     icon: Clock,
     shortcut: "3",
-  },
-  {
-    id: "history",
-    title: "History",
-    description: "Historial de sesiones médicas",
-    href: "/history",
-    icon: BookOpen,
-    shortcut: "4",
   },
   {
     id: "policy",
@@ -67,7 +59,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Configuración de políticas",
     href: "/policy",
     icon: Shield,
-    shortcut: "5",
+    shortcut: "4",
   },
   {
     id: "audit",
@@ -75,7 +67,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Log de auditoría del sistema",
     href: "/audit",
     icon: FileText,
-    shortcut: "6",
+    shortcut: "5",
   },
   {
     id: "onboarding",
@@ -83,7 +75,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Guía de bienvenida al sistema",
     href: "/onboarding",
     icon: UserPlus,
-    shortcut: "7",
+    shortcut: "6",
   },
   {
     id: "nas-installer",
@@ -91,7 +83,7 @@ export const NAV_ROUTES: NavRoute[] = [
     description: "Guía de instalación en NAS / PC",
     href: "/infra/nas-installer",
     icon: Server,
-    shortcut: "8",
+    shortcut: "7",
   },
 ];
 
