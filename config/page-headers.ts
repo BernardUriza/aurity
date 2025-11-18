@@ -150,6 +150,7 @@ export const profileHeader: PageHeaderFactory = (data) => ({
 /**
  * Settings/Config header config
  * @param data - { section }
+ * Note: Config and Profile share the same /profile endpoint
  */
 export const configHeader: PageHeaderFactory = (data) => ({
   showBackButton: true,
@@ -158,8 +159,8 @@ export const configHeader: PageHeaderFactory = (data) => ({
   iconColor: 'text-slate-400',
   title: 'Configuración',
   subtitle: data?.section
-    ? `${data.section} · Personalización del sistema`
-    : 'Personalización y ajustes',
+    ? `${data.section} · Configuración de usuario`
+    : 'Configuración de usuario',
   metrics: [],
 })
 
