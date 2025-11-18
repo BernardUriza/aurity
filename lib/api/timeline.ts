@@ -370,3 +370,48 @@ export async function healthCheck(): Promise<{
 
   return response.json();
 }
+
+/**
+ * Audio Chunk Interface
+ * Represents a transcription chunk with audio metadata
+ */
+export interface AudioChunk {
+  chunk_number: number;
+  transcript: string;
+  language: string;
+  duration: number;
+  audio_hash: string;
+  timestamp_start: number;
+  timestamp_end: number;
+  created_at: string;
+  stt_provider?: string;
+  confidence_score?: number;
+  latency_ms?: number;
+  audio_quality?: string;
+}
+
+/**
+ * Fetch session audio chunks with timestamp ranges
+ * This endpoint provides granular transcription data with timing information
+ * Perfect for gantt charts and audio playback
+ */
+export async function getSessionChunks(sessionId: string): Promise<AudioChunk[]> {
+  const url = `${API_BASE_URL}/sessions/${sessionId}/chunks`;
+
+  try {
+    const response = await fetchWithRetry(url);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(`Chunks not found for session ${sessionId}`);
+      }
+      throw new Error(`Failed to fetch chunks: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.chunks || [];
+  } catch (error) {
+    console.error('[Timeline API] Failed to fetch session chunks:', error);
+    throw error;
+  }
+}

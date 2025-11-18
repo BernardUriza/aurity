@@ -16,21 +16,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SessionHeader } from '@/aurity/modules/fi-timeline';
 import type { SessionHeaderData } from '@/aurity/modules/fi-timeline';
 import { UserDisplay } from '@/components/UserDisplay';
-import { getSessionSummaries, getSessionDetail } from '@/lib/api/timeline';
+import { getSessionSummaries, getSessionDetail, getSessionChunks, type AudioChunk } from '@/lib/api/timeline';
 import { EventTimeline, type TimelineEvent } from '@/components/EventTimeline';
 import { timelineEventConfig } from '@/lib/timeline-config';
-import { ChunkBreakdown } from '@/components/ChunkBreakdown';
 import { Activity, CheckCircle2, Zap, Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 export default function TimelinePage() {
   const [sessionData, setSessionData] = useState<SessionHeaderData | null>(null);
-  const [sessionEvents, setSessionEvents] = useState<any[]>([]);
+  const [chunks, setChunks] = useState<AudioChunk[]>([]);
   const [loadTime, setLoadTime] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'events' | 'chunks'>('events');
 
   // Load available sessions list
   useEffect(() => {
@@ -46,7 +44,7 @@ export default function TimelinePage() {
     fetchSessions();
   }, []);
 
-  // Initialize session data on client only (avoid hydration mismatch)
+  // Initialize session data and chunks on client only (avoid hydration mismatch)
   useEffect(() => {
     async function loadSession() {
       try {
@@ -60,7 +58,12 @@ export default function TimelinePage() {
         }
 
         const sessionId = sessions[0].metadata.session_id;
-        const detail = await getSessionDetail(sessionId);
+
+        // Fetch session detail (for metadata) and chunks (for timeline) in parallel
+        const [detail, sessionChunks] = await Promise.all([
+          getSessionDetail(sessionId),
+          getSessionChunks(sessionId),
+        ]);
 
         // Validate detail has required structure
         if (!detail || !detail.metadata || !detail.metadata.session_id) {
@@ -90,11 +93,11 @@ export default function TimelinePage() {
           policy_badges: detail.policy_badges,
         });
 
-        // Store events
-        setSessionEvents(detail.events || []);
+        // Store chunks (instead of events)
+        setChunks(sessionChunks);
 
         setError(null);
-        console.log('[Timeline] Loaded from API in', elapsed.toFixed(0), 'ms', `(${detail.events?.length || 0} events)`);
+        console.log('[Timeline] Loaded from API in', elapsed.toFixed(0), 'ms', `(${sessionChunks.length} chunks)`);
       } catch (err) {
         console.error('[Timeline] API error:', err);
         setError(String(err));
@@ -113,7 +116,11 @@ export default function TimelinePage() {
       setError(null);
       const start = performance.now();
 
-      const detail = await getSessionDetail(sessionId);
+      // Fetch session detail and chunks in parallel
+      const [detail, sessionChunks] = await Promise.all([
+        getSessionDetail(sessionId),
+        getSessionChunks(sessionId),
+      ]);
 
       if (!detail || !detail.metadata || !detail.metadata.session_id) {
         throw new Error('Invalid session detail format from API');
@@ -141,9 +148,9 @@ export default function TimelinePage() {
         policy_badges: detail.policy_badges,
       });
 
-      setSessionEvents(detail.events || []);
+      setChunks(sessionChunks);
       setError(null);
-      console.log('[Timeline] Loaded session', sessionId, 'in', elapsed.toFixed(0), 'ms');
+      console.log('[Timeline] Loaded session', sessionId, 'in', elapsed.toFixed(0), 'ms', `(${sessionChunks.length} chunks)`);
     } catch (err) {
       console.error('[Timeline] Failed to load session:', err);
       setError(String(err));
@@ -162,33 +169,32 @@ export default function TimelinePage() {
     alert('Export functionality will be implemented in FI-UI-FEAT-105');
   };
 
-  // Transform sessionEvents to TimelineEvent format
+  // Transform AudioChunks to TimelineEvent format (SOLID: Dependency Inversion)
   const timelineEvents = useMemo<TimelineEvent[]>(() => {
-    return sessionEvents.map((event, idx) => ({
-      id: event.event_id || `event-${idx}`,
-      timestamp: event.timestamp,
-      type: event.event_type,
-      content: event.summary || event.what,
+    return chunks.map((chunk, idx) => ({
+      id: `chunk-${chunk.chunk_number}`,
+      timestamp: chunk.created_at,
+      type: 'transcription',
+      content: chunk.transcript,
       metadata: {
         event_number: idx + 1,
-        chunk_number: event.chunk_number,
-        who: event.who,
-        tags: event.tags || [],
-        confidence: event.confidence_score,
-        causality: event.causality,
-        // Audio-related metadata
-        audio_hash: event.audio_hash,
-        stt_provider: event.stt_provider,
-        provider: event.provider,
-        duration: event.duration,
-        language: event.language,
-        latency_ms: event.latency_ms,
-        audio_quality: event.audio_quality,
-        timestamp_start: event.timestamp_start,
-        timestamp_end: event.timestamp_end,
+        chunk_number: chunk.chunk_number,
+        who: 'system',
+        tags: ['transcription', chunk.language],
+        confidence: chunk.confidence_score,
+        // Audio-related metadata (complete from chunks)
+        audio_hash: chunk.audio_hash,
+        stt_provider: chunk.stt_provider,
+        provider: chunk.stt_provider,
+        duration: chunk.duration,
+        language: chunk.language,
+        latency_ms: chunk.latency_ms,
+        audio_quality: chunk.audio_quality,
+        timestamp_start: chunk.timestamp_start,
+        timestamp_end: chunk.timestamp_end,
       },
     }));
-  }, [sessionEvents]);
+  }, [chunks]);
 
   // Calculate metrics (for events with transcriptions)
   const metrics = useMemo(() => {
@@ -382,41 +388,14 @@ export default function TimelinePage() {
             {/* Header */}
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-100 mb-2">
-                Session Timeline
+                Audio Transcription Timeline
               </h1>
               <p className="text-sm text-slate-500">
-                Medical events with audio transcription · Provider info · Technical details
+                Chunk-level transcription with gantt visualization · STT provider · Audio playback
               </p>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="flex gap-2 border-b border-slate-700">
-              <button
-                onClick={() => setActiveTab('events')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'events'
-                    ? 'text-emerald-400 border-b-2 border-emerald-400'
-                    : 'text-slate-400 hover:text-slate-300'
-                }`}
-              >
-                Medical Events
-              </button>
-              <button
-                onClick={() => setActiveTab('chunks')}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'chunks'
-                    ? 'text-emerald-400 border-b-2 border-emerald-400'
-                    : 'text-slate-400 hover:text-slate-300'
-                }`}
-              >
-                Audio Chunks (with Gantt)
-              </button>
-            </div>
-
-            {/* Tab Content: Medical Events */}
-            {activeTab === 'events' && (
-              <>
-                {/* Metrics Dashboard */}
+            {/* Metrics Dashboard */}
             {metrics.totalEvents > 0 && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Total Events */}
@@ -572,7 +551,7 @@ export default function TimelinePage() {
               </div>
             )}
 
-            {/* Unified Timeline (Medical Events) */}
+            {/* Unified Timeline - Audio Chunks */}
             <EventTimeline
               events={timelineEvents}
               config={timelineEventConfig}
@@ -582,18 +561,6 @@ export default function TimelinePage() {
               showHeader={false}
               className="rounded-2xl border ring-1 ring-white/5 shadow-sm"
             />
-              </>
-            )}
-
-            {/* Tab Content: Audio Chunks */}
-            {activeTab === 'chunks' && sessionData && (
-              <ChunkBreakdown
-                sessionId={sessionData.metadata.session_id}
-                autoRefresh={false}
-                darkMode={true}
-                apiBaseUrl={process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001'}
-              />
-            )}
 
           </main>
         </div>

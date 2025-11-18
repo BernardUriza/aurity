@@ -96,7 +96,6 @@ interface EventTimelineProps {
   error?: string | null;
   onRefresh?: () => void;
   className?: string;
-  showHeader?: boolean; // Show/hide timeline header (default: true)
 }
 
 // ============================================================================
@@ -110,7 +109,6 @@ export function EventTimeline({
   error = null,
   onRefresh,
   className = '',
-  showHeader = true,
 }: EventTimelineProps) {
   // ========================================
   // State
@@ -209,35 +207,7 @@ export function EventTimeline({
 
   return (
     <div className={`space-y-6 ${className}`}>
-      {/* ===== Header ===== */}
-      {showHeader && (
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-white">
-              {config.title || 'Event Timeline'}
-            </h2>
-            <p className="text-sm text-slate-400">
-              {isLoading ? 'Cargando eventos...' : `${stats.total} eventos`}
-            </p>
-          </div>
-
-          {/* Type Breakdown */}
-          {!isLoading && events.length > 0 && (
-            <div className="flex gap-2 flex-wrap">
-              {Object.entries(stats.typeBreakdown).map(([type, count]) => (
-                <div
-                  key={type}
-                  className="flex items-center gap-1.5 px-2 py-1 bg-slate-700/30 border border-slate-600/30 rounded-md"
-                >
-                  <span className="text-xs text-slate-300 font-medium uppercase">
-                    {type} ({count})
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Header removed - parent components control their own headers */}
 
       {/* ===== Loading State ===== */}
       {isLoading && (
