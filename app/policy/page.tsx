@@ -9,11 +9,9 @@
  */
 
 import { useEffect, useState } from "react";
-import { PolicyViewer } from "@/components/PolicyViewer";
-import { GlobalPolicyBanner } from "@/components/GlobalPolicyBanner";
-import { UserDisplay } from "@/components/UserDisplay";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { GenericPolicyViewer } from "@/components/GenericPolicyViewer";
+import { PageHeader } from "@/components/PageHeader";
+import { policyHeader } from "@/config/page-headers";
 
 interface PolicyResponse {
   policy: any;
@@ -30,7 +28,7 @@ export default function PolicyPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch policy from API
+    // Fetch policy via Next.js API route (avoids CORS issues)
     fetch('/api/policy')
       .then(res => {
         if (!res.ok) {
@@ -49,29 +47,28 @@ export default function PolicyPage() {
       });
   }, []);
 
+  // Generate header config with metadata
+  const headerConfig = policyHeader(
+    data?.metadata
+      ? {
+          version: data.metadata.version,
+          timestamp: data.metadata.timestamp,
+          source: data.metadata.source,
+        }
+      : undefined
+  );
+
   return (
     <div className="min-h-screen bg-slate-900">
-      {/* Global Banner */}
-      <GlobalPolicyBanner />
+      {/* Page Header */}
+      <PageHeader {...headerConfig} />
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header with Back Link and UserDisplay */}
-        <div className="flex items-center justify-between mb-6">
-          <Link
-            href="/"
-            className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Home</span>
-          </Link>
-          <UserDisplay />
-        </div>
-
         {/* Loading State */}
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin h-8 w-8 border-4 border-blue-400 border-t-transparent rounded-full"></div>
+            <div className="animate-spin h-8 w-8 border-4 border-purple-400 border-t-transparent rounded-full"></div>
             <span className="ml-3 text-slate-400">Loading policy...</span>
           </div>
         )}
@@ -89,7 +86,7 @@ export default function PolicyPage() {
 
         {/* Policy Viewer */}
         {!loading && !error && data && (
-          <PolicyViewer policy={data.policy} metadata={data.metadata} />
+          <GenericPolicyViewer policy={data.policy} metadata={data.metadata} />
         )}
       </div>
     </div>

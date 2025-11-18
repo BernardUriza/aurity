@@ -26,6 +26,8 @@ interface UseRecorderConfig {
   timeSlice?: number;
   sampleRate?: number;
   channels?: number;
+  /** Optional external MediaStream (e.g., from demo audio) instead of microphone */
+  externalStream?: MediaStream | null;
 }
 
 interface UseRecorderReturn {
@@ -45,6 +47,7 @@ export function useRecorder(config: UseRecorderConfig): UseRecorderReturn {
     timeSlice = 3000,
     sampleRate = 16000,
     channels = 1,
+    externalStream = null,
   } = config;
 
   // State
@@ -76,8 +79,15 @@ export function useRecorder(config: UseRecorderConfig): UseRecorderReturn {
         setFullAudioUrl(null);
       }
 
-      // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Use external stream (demo mode) OR request microphone access
+      let stream: MediaStream;
+      if (externalStream) {
+        console.log('[Recorder] Using external stream (demo mode)');
+        stream = externalStream;
+      } else {
+        console.log('[Recorder] Requesting microphone access');
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       currentStreamRef.current = stream;
 
       // ========================================================================
@@ -139,7 +149,7 @@ export function useRecorder(config: UseRecorderConfig): UseRecorderReturn {
         onError(errorMessage);
       }
     }
-  }, [onChunk, onError, timeSlice, sampleRate, channels]);
+  }, [onChunk, onError, timeSlice, sampleRate, channels, externalStream]);
 
   // Stop recording and capture full audio blob
   const stopRecording = useCallback(async () => {

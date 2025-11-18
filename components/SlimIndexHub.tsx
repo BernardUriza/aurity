@@ -8,14 +8,21 @@
  * Updated: HIPAA G-003 - Integrated UserDisplay in header
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NAV_ROUTES, getRouteByShortcut } from "@/lib/navigation";
 import { AccessTile } from "./AccessTile";
-import { UserDisplay } from "./UserDisplay";
+import { AurityBanner } from "./AurityBanner";
 
 export function SlimIndexHub() {
   const router = useRouter();
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+
+  // Check onboarding status
+  useEffect(() => {
+    const completed = localStorage.getItem('aurity_onboarding_completed') === 'true';
+    setOnboardingCompleted(completed);
+  }, []);
 
   // Keyboard shortcuts (1-9)
   useEffect(() => {
@@ -40,113 +47,73 @@ export function SlimIndexHub() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col">
-      {/* Minimal Header with Auth */}
-      <header className="border-b border-slate-800 bg-slate-900/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-slate-50">Aurity Framework</h1>
-              <span className="text-sm text-slate-400">v0.1.0</span>
-            </div>
-            {/* User Authentication Display - Integrated */}
-            <UserDisplay />
-          </div>
-        </div>
-      </header>
-
-      {/* AURITY Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 border-b border-slate-600">
-        <div className="absolute inset-0 opacity-10">
-          <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-slate-400" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
-        </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between gap-4">
-            {/* SVG Medical Symbol */}
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-emerald-400 flex-shrink-0">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.2"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-
-            {/* AURITY Acronym - Horizontal Layout */}
-            <div className="flex-1">
-              <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 mb-3 text-center">
-                AURITY
-              </h2>
-              {/* Single Row Acronym */}
-              <div className="flex items-center justify-center gap-3 flex-wrap text-sm">
-                <span className="text-slate-300">
-                  <span className="font-bold text-emerald-400 text-xl">A</span>dvanced
-                </span>
-                <span className="text-slate-600">·</span>
-                <span className="text-slate-300">
-                  <span className="font-bold text-emerald-400 text-xl">U</span>niversal
-                </span>
-                <span className="text-slate-600">·</span>
-                <span className="text-slate-300">
-                  <span className="font-bold text-emerald-400 text-xl">R</span>eliable
-                </span>
-                <span className="text-slate-600">·</span>
-                <span className="text-slate-300">
-                  <span className="font-bold text-emerald-400 text-xl">I</span>ntelligence
-                </span>
-                <span className="text-slate-600">·</span>
-                <span className="text-slate-300">for <span className="font-bold text-emerald-400 text-xl">T</span>elemedicine
-                </span>
-                <span className="text-slate-600">·</span>
-                <span className="text-slate-300">
-                  <span className="font-bold text-emerald-400 text-xl">Y</span>ield
-                </span>
-              </div>
-            </div>
-
-            {/* SVG Shield Symbol */}
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="text-cyan-400 flex-shrink-0">
-              <path d="M12 22C12 22 20 18 20 12V5L12 2L4 5V12C4 18 12 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.2"/>
-            </svg>
-          </div>
-        </div>
+    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+      {/* Abstract geometric background */}
+      <div className="fixed inset-0 opacity-[0.02] pointer-events-none">
+        <div className="absolute top-1/4 left-1/3 w-[600px] h-[600px] bg-emerald-400 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/3 w-[600px] h-[600px] bg-cyan-400 rounded-full blur-3xl" />
       </div>
 
+      {/* AURITY Banner */}
+      <AurityBanner />
+
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Medical AI Workflow Link */}
-        <div className="mb-6 p-4 bg-gradient-to-r from-emerald-900/20 to-cyan-900/20 border border-emerald-800/50 rounded-lg">
-          <div className="flex items-center justify-between">
+      <main className="relative flex-1 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-16">
+        {/* Onboarding Banner - Neo-minimalist glassmorphism */}
+        {!onboardingCompleted && (
+          <div className="mb-8 p-6 bg-blue-950/30 backdrop-blur-xl border border-blue-800/30 rounded-2xl shadow-lg hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between gap-6">
+              <div>
+                <h3 className="text-xl font-bold text-blue-200 tracking-tight">Welcome to Aurity Framework</h3>
+                <p className="text-sm text-slate-300/80 mt-2 font-light">Complete the quick onboarding to get started with the platform</p>
+              </div>
+              <a
+                href="/onboarding"
+                className="px-6 py-3 bg-blue-600/90 hover:bg-blue-500 backdrop-blur text-white rounded-xl transition-all font-semibold shadow-md hover:shadow-lg hover:scale-[1.02]"
+              >
+                Start Onboarding →
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Medical AI Workflow - Neo-minimalist glassmorphism */}
+        <div className={`mb-8 p-6 bg-emerald-950/30 backdrop-blur-xl border border-emerald-800/30 rounded-2xl shadow-lg hover:shadow-xl transition-all relative ${
+          !onboardingCompleted ? 'opacity-50 pointer-events-none' : ''
+        }`}>
+          {!onboardingCompleted && (
+            <div className="absolute top-3 right-3 px-3 py-1.5 bg-slate-800/80 backdrop-blur-sm border border-slate-600/50 rounded-lg text-xs text-slate-300 font-medium shadow-md">
+              🔒 Complete onboarding first
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-6">
             <div>
-              <h3 className="text-lg font-semibold text-emerald-300">Medical AI Workflow</h3>
-              <p className="text-sm text-slate-400 mt-1">AI-powered medical consultation workflow with transcription</p>
+              <h3 className="text-xl font-bold text-emerald-200 tracking-tight">Medical AI Workflow</h3>
+              <p className="text-sm text-slate-300/80 mt-2 font-light">AI-powered medical consultation workflow with transcription</p>
             </div>
             <a
               href="/medical-ai"
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-medium"
+              className="px-6 py-3 bg-emerald-600/90 hover:bg-emerald-500 backdrop-blur text-white rounded-xl transition-all font-semibold shadow-md hover:shadow-lg hover:scale-[1.02]"
             >
               Start Workflow →
             </a>
           </div>
         </div>
 
-
-        {/* Navigation Tiles Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {NAV_ROUTES.map((route) => (
+        {/* Navigation Tiles Grid - Neo-minimalist spacing */}
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 ${
+          !onboardingCompleted ? 'opacity-50 pointer-events-none' : ''
+        }`}>
+          {NAV_ROUTES.filter(route => route.id !== 'onboarding').map((route) => (
             <AccessTile key={route.id} route={route} />
           ))}
         </div>
       </main>
 
-      {/* Minimal Footer */}
-      <footer className="border-t border-slate-800 bg-slate-900/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center h-12 text-sm text-slate-400">
+      {/* Minimal Footer - Neo-minimalist glassmorphism */}
+      <footer className="relative border-t border-slate-700/50 bg-slate-900/60 backdrop-blur-xl shadow-lg">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
+          <div className="flex items-center justify-center h-14 text-sm text-slate-400/80 font-light tracking-wide">
             <span>Shortcuts: 1-9 to navigate</span>
           </div>
         </div>

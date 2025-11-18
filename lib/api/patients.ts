@@ -44,6 +44,7 @@ export interface Patient {
   currentMedications?: string[];
   // Backend fields
   curp?: string | null;
+  fechaNacimiento: string; // ISO date string "YYYY-MM-DD" - for edit operations
   createdAt: string;
   updatedAt?: string | null;
 }
@@ -61,6 +62,7 @@ function toFrontendPatient(p: PatientResponse): Patient {
     age,
     gender: 'Otro', // TODO: Add gender field to backend schema
     curp: p.curp,
+    fechaNacimiento: p.fecha_nacimiento,
     createdAt: p.created_at,
     updatedAt: p.updated_at || undefined,
     medicalHistory: [], // TODO: Implement in future

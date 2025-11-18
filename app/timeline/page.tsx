@@ -13,17 +13,16 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { PageHeader } from '@/components/PageHeader';
+import { timelineHeader } from '@/config/page-headers';
 import { SessionHeader } from '@/aurity/modules/fi-timeline';
 import type { SessionHeaderData } from '@/aurity/modules/fi-timeline';
-import { UserDisplay } from '@/components/UserDisplay';
 import { getSessionSummaries, getSessionDetail, getSessionChunks, type AudioChunk } from '@/lib/api/timeline';
 import { EventTimeline, type TimelineEvent } from '@/components/EventTimeline';
 import { timelineEventConfig } from '@/lib/timeline-config';
-import { Activity, CheckCircle2, Zap, Clock, TrendingUp, TrendingDown, Minus, Navigation, ChevronDown, Search, X, ArrowLeft } from 'lucide-react';
+import { Activity, CheckCircle2, Zap, Clock, TrendingUp, TrendingDown, Minus, Navigation, ChevronDown, Search, X } from 'lucide-react';
 
 export default function TimelinePage() {
-  const router = useRouter();
   const [sessionData, setSessionData] = useState<SessionHeaderData | null>(null);
   const [chunks, setChunks] = useState<AudioChunk[]>([]);
   const [loadTime, setLoadTime] = useState<number>(0);
@@ -264,69 +263,34 @@ export default function TimelinePage() {
     );
   }
 
+  const headerConfig = timelineHeader({
+    totalEvents: metrics.totalEvents,
+    p95Latency: metrics.p95Latency,
+    sessionId: sessionData?.metadata.session_id || '',
+    successRate: metrics.successRate,
+    totalDuration: metrics.totalDuration,
+  })
+
+  const headerActions = (
+    <>
+      <button
+        onClick={handleRefresh}
+        className="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+      >
+        Refresh
+      </button>
+      <button
+        onClick={handleExport}
+        className="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+      >
+        Export
+      </button>
+    </>
+  )
+
   return (
     <div className="timeline-page min-h-screen bg-slate-950">
-      {/* Compact Top Bar (Anti-Oracle metrics + actions) */}
-      <div className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-sm border-b border-slate-800">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center justify-between gap-4">
-            {/* Left: Back button + Title */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/')}
-                className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
-              >
-                <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-                <span className="font-medium">AURITY</span>
-              </button>
-              <div className="h-6 w-px bg-slate-700" />
-              <div>
-                <h1 className="text-lg font-bold text-slate-100">Timeline Continuo</h1>
-                <p className="text-xs text-slate-500">Conversación infinita · Filtro: {sessionData?.metadata.session_id.slice(0, 8) || 'None'}...</p>
-              </div>
-            </div>
-
-            {/* Center: Compact Metrics (Anti-Oracle) */}
-            {metrics.totalEvents > 0 && (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-lg">
-                  <Activity className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-xs font-medium text-slate-300">{metrics.totalEvents}</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-lg">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                  <span className="text-xs font-medium text-slate-300">{metrics.successRate.toFixed(0)}%</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-lg">
-                  <Zap className="w-3.5 h-3.5 text-yellow-400" />
-                  <span className="text-xs font-medium text-slate-300">p95: {metrics.p95Latency.toFixed(0)}ms</span>
-                </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-lg">
-                  <Clock className="w-3.5 h-3.5 text-purple-400" />
-                  <span className="text-xs font-medium text-slate-300">{metrics.totalDuration.toFixed(1)}s</span>
-                </div>
-              </div>
-            )}
-
-            {/* Right: Actions + User */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleRefresh}
-                className="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={handleExport}
-                className="px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
-              >
-                Export
-              </button>
-              <UserDisplay />
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader {...headerConfig} actions={headerActions} />
 
       {/* Main Content - Full Width (Memoria Longitudinal Unificada: "No existen sesiones. Solo una conversación infinita") */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">

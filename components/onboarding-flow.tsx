@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from "react";
 import { MICROCOPYS } from "@/lib/microcopys";
+import { AurityBanner } from "./AurityBanner";
 
 type Phase = "welcome" | "identity" | "first_session" | "export_test" | "complete";
 
@@ -221,24 +222,30 @@ export function OnboardingFlow() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-      <div className="max-w-2xl w-full bg-slate-900/50 p-8 rounded-xl border border-slate-800">
-        {renderPhase()}
+    <div className="min-h-screen bg-slate-900 flex flex-col">
+      {/* AURITY Banner */}
+      <AurityBanner />
 
-        {/* Progress indicator */}
-        <div className="mt-8 flex justify-center space-x-2">
-          {["welcome", "identity", "first_session", "export_test", "complete"].map((p, i) => (
-            <div
-              key={p}
-              className={`h-2 w-12 rounded-full transition ${
-                phase === p
-                  ? "bg-blue-500"
-                  : i < ["welcome", "identity", "first_session", "export_test", "complete"].indexOf(phase)
-                  ? "bg-blue-700"
-                  : "bg-slate-700"
-              }`}
-            />
-          ))}
+      {/* Main Content */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="max-w-2xl w-full bg-slate-900/50 p-8 rounded-xl border border-slate-800">
+          {renderPhase()}
+
+          {/* Progress indicator */}
+          <div className="mt-8 flex justify-center space-x-2">
+            {["welcome", "identity", "first_session", "export_test", "complete"].map((p, i) => (
+              <div
+                key={p}
+                className={`h-2 w-12 rounded-full transition ${
+                  phase === p
+                    ? "bg-blue-500"
+                    : i < ["welcome", "identity", "first_session", "export_test", "complete"].indexOf(phase)
+                    ? "bg-blue-700"
+                    : "bg-slate-700"
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

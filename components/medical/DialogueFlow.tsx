@@ -380,7 +380,6 @@ export function DialogueFlow({
         isLoading={isLoading}
         error={error}
         className="bg-transparent"
-        showHeader={false}
       />
 
       {/* ===== Footer Metadata ===== */}

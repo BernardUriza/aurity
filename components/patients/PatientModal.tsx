@@ -15,15 +15,17 @@
 import React, { useState } from 'react';
 import { X, UserPlus, AlertCircle } from 'lucide-react';
 import { PatientForm } from './PatientForm';
-import { createPatient, type PatientCreate, type Patient } from '@/lib/api/patients';
+import { createPatient, updatePatient, type PatientCreate, type Patient } from '@/lib/api/patients';
 
 export interface PatientModalProps {
   /** Whether modal is open */
   isOpen: boolean;
   /** Callback when modal should close */
   onClose: () => void;
-  /** Callback when patient is successfully created */
+  /** Callback when patient is successfully created/updated */
   onSuccess: (patient: Patient) => void;
+  /** Patient to edit (when in edit mode) */
+  patient?: Patient;
   /** Initial data for edit mode */
   initialData?: Partial<PatientCreate>;
   /** Modal mode */
@@ -34,6 +36,7 @@ export const PatientModal: React.FC<PatientModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  patient,
   initialData,
   mode = 'create',
 }) => {
@@ -47,12 +50,21 @@ export const PatientModal: React.FC<PatientModalProps> = ({
     setError(null);
 
     try {
-      const patient = await createPatient(data);
-      onSuccess(patient);
+      let result: Patient;
+
+      if (mode === 'edit' && patient) {
+        // Update existing patient
+        result = await updatePatient(patient.id, data);
+      } else {
+        // Create new patient
+        result = await createPatient(data);
+      }
+
+      onSuccess(result);
       onClose();
     } catch (err) {
-      console.error('Failed to create patient:', err);
-      setError(err instanceof Error ? err.message : 'Error al crear paciente');
+      console.error(`Failed to ${mode} patient:`, err);
+      setError(err instanceof Error ? err.message : `Error al ${mode === 'edit' ? 'actualizar' : 'crear'} paciente`);
     } finally {
       setLoading(false);
     }

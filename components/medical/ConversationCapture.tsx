@@ -32,7 +32,6 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { guessExt } from '@/lib/recording/makeRecorder';
 import { useClipboard } from '@/hooks/useClipboard';
-import { useDemoMode } from '@/hooks/useDemoMode';
 import { useAudioAnalysis } from '@/hooks/useAudioAnalysis';
 import { useChunkProcessor } from '@/hooks/useChunkProcessor';
 import { useRecorder } from '@/hooks/useRecorder';
@@ -43,6 +42,7 @@ import { AUDIO_CONFIG } from '@/lib/audio/constants';
 import { POLLING_CONFIG } from '@/lib/constants/polling';
 import { medicalWorkflowApi } from '@/lib/api/medical-workflow';
 import { DemoButton } from './DemoButton';
+import { DemoConsultationModal } from './DemoConsultationModal';
 import { SessionBadges } from './SessionBadges';
 import { RecordingControls } from './RecordingControls';
 import { AudioLevelVisualizer } from './AudioLevelVisualizer';
@@ -147,8 +147,9 @@ export function ConversationCapture({
 
   // Custom hooks
   const { copiedId, copyToClipboard } = useClipboard();
-  const { isDemoPlaying, isDemoPaused, playDemo, pauseDemo, resumeDemo } =
-    useDemoMode(`${BACKEND_URL}/static/consulta_demo.mp3`);
+
+  // Demo modal state (replaces useDemoMode)
+  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
   const {
     chunkStatuses,
     setChunkStatuses,
@@ -518,6 +519,7 @@ export function ConversationCapture({
     timeSlice: AUDIO_CONFIG.TIME_SLICE,
     sampleRate: AUDIO_CONFIG.SAMPLE_RATE,
     channels: AUDIO_CONFIG.CHANNELS,
+    // Demo mode no longer uses externalStream - modal sends chunks directly
   });
 
   // Use external recording state if provided, otherwise use hook's state
@@ -596,11 +598,6 @@ export function ConversationCapture({
     }
 
     try {
-      // Keep demo audio playing if active (allows recording demo consultation)
-      if (isDemoPlaying) {
-        console.log('[Demo] Continuing playback while recording (demo capture mode)');
-      }
-
       setError(null);
       setIsPaused(false);
       audioChunksRef.current = [];
@@ -648,7 +645,7 @@ export function ConversationCapture({
       console.error('Error starting recording:', err);
       setError('No se pudo acceder al micrófono. Por favor, verifica los permisos.');
     }
-  }, [isFinalized, isDemoPlaying, hookStartRecording, resetMetrics, resetTranscription, addLog, getSessionId, setExternalIsRecording, isWebSpeechSupported, startWebSpeech, onSessionCreated, patientInfo]);
+  }, [isFinalized, hookStartRecording, resetMetrics, resetTranscription, addLog, getSessionId, setExternalIsRecording, isWebSpeechSupported, startWebSpeech, onSessionCreated, patientInfo]);
 
   // Handle patient info submission from modal
   const handlePatientInfoSubmit = useCallback((info: PatientInfo) => {
@@ -923,29 +920,10 @@ export function ConversationCapture({
     addLog('🔄 Finalizando sesión - esperando chunks pendientes...');
   }, [addLog]);
 
-  // Handle demo playback - toggle play/pause/resume
-  const handleDemoPlayback = useCallback(async () => {
-    try {
-      // If paused, resume
-      if (isDemoPaused) {
-        await resumeDemo();
-        return;
-      }
-
-      // If playing, pause
-      if (isDemoPlaying && !isDemoPaused) {
-        pauseDemo();
-        return;
-      }
-
-      // Start new playback
-      setError(null);
-      await playDemo();
-    } catch (err) {
-      console.error('[Demo] Error:', err);
-      setError(err instanceof Error ? err.message : 'Error al ejecutar demo');
-    }
-  }, [isDemoPlaying, isDemoPaused, playDemo, pauseDemo, resumeDemo]);
+  // Handle demo button click - opens interactive TTS modal
+  const handleDemoClick = useCallback(() => {
+    setIsDemoModalOpen(true);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -964,10 +942,18 @@ export function ConversationCapture({
     <div className={`space-y-6 ${className} relative`}>
       {/* Demo Button - Top Left Corner */}
       <DemoButton
-        isDemoPlaying={isDemoPlaying}
-        isDemoPaused={isDemoPaused}
+        isDemoPlaying={false}
+        isDemoPaused={false}
         isProcessing={isProcessing}
-        onToggle={handleDemoPlayback}
+        onToggle={handleDemoClick}
+      />
+
+      {/* Demo Consultation Modal */}
+      <DemoConsultationModal
+        isOpen={isDemoModalOpen}
+        onClose={() => setIsDemoModalOpen(false)}
+        onSendChunk={handleChunk}
+        isProcessing={isProcessing}
       />
 
       {/* Session/Job ID Badge - Top Right Corner */}

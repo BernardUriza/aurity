@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react"
 import { KPICard, KPIStatus } from "../../components/KPICard"
-import { UserDisplay } from "../../components/UserDisplay"
+import { PageHeader } from "../../components/PageHeader"
+import { dashboardHeader } from "../../config/page-headers"
 import { getKPIMetrics } from "../../lib/api/kpis"
 import type { KPIMetrics } from "../../lib/api/kpis"
 import {
@@ -88,24 +89,30 @@ export default function DashboardPage() {
   const ingestionStatus = getLatencyStatus(p95Ingestion, 2000)
   const timelineStatus = getLatencyStatus(p95Timeline, 300)
 
+  const headerConfig = dashboardHeader({
+    sessionsToday,
+    totalInteractions,
+    p95Ingestion,
+    asOf: metrics.asOf,
+  })
+
   return (
     <ProtectedRoute>
-      <div className="container mx-auto p-6">
-      {/* Header */}
-      <div className="mb-8 flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-            System Dashboard
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400">
-            Real-time operational metrics · Last updated: {new Date(metrics.asOf).toLocaleTimeString()}
-          </p>
-        </div>
-        <UserDisplay />
-      </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <PageHeader {...headerConfig} />
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* TV UI - Large, readable, auto-refreshing */}
+        <div className="mx-auto max-w-[1920px] px-8 py-12">
+
+          {/* Live Indicator */}
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
+            <span className="text-2xl font-bold text-green-400 tracking-wide">LIVE MONITORING</span>
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
+          </div>
+
+      {/* Primary KPIs - Extra Large for TV visibility */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
         <KPICard
           title="Sessions Today"
           value={sessionsToday}
@@ -132,26 +139,14 @@ export default function DashboardPage() {
           description={`${metrics.requests.total} requests in ${metrics.window}`}
         />
 
-        <KPICard
-          title="p95 Timeline API"
-          value={p95Timeline}
-          unit="ms"
-          icon={<TrendingUp className="h-4 w-4" />}
-          status={timelineStatus}
-          target="< 300ms"
-          description="Timeline query performance"
-        />
+      </div>
 
-        <KPICard
-          title="Events with Hash"
-          value={eventsWithHash}
-          unit="%"
-          icon={<Shield className="h-4 w-4" />}
-          status={eventsWithHash === 100 ? "success" : "warning"}
-          target="100%"
-          description="Interactions with content_hash"
-        />
-
+      {/* Secondary KPIs - System Health */}
+      <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-3">
+        <Shield className="h-8 w-8 text-emerald-400" />
+        System Health & Security
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         <KPICard
           title="Cache Hit Ratio"
           value={cacheHitRatio}
@@ -176,10 +171,24 @@ export default function DashboardPage() {
           status="success"
           description="Sovereignty mode active"
         />
+
+        <KPICard
+          title="Events with Hash"
+          value={eventsWithHash}
+          unit="%"
+          icon={<Shield className="h-4 w-4" />}
+          status={eventsWithHash === 100 ? "success" : "warning"}
+          target="100%"
+          description="Interactions with content_hash"
+        />
       </div>
 
       {/* Request Distribution */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-3">
+        <Activity className="h-8 w-8 text-blue-400" />
+        Request Distribution
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <KPICard
           title="Successful Requests"
           value={metrics.requests["2xx"]}
@@ -202,13 +211,14 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Provider Distribution */}
+      {/* Provider Distribution - TV UI: Larger cards */}
       {metrics.providers.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-4">
+        <div className="mb-12">
+          <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-3">
+            <Database className="h-8 w-8 text-purple-400" />
             LLM Provider Distribution
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {metrics.providers.map((provider) => (
               <KPICard
                 key={provider.id}
@@ -222,37 +232,8 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      {/* Quick Links */}
-      <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
-          Quick Links
-        </h2>
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/history"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
-          >
-            View Session History
-            <ExternalLink className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/audit"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
-          >
-            View Audit Log
-            <ExternalLink className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/infra/nas-installer"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 transition-colors"
-          >
-            NAS Installer
-            <ExternalLink className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
     </div>
+      </div>
     </ProtectedRoute>
   )
 }

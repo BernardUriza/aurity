@@ -12,7 +12,8 @@
 
 import { useState, useEffect } from "react";
 import { AuditTable } from "../../components/AuditTable";
-import { UserDisplay } from "../../components/UserDisplay";
+import { PageHeader } from "../../components/PageHeader";
+import { auditHeader } from "../../config/page-headers";
 import { getAuditLogs, getAuditOperations } from "../../lib/api/audit";
 import type { AuditLogEntry, AuditOperation } from "../../types/audit";
 
@@ -74,19 +75,16 @@ export default function AuditPage() {
     setSelectedLog(null);
   };
 
+  const headerConfig = auditHeader({
+    logsCount: logs.length,
+    selectedOperation,
+  })
+
   return (
-    <div className="min-h-screen bg-slate-900">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-slate-50">Audit Log</h1>
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-slate-400">
-              {logs.length} events {selectedOperation !== "ALL" && `(${selectedOperation})`}
-            </div>
-            <UserDisplay />
-          </div>
-        </div>
+    <div className="min-h-screen bg-slate-950">
+      <PageHeader {...headerConfig} />
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Filters */}
         <div className="bg-slate-800 rounded-lg p-4 mb-6 flex flex-col sm:flex-row gap-4">

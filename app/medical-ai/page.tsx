@@ -9,9 +9,11 @@
  * PROTECTED ROUTE: Requires Auth0 authentication + MEDICO or ADMIN role
  */
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { PageHeader } from '@/components/PageHeader';
+import { UserDisplay } from '@/components/UserDisplay';
+import { medicalAiHeader } from '@/config/page-headers';
 import {
   ConversationCapture,
   DialogueFlow,
@@ -21,7 +23,6 @@ import {
   SummaryExport
 } from '@/components/medical';
 import { SessionsTable } from '@/components/SessionsTable';
-import { UserDisplay } from '@/components/UserDisplay';
 import { PatientSelector, PatientModal } from '@/components/patients';
 import {
   Mic, Clock, User, ArrowLeft, Stethoscope, FileText, MessageSquare,
@@ -46,7 +47,6 @@ const MedicalWorkflowSteps = [
 ];
 
 export default function MedicalAIWorkflow() {
-  const router = useRouter();
   const [showPatientSelector, setShowPatientSelector] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState<MedicalPatient | null>(null);
 
@@ -55,6 +55,7 @@ export default function MedicalAIWorkflow() {
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [patientsError, setPatientsError] = useState<string | null>(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null); // Patient being edited
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('escuchar');
   const [isRecording, setIsRecording] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
@@ -272,6 +273,11 @@ export default function MedicalAIWorkflow() {
     setCompletedSteps(new Set());
   };
 
+  // Handle edit patient button click
+  const handleEditPatient = (patient: Patient) => {
+    setEditingPatient(patient);
+  };
+
   // Copy session ID to clipboard
   const handleCopySessionId = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent session selection when clicking copy
@@ -304,37 +310,32 @@ export default function MedicalAIWorkflow() {
     return Array.from(found).slice(0, 3); // Max 3 keywords
   };
 
+  // Calculate session counts per patient (mapped by patient.id)
+  // Uses patient_name from sessions to match with patient.name for now
+  // TODO: Backend should return patient_id in sessions for proper linking
+  const sessionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+
+    sessions.forEach(session => {
+      const patientName = session.patient_name;
+      if (patientName && patientName !== 'Paciente') {
+        // Find matching patient by name
+        const matchingPatient = patients.find(p => p.name === patientName);
+        if (matchingPatient) {
+          counts[matchingPatient.id] = (counts[matchingPatient.id] || 0) + 1;
+        }
+      }
+    });
+
+    return counts;
+  }, [sessions, patients]);
+
+  const headerConfig = medicalAiHeader({})
+
   if (showPatientSelector) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-        {/* Header */}
-        <header className="border-b border-slate-800/50 backdrop-blur-xl bg-slate-900/80 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => router.push('/')}
-                  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
-                >
-                  <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-                  <span className="font-medium">AURITY</span>
-                </button>
-                <div className="h-6 w-px bg-slate-700" />
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                    <Stethoscope className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-xl font-bold text-white">Medical AI Workflow</h1>
-                    <p className="text-sm text-slate-400">Selecciona paciente o continúa consulta</p>
-                  </div>
-                </div>
-              </div>
-              {/* User Authentication Display - Always Visible */}
-              <UserDisplay />
-            </div>
-          </div>
-        </header>
+        <PageHeader {...headerConfig} />
 
         <main className="max-w-7xl mx-auto px-6 py-8">
           {/* Error Loading Patients */}
@@ -353,7 +354,9 @@ export default function MedicalAIWorkflow() {
             patients={patients}
             sessions={sessions}
             sessionStatuses={sessionStatuses}
+            sessionCounts={sessionCounts}
             onSelectPatient={handleStartNewConsultation}
+            onEditPatient={handleEditPatient}
             onSelectSession={handleSelectSession}
             onDeleteSession={(sessionId) => setDeleteConfirmSession(sessionId)}
             onCopySessionId={handleCopySessionId}
@@ -363,13 +366,31 @@ export default function MedicalAIWorkflow() {
             onAddPatient={() => setShowPatientModal(true)}
           />
 
-          {/* Patient Creation Modal */}
+          {/* Patient Creation/Edit Modal */}
           <PatientModal
-            isOpen={showPatientModal}
-            onClose={() => setShowPatientModal(false)}
-            onSuccess={(newPatient) => {
-              setPatients(prev => [...prev, newPatient]);
+            isOpen={showPatientModal || editingPatient !== null}
+            mode={editingPatient ? 'edit' : 'create'}
+            patient={editingPatient || undefined}
+            initialData={editingPatient ? {
+              nombre: editingPatient.name.split(' ')[0],
+              apellido: editingPatient.name.split(' ').slice(1).join(' '),
+              fecha_nacimiento: editingPatient.fechaNacimiento,
+              curp: editingPatient.curp || null,
+            } : undefined}
+            onClose={() => {
               setShowPatientModal(false);
+              setEditingPatient(null);
+            }}
+            onSuccess={(patient) => {
+              if (editingPatient) {
+                // Edit mode - optimistic update
+                setPatients(prev => prev.map(p => p.id === patient.id ? patient : p));
+              } else {
+                // Create mode - add new patient
+                setPatients(prev => [...prev, patient]);
+              }
+              setShowPatientModal(false);
+              setEditingPatient(null);
             }}
           />
 

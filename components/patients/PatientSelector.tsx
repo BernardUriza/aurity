@@ -29,8 +29,12 @@ export interface PatientSelectorProps {
   sessions: SessionSummary[];
   /** Session task statuses (SOAP, Diarization) */
   sessionStatuses: Record<string, SessionTaskStatus>;
+  /** Map of patient_id to session count */
+  sessionCounts?: Record<string, number>;
   /** Callback when patient is selected for new consultation */
   onSelectPatient: (patient: Patient) => void;
+  /** Callback when edit button is clicked */
+  onEditPatient?: (patient: Patient) => void;
   /** Callback when existing session is selected */
   onSelectSession: (sessionId: string) => void;
   /** Callback when session is deleted */
@@ -51,7 +55,9 @@ export const PatientSelector: React.FC<PatientSelectorProps> = ({
   patients,
   sessions,
   sessionStatuses,
+  sessionCounts = {},
   onSelectPatient,
+  onEditPatient,
   onSelectSession,
   onDeleteSession,
   onCopySessionId,
@@ -67,7 +73,9 @@ export const PatientSelector: React.FC<PatientSelectorProps> = ({
         <PatientList
           patients={patients}
           onSelectPatient={onSelectPatient}
+          onEditPatient={onEditPatient}
           onAddPatient={onAddPatient}
+          sessionCounts={sessionCounts}
         />
       </div>
 

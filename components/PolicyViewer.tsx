@@ -287,11 +287,15 @@ export function PolicyViewer({ policy, metadata }: PolicyViewerProps) {
             <div>
               <label className="text-sm font-medium text-slate-400">LLM Providers</label>
               <div className="mt-1 space-y-2">
-                {policy.llm?.providers?.map((provider, i) => (
-                  <div key={i} className="px-3 py-2 bg-slate-900 rounded border border-slate-700 font-mono text-sm text-slate-200 inline-block mr-2">
-                    {provider}
-                  </div>
-                )) || <div className="text-slate-500 italic">No providers configured</div>}
+                {policy.llm?.providers && Object.keys(policy.llm.providers).length > 0 ? (
+                  Object.keys(policy.llm.providers).map((providerName) => (
+                    <div key={providerName} className="px-3 py-2 bg-slate-900 rounded border border-slate-700 font-mono text-sm text-slate-200 inline-block mr-2">
+                      {providerName}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-slate-500 italic">No providers configured</div>
+                )}
               </div>
             </div>
           </AccordionContent>

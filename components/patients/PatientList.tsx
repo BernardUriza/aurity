@@ -24,6 +24,10 @@ export interface PatientListProps {
   patients: Patient[];
   /** Callback when a patient is selected */
   onSelectPatient: (patient: Patient) => void;
+  /** Callback when edit button is clicked */
+  onEditPatient?: (patient: Patient) => void;
+  /** Map of patient_id to session count for displaying consultation badges */
+  sessionCounts?: Record<string, number>;
   /** Optional callback to add new patient (Open/Closed) */
   onAddPatient?: () => void;
   /** Optional search placeholder text */
@@ -41,6 +45,8 @@ export interface PatientListProps {
 export const PatientList: React.FC<PatientListProps> = ({
   patients,
   onSelectPatient,
+  onEditPatient,
+  sessionCounts = {},
   onAddPatient,
   searchPlaceholder = 'Buscar por nombre del paciente...',
   title = 'Nueva Consulta',
@@ -113,6 +119,8 @@ export const PatientList: React.FC<PatientListProps> = ({
               key={patient.id}
               patient={patient}
               onClick={onSelectPatient}
+              onEdit={onEditPatient}
+              sessionCount={sessionCounts[patient.id] || 0}
             />
           ))
         )}
