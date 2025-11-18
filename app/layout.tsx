@@ -12,6 +12,7 @@ import './globals.css';
 import { GlobalPolicyBanner } from '@/components/GlobalPolicyBanner';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Auth0Provider } from '@/components/Auth0Provider';
+import { ChatWidget } from '@/components/ChatWidget';
 
 export const metadata: Metadata = {
   title: 'Aurity Framework',
@@ -35,6 +36,7 @@ export default function RootLayout({
           <ThemeProvider>
             <GlobalPolicyBanner />
             {children}
+            <ChatWidget />
           </ThemeProvider>
         </Auth0Provider>
       </body>
