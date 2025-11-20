@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState, useCallback, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { KPICard, KPIStatus } from "../../components/KPICard"
-import { PageHeader } from "../../components/PageHeader"
+import { KPICard, KPIStatus } from "../../components/dashboard/KPICard"
+import { PageHeader } from "../../components/layout/PageHeader"
 import { dashboardHeader } from "../../config/page-headers"
 import { getKPIMetrics } from "../../lib/api/kpis"
 import type { KPIMetrics } from "../../lib/api/kpis"

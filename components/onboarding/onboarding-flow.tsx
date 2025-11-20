@@ -9,16 +9,16 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AurityBanner } from "./AurityBanner";
-import { FIMessageBubble } from "./onboarding/FIMessageBubble";
-import { FIChatInput } from "./onboarding/FIChatInput";
-import { FITypingIndicator } from "./onboarding/FITypingIndicator";
-import { PatientSetupForm, PatientFormData } from "./onboarding/PatientSetupForm";
-import { HDF5Preview } from "./onboarding/HDF5Preview";
-import { FlowDiagram } from "./onboarding/FlowDiagram";
-import { ConsultationSimulation } from "./onboarding/ConsultationSimulation";
-import { ExportReport } from "./onboarding/ExportReport";
-import { CompletionCelebration } from "./onboarding/CompletionCelebration";
+import { AurityBanner } from "../layout/AurityBanner";
+import { FIMessageBubble } from "./FIMessageBubble";
+import { FIChatInput } from "./FIChatInput";
+import { FITypingIndicator } from "./FITypingIndicator";
+import { PatientSetupForm, PatientFormData } from "./PatientSetupForm";
+import { HDF5Preview } from "./HDF5Preview";
+import { FlowDiagram } from "./FlowDiagram";
+import { ConsultationSimulation } from "./ConsultationSimulation";
+import { ExportReport } from "./ExportReport";
+import { CompletionCelebration } from "./CompletionCelebration";
 import { OnboardingEvidence } from "@/lib/export-evidence";
 import { useFIConversation } from "@/hooks/useFIConversation";
 import type { UserRole, ClinicType, AIExperience } from "@/types/assistant";

@@ -11,8 +11,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AuditTable } from "../../components/AuditTable";
-import { PageHeader } from "../../components/PageHeader";
+import { AuditTable } from "../../components/audit/AuditTable";
+import { PageHeader } from "../../components/layout/PageHeader";
 import { auditHeader } from "../../config/page-headers";
 import { getAuditLogs, getAuditOperations } from "../../lib/api/audit";
 import type { AuditLogEntry, AuditOperation } from "../../types/audit";

@@ -40,7 +40,7 @@ const getChatConfig = (isAuthenticated: boolean): ChatConfig => ({
   },
   behavior: {
     ...defaultChatConfig.behavior,
-    inputPlaceholder: 'Escribe tu mensaje... (presiona Enter para enviar)',
+    inputPlaceholder: 'Escribe... (presiona Enter para enviar)',
   },
 });
 

@@ -13,7 +13,7 @@
 
 'use client';
 
-import { UserDisplay } from './UserDisplay';
+import { UserDisplay } from '@/components/auth/UserDisplay';
 
 export function AurityBanner() {
   return (
