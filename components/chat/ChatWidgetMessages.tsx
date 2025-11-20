@@ -210,7 +210,7 @@ export function ChatWidgetMessages({
           })}
 
           {/* Typing Indicator */}
-          {isTyping && <FITypingIndicator />}
+          {isTyping && <FITypingIndicator show={isTyping} />}
 
           {/* Legal Disclaimer - Always at bottom */}
           {messages.length > 0 && (

@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AurityBanner } from '@/components/AurityBanner';
+import { AurityBanner } from '@/components/layout/AurityBanner';
 
 export default function OnboardingResetPage() {
   const router = useRouter();

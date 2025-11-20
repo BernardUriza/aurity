@@ -21,7 +21,7 @@ import {
   ExternalLink,
 } from "lucide-react"
 import Link from "next/link"
-import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 
 function DashboardContent() {
   const searchParams = useSearchParams()

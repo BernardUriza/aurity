@@ -11,7 +11,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useFIConversation } from '@/hooks/useFIConversation';
-import { AurityBanner } from '@/components/AurityBanner';
+import { AurityBanner } from '@/components/layout/AurityBanner';
 import type { ChatViewMode } from '@/components/chat/ChatWidgetContainer';
 import { ChatWidgetHeader } from '@/components/chat/ChatWidgetHeader';
 import { ChatWidgetMessages } from '@/components/chat/ChatWidgetMessages';

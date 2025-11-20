@@ -11,9 +11,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { PageHeader } from '@/components/PageHeader';
-import { UserDisplay } from '@/components/UserDisplay';
+import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { UserDisplay } from '@/components/auth/UserDisplay';
 import { medicalAiHeader } from '@/config/page-headers';
 import {
   ConversationCapture,
@@ -23,7 +23,7 @@ import {
   OrderEntry,
   SummaryExport
 } from '@/components/medical';
-import { SessionsTable } from '@/components/SessionsTable';
+import { SessionsTable } from '@/components/dashboard/SessionsTable';
 import { PatientSelector, PatientModal } from '@/components/patients';
 import {
   Mic, Clock, User, ArrowLeft, Stethoscope, FileText, MessageSquare,

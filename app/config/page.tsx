@@ -10,7 +10,7 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { configHeader } from '@/config/page-headers';
 import { useRBAC, PERMISSIONS, getRoleName, getRoleBadgeColor, ROLES } from '@/hooks/useRBAC';
 import { UserManagement } from '@/components/admin/UserManagement';

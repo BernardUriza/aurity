@@ -13,12 +13,12 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { timelineHeader } from '@/config/page-headers';
 import { SessionHeader } from '@/aurity/modules/fi-timeline';
 import type { SessionHeaderData } from '@/aurity/modules/fi-timeline';
 import { getSessionSummaries, getSessionDetail, getSessionChunks, type AudioChunk } from '@/lib/api/timeline';
-import { EventTimeline, type TimelineEvent } from '@/components/EventTimeline';
+import { EventTimeline, type TimelineEvent } from '@/components/audit/EventTimeline';
 import { timelineEventConfig } from '@/lib/timeline-config';
 import { Activity, CheckCircle2, Zap, Clock, TrendingUp, TrendingDown, Minus, Navigation, ChevronDown, Search, X } from 'lucide-react';
 

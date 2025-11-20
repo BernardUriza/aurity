@@ -154,11 +154,6 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
   const [error, setError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true); // Loading conversation history
-
-  // Debug: Log isTyping changes
-  useEffect(() => {
-    console.log('[DEBUG] isTyping changed:', isTyping);
-  }, [isTyping]);
   const lastMessageRef = useRef<string | null>(null);
   const introductionLoadedRef = useRef(false);
 
@@ -215,17 +210,14 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
   // Load messages from storage on mount (instant UX)
   // SOLID: Dependency Inversion - use IMessageStorage interface
   useEffect(() => {
-    console.log('[DEBUG] Loading from storage, storageKey:', storageKey);
     if (storageKey) {
       const loaded = storage.load(storageKey);
-      console.log('[DEBUG] Loaded messages:', loaded.length);
       if (loaded.length > 0) {
         setMessages(loaded);
       }
     }
 
     // Initial load complete - reset UI state
-    console.log('[DEBUG] Setting loadingInitial=false, isTyping=false');
     setLoadingInitial(false);
     setIsTyping(false); // Reset typing indicator from previous session
   }, [storageKey, storage]);

@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Clock, Play, Pause, Zap, Radio, FileAudio, ChevronDown, ChevronUp } from 'lucide-react';
-import type { TimelineConfig, TimelineEvent } from '@/components/EventTimeline';
+import type { TimelineConfig, TimelineEvent } from '@/components/audit/EventTimeline';
 
 export const timelineEventConfig: TimelineConfig = {
   title: 'Session Events',

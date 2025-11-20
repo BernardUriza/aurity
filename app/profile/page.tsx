@@ -7,7 +7,7 @@
 
 import { useAuth0 } from '@auth0/auth0-react';
 import Link from 'next/link';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { profileHeader } from '@/config/page-headers';
 
 export default function ProfilePage() {

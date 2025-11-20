@@ -235,6 +235,11 @@ export class WebSocketSyncStrategy implements IRealtimeSync {
 
       this.ws.onmessage = (event) => {
         try {
+          // Handle ping/pong (plain text, not JSON)
+          if (event.data === 'pong') {
+            return; // Ignore pong responses
+          }
+
           const data = JSON.parse(event.data);
 
           // Handle different message types

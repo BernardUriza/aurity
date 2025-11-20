@@ -9,10 +9,10 @@
 
 import type { Metadata } from 'next';
 import './globals.css';
-import { GlobalPolicyBanner } from '@/components/GlobalPolicyBanner';
-import { ThemeProvider } from '@/components/ThemeProvider';
-import { Auth0Provider } from '@/components/Auth0Provider';
-import { ConditionalChatWidget } from '@/components/ConditionalChatWidget';
+import { GlobalPolicyBanner } from '@/components/policy/GlobalPolicyBanner';
+import { ThemeProvider } from '@/components/shared/ThemeProvider';
+import { Auth0Provider } from '@/components/auth/Auth0Provider';
+import { ConditionalChatWidget } from '@/components/chat/ConditionalChatWidget';
 
 export const metadata: Metadata = {
   title: 'Aurity Framework',

@@ -9,8 +9,8 @@
  */
 
 import { useEffect, useState } from "react";
-import { GenericPolicyViewer } from "@/components/GenericPolicyViewer";
-import { PageHeader } from "@/components/PageHeader";
+import { GenericPolicyViewer } from '@/components/policy/GenericPolicyViewer';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { policyHeader } from "@/config/page-headers";
 
 interface PolicyResponse {

@@ -7,6 +7,7 @@
  * (minimize, fullscreen, close)
  */
 
+import Link from 'next/link';
 import { X, Minimize2, Maximize2, MessageCircle, Search } from 'lucide-react';
 
 export interface ChatWidgetHeaderProps {
@@ -51,9 +52,13 @@ export function ChatWidgetHeader({
     <div className={`${backgroundClass} px-4 py-3 flex items-center justify-between flex-shrink-0`}>
       {/* Left: Icon + Title */}
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+        <Link
+          href="/chat"
+          className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/30 transition-colors cursor-pointer"
+          title="Abrir chat completo"
+        >
           <MessageCircle className="h-5 w-5 text-white" />
-        </div>
+        </Link>
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-white truncate">{title}</h3>
           {subtitle && (

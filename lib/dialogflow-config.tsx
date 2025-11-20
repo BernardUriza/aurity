@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { Clock, User, Zap, Edit2 } from 'lucide-react';
-import type { TimelineConfig, TimelineEvent } from '@/components/EventTimeline';
+import type { TimelineConfig, TimelineEvent } from '@/components/audit/EventTimeline';
 
 export const dialogFlowConfig: TimelineConfig = {
   title: 'Revisión del Diálogo',

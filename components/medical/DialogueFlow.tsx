@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { medicalWorkflowApi, type DiarizationSegment } from '@/lib/api/medical-workflow';
 import { APIError } from '@/lib/api/client';
-import { EventTimeline, type TimelineEvent } from '@/components/EventTimeline';
+import { EventTimeline, type TimelineEvent } from '@/components/audit/EventTimeline';
 import { dialogFlowConfig } from '@/lib/dialogflow-config';
 
 // ============================================================================

@@ -5,7 +5,7 @@
  * Demo: http://localhost:9000/onboarding
  */
 
-import { OnboardingFlow } from "@/components/onboarding-flow";
+import { OnboardingFlow } from '@/components/onboarding/onboarding-flow';
 
 export default function OnboardingPage() {
   return <OnboardingFlow />;

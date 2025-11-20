@@ -6,7 +6,7 @@
  * (Replaced full IndexHub with slim version - 63% lighter)
  */
 
-import { SlimIndexHub } from "@/components/SlimIndexHub";
+import { SlimIndexHub } from '@/components/medical/SlimIndexHub';
 
 export default function Home() {
   return <SlimIndexHub />;
