@@ -76,14 +76,13 @@ export function ChatWidgetContainer({
   }
 
   // ========================================================================
-  // EXPANDED VIEW (60% larger than normal)
+  // EXPANDED VIEW (60% of viewport, responsive)
   // ========================================================================
   if (mode === 'expanded') {
     return (
       <div
         className="
           fixed bottom-6 right-6
-          w-[614px] h-[960px]
           bg-slate-900 border border-slate-700
           rounded-2xl shadow-2xl
           z-50
@@ -92,6 +91,12 @@ export function ChatWidgetContainer({
           animate-scale-in
           transition-all duration-300
         "
+        style={{
+          width: 'min(80vw, 1200px)',  // 80% of viewport width, max 1200px
+          height: '700px',  // Fixed height
+          maxWidth: 'calc(100vw - 3rem)', // Ensure it fits on small screens
+          maxHeight: 'calc(100vh - 3rem)', // Safety: leave space for header
+        }}
       >
         {children}
       </div>

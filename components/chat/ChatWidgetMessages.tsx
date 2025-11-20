@@ -117,6 +117,23 @@ export function ChatWidgetMessages({
     }
   }, [messages]);
 
+  // Auto-scroll to bottom when new messages arrive or typing status changes
+  useEffect(() => {
+    if (scrollContainerRef.current && !loadingOlder) {
+      // Small delay to ensure DOM is fully rendered
+      const scrollTimer = setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight,
+            behavior: 'smooth',
+          });
+        }
+      }, 100);
+
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [messages, isTyping, loadingOlder]);
+
   // Determine if legal disclaimer should show (when there are messages)
   const shouldShowLegalDisclaimer = messages.length > 0;
 

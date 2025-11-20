@@ -5,20 +5,48 @@
  * Inspired by Aurity Philosophy: Data Sovereignty, HIPAA, Local-first
  *
  * Communicates core principles: 100% Local, HIPAA Ready, Immutable Storage
+ * Auto-dismisses after 5 seconds, resets on page navigation
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Shield, Lock, Database, X } from "lucide-react";
 
 export function GlobalPolicyBanner() {
   const [dismissed, setDismissed] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+
+  // Auto-dismiss after 5 seconds
+  useEffect(() => {
+    const fadeOutTimer = setTimeout(() => {
+      setIsVisible(false); // Start fade-out animation
+    }, 4500); // Start fade 500ms before removal
+
+    const removeTimer = setTimeout(() => {
+      setDismissed(true); // Remove from DOM
+    }, 5000);
+
+    // Cleanup timers on unmount
+    return () => {
+      clearTimeout(fadeOutTimer);
+      clearTimeout(removeTimer);
+    };
+  }, []);
+
+  const handleDismiss = () => {
+    setIsVisible(false);
+    setTimeout(() => setDismissed(true), 300); // Wait for fade animation
+  };
 
   if (dismissed) {
     return null;
   }
 
   return (
-    <div className="border-b backdrop-blur-sm bg-emerald-900/20 border-emerald-800/50">
+    <div
+      className={`border-b backdrop-blur-sm bg-emerald-900/20 border-emerald-800/50 transition-opacity duration-300 ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
         <div className="flex items-center justify-between">
           {/* Data Sovereignty Principles */}
@@ -59,7 +87,7 @@ export function GlobalPolicyBanner() {
 
           {/* Dismiss Button */}
           <button
-            onClick={() => setDismissed(true)}
+            onClick={handleDismiss}
             className="p-1 rounded hover:bg-emerald-800/30 transition"
             title="Dismiss"
           >

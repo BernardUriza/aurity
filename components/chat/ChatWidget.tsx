@@ -19,6 +19,7 @@ import { useState, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { MessageCircle } from 'lucide-react';
 import { useFIConversation } from '@/hooks/useFIConversation';
+import { useWebSpeech } from '@/hooks/useWebSpeech';
 import { ChatWidgetContainer, type ChatViewMode } from './ChatWidgetContainer';
 import { ChatWidgetHeader } from './ChatWidgetHeader';
 import { ChatWidgetMessages } from './ChatWidgetMessages';
@@ -81,19 +82,6 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     autoIntroduction: false, // Don't auto-introduce, wait for user to open
   });
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (isOpen && config.behavior.autoScroll) {
-      const chatContainer = document.getElementById('chat-widget-messages');
-      if (chatContainer) {
-        chatContainer.scrollTo({
-          top: chatContainer.scrollHeight,
-          behavior: config.animation.scroll.behavior,
-        });
-      }
-    }
-  }, [messages, isOpen, config.behavior.autoScroll, config.animation.scroll.behavior]);
-
   // Handle send message
   const handleSend = async () => {
     if (!message.trim() || loading) return;
@@ -117,9 +105,18 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     setViewMode(mode);
   };
 
-  const handleMinimize = () => setViewMode('minimized');
+  const handleMinimize = () => {
+    // Only works in expanded mode: restore to normal
+    if (viewMode === 'expanded') {
+      setViewMode('normal');
+    }
+  };
   const handleMaximize = () => setViewMode(viewMode === 'expanded' ? 'normal' : 'expanded');
-  const handleClose = () => setIsOpen(false);
+  const handleClose = () => {
+    // Close completely to floating button
+    setIsOpen(false);
+    setViewMode('normal'); // Reset to normal for next open
+  };
 
   // Toolbar handlers
   const handleAttach = () => {
@@ -152,9 +149,41 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     }
   }, []);
 
+  // Voice input with Web Speech API
+  const {
+    isListening,
+    interimTranscript,
+    error: voiceError,
+    isSupported: isVoiceSupported,
+    startWebSpeech,
+    stopWebSpeech,
+  } = useWebSpeech({
+    onTranscript: (transcript, isFinal) => {
+      if (isFinal) {
+        // Set final transcript in input (user can edit before sending)
+        console.log('[Voice] Final transcript:', transcript);
+        setMessage(transcript);
+      } else {
+        // Show interim transcript in real-time
+        setMessage(transcript);
+      }
+    },
+    language: 'es-MX', // Spanish (Mexico)
+    continuous: false, // Stop after one phrase
+    interimResults: true, // Show real-time preview
+  });
+
   const handleVoice = () => {
-    console.log('Voice input clicked');
-    // TODO: Implement voice input
+    if (!isVoiceSupported) {
+      alert('Tu navegador no soporta reconocimiento de voz. Intenta con Chrome o Edge.');
+      return;
+    }
+
+    if (isListening) {
+      stopWebSpeech();
+    } else {
+      startWebSpeech();
+    }
   };
 
   // ========================================================================
@@ -240,6 +269,7 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
       {/* Toolbar */}
       <ChatToolbar
         responseMode={responseMode}
+        isListening={isListening}
         onAttach={handleAttach}
         onLanguage={handleLanguage}
         onFormatting={handleFormatting}

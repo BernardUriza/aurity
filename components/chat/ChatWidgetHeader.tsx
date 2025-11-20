@@ -83,25 +83,25 @@ export function ChatWidgetHeader({
             </button>
           )}
 
-          {/* Minimize/Restore */}
-          {mode !== 'minimized' && (
+          {/* Minimize/Restore - Only show in expanded mode */}
+          {mode === 'expanded' && (
             <button
               onClick={onMinimize}
               className="text-white/70 hover:text-white transition-colors p-1 rounded hover:bg-white/10"
-              aria-label="Minimize"
-              title="Minimizar"
+              aria-label="Restaurar tamaño"
+              title="Restaurar a tamaño normal"
             >
               <Minimize2 className="h-4 w-4" />
             </button>
           )}
 
-          {/* Expand/Normal */}
-          {mode !== 'minimized' && (
+          {/* Expand/Normal - Hide when already expanded */}
+          {mode === 'normal' && (
             <button
               onClick={onMaximize}
               className="text-white/70 hover:text-white transition-colors p-1 rounded hover:bg-white/10"
-              aria-label={mode === 'expanded' ? 'Restaurar tamaño' : 'Expandir'}
-              title={mode === 'expanded' ? 'Restaurar tamaño' : 'Expandir (60% más grande)'}
+              aria-label="Expandir"
+              title="Expandir (60% más grande)"
             >
               <Maximize2 className="h-4 w-4" />
             </button>
