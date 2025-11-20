@@ -182,15 +182,19 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
 
       // Add message from real-time sync (from another device)
       setMessages(prev => {
-        // Avoid duplicates: check if message already exists
-        const exists = prev.some(
-          m => m.timestamp === message.timestamp &&
-               m.role === message.role &&
-               m.content.substring(0, 50) === message.content.substring(0, 50)
-        );
+        // Avoid duplicates: check by ID first, then content
+        const exists = prev.some(m => {
+          // PRIORITY 1: Match by message ID if available
+          if (message.metadata?.id && m.metadata?.id) {
+            return m.metadata.id === message.metadata.id;
+          }
+
+          // PRIORITY 2: Fallback to content match for legacy messages
+          return m.role === message.role && m.content.trim() === message.content.trim();
+        });
 
         if (exists) {
-          console.log('[WebSocket] Message already exists, skipping');
+          console.log('[WebSocket] Message already exists (ID or content match), skipping');
           return prev; // Already have this message
         }
 
@@ -213,7 +217,15 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
     if (storageKey) {
       const loaded = storage.load(storageKey);
       if (loaded.length > 0) {
-        setMessages(loaded);
+        // Deduplicate immediately to prevent flicker on first render
+        const deduped = mergeMessages(loaded, []);
+        console.log('[Load] Loaded', loaded.length, '→ Deduped to', deduped.length);
+        setMessages(deduped);
+
+        // Save cleaned version back to storage
+        if (deduped.length !== loaded.length) {
+          storage.save(storageKey, deduped);
+        }
       }
     }
 
@@ -306,6 +318,9 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
         phase,
       });
 
+      // Generate unique ID for introduction message
+      const introMsgId = `intro_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       const fiMessage: FIMessage = {
         role: 'assistant',
         content: response.message,
@@ -313,9 +328,11 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
         metadata: {
           tone: response.persona as FITone, // Map persona to tone (for UI styling)
           phase,
+          id: introMsgId,
         },
       };
 
+      console.log('[GetIntroduction] Message ID:', introMsgId);
       // SAFEGUARD: Only set introduction if no messages exist (prevent overwriting history)
       setMessages(prev => prev.length === 0 ? [fiMessage] : prev);
       setIsTyping(false);
@@ -342,14 +359,21 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
     setError(null);
     lastMessageRef.current = userMessage;
 
+    // Generate unique ID for user message (prevents duplicates)
+    const userMsgId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     // Add user message immediately
     const userMsg: FIMessage = {
       role: 'user',
       content: userMessage,
       timestamp: new Date().toISOString(),
-      metadata: { phase },
+      metadata: {
+        phase,
+        id: userMsgId,
+      },
     };
 
+    console.log('[SendMessage] User message ID:', userMsgId);
     setMessages(prev => [...prev, userMsg]);
     setIsTyping(true);
 
@@ -363,6 +387,9 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
         conversationHistory: messages,
       });
 
+      // Generate unique ID for assistant response
+      const assistantMsgId = `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       const fiMessage: FIMessage = {
         role: 'assistant',
         content: response.message,
@@ -370,11 +397,25 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
         metadata: {
           tone: response.persona as FITone, // Map persona to tone (for UI styling)
           phase,
-          id: `fi_${Date.now()}`,
+          id: assistantMsgId,
         },
       };
 
-      setMessages(prev => [...prev, fiMessage]);
+      console.log('[SendMessage] Assistant message ID:', assistantMsgId);
+
+      // Check if message already exists (WebSocket may have added it first)
+      setMessages(prev => {
+        const exists = prev.some(m =>
+          m.role === 'assistant' && m.content.trim() === response.message.trim()
+        );
+
+        if (exists) {
+          console.log('[SendMessage] Assistant response already in state (from WebSocket), skipping');
+          return prev;
+        }
+
+        return [...prev, fiMessage];
+      });
       setIsTyping(false);
       setLoading(false);
       return response;
@@ -385,6 +426,7 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
       setLoading(false);
 
       // Add error message to conversation
+      const errorMsgId = `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const errorMsg: FIMessage = {
         role: 'assistant',
         content: `❌ Error: ${errorMessage}. Click "Retry" to try again.`,
@@ -392,6 +434,7 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
         metadata: {
           tone: 'neutral' as FITone, // Use neutral for error messages
           phase,
+          id: errorMsgId,
         },
       };
       setMessages(prev => [...prev, errorMsg]);

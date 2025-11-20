@@ -34,6 +34,9 @@ export interface ChatToolbarProps {
   /** Current response mode ('explanatory' | 'concise') */
   responseMode?: ResponseMode;
 
+  /** Is voice input currently listening? */
+  isListening?: boolean;
+
   /** Callbacks */
   onAttach?: () => void;
   onLanguage?: () => void;
@@ -49,6 +52,7 @@ export function ChatToolbar({
   showResponseMode = true,
   showVoice = true,
   responseMode = 'explanatory',
+  isListening = false,
   onAttach,
   onLanguage,
   onFormatting,
@@ -126,11 +130,15 @@ export function ChatToolbar({
         {showVoice && (
           <button
             onClick={onVoice}
-            className={`${buttonBaseClass} hover:text-purple-400`}
-            title="Entrada de voz"
-            aria-label="Entrada de voz"
+            className={`${buttonBaseClass} ${
+              isListening
+                ? 'text-red-400 hover:text-red-300 animate-pulse'
+                : 'hover:text-purple-400'
+            }`}
+            title={isListening ? 'Detener grabación' : 'Entrada de voz'}
+            aria-label={isListening ? 'Detener grabación' : 'Entrada de voz'}
           >
-            <Mic className="w-5 h-5" />
+            <Mic className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
           </button>
         )}
       </div>
