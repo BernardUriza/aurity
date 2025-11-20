@@ -173,17 +173,22 @@ export interface IRealtimeSync {
 }
 
 /**
- * WebSocket sync implementation.
+ * WebSocket sync implementation with Singleton pattern.
  *
  * Single Responsibility: ONLY handles WebSocket connection.
  * Open/Closed: Can extend with SSE, polling, etc. without modifying.
+ * Singleton: Ensures only ONE WebSocket connection exists at a time.
  */
 export class WebSocketSyncStrategy implements IRealtimeSync {
   private ws: WebSocket | null = null;
   private backendUrl: string;
   private reconnectAttempts = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
-  private intentionalDisconnect = false; // NEW: Prevent reconnect on intentional close
+  private intentionalDisconnect = false; // Prevent reconnect on intentional close
+  private currentDoctorId: string | null = null; // Track current connection
+
+  // Singleton: Global registry to prevent multiple instances
+  private static activeInstance: WebSocketSyncStrategy | null = null;
 
   constructor(backendUrl?: string) {
     this.backendUrl = backendUrl || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
@@ -191,8 +196,29 @@ export class WebSocketSyncStrategy implements IRealtimeSync {
 
   connect(doctorId: string, onMessage: (message: FIMessage) => void): void {
     try {
+      // SINGLETON PATTERN: Close previous instance if exists
+      if (WebSocketSyncStrategy.activeInstance && WebSocketSyncStrategy.activeInstance !== this) {
+        console.log('[WebSocket] Closing previous instance (hot-reload detected)');
+        WebSocketSyncStrategy.activeInstance.disconnect();
+      }
+
+      // If already connected to same doctor, don't reconnect
+      if (this.ws?.readyState === WebSocket.OPEN && this.currentDoctorId === doctorId) {
+        console.log('[WebSocket] Already connected to same doctor, skipping');
+        return;
+      }
+
+      // Register this instance as active
+      WebSocketSyncStrategy.activeInstance = this;
+      this.currentDoctorId = doctorId;
+
       // Reset intentional disconnect flag (new connection is intentional)
       this.intentionalDisconnect = false;
+
+      // Close existing connection if any
+      if (this.ws) {
+        this.ws.close();
+      }
 
       // Determine WebSocket URL (wss:// for production, ws:// for dev)
       const wsProtocol = this.backendUrl.startsWith('https') ? 'wss' : 'ws';
@@ -289,6 +315,13 @@ export class WebSocketSyncStrategy implements IRealtimeSync {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+
+    // Clear active instance if it's this one
+    if (WebSocketSyncStrategy.activeInstance === this) {
+      WebSocketSyncStrategy.activeInstance = null;
+    }
+
+    this.currentDoctorId = null;
   }
 
   isConnected(): boolean {

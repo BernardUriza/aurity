@@ -70,7 +70,7 @@ export function UserManagement({ onClose }: UserManagementProps) {
     try {
       const token = await getAuthToken();
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
-      const response = await fetch(`${backendUrl}/api/internal/admin/users?per_page=100`, {
+      const response = await fetch(`${backendUrl}/internal/admin/users?per_page=100`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -126,7 +126,7 @@ export function UserManagement({ onClose }: UserManagementProps) {
 
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
 
-      const response = await fetch(`${backendUrl}/api/internal/admin/users/${user.user_id}/roles`, {
+      const response = await fetch(`${backendUrl}/internal/admin/users/${user.user_id}/roles`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -159,7 +159,7 @@ export function UserManagement({ onClose }: UserManagementProps) {
       const newBlockedState = !user.blocked;
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
 
-      const response = await fetch(`${backendUrl}/api/internal/admin/users/${user.user_id}/block`, {
+      const response = await fetch(`${backendUrl}/internal/admin/users/${user.user_id}/block`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -400,7 +400,7 @@ function InviteUserModal({ onClose, onInvite }: { onClose: () => void; onInvite:
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
 
-      const response = await fetch(`${backendUrl}/api/internal/admin/users`, {
+      const response = await fetch(`${backendUrl}/internal/admin/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

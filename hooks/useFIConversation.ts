@@ -282,13 +282,14 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
     }
   }, [storageKey, messages, storage]);
 
-  // Auto-load introduction on mount
+  // Auto-load introduction on mount (AFTER initial load completes)
   useEffect(() => {
-    if (autoIntroduction && !introductionLoadedRef.current && messages.length === 0) {
+    // Wait for initial load to complete before checking if introduction is needed
+    if (!loadingInitial && autoIntroduction && !introductionLoadedRef.current && messages.length === 0) {
       introductionLoadedRef.current = true;
       getIntroduction();
     }
-  }, [autoIntroduction, messages.length]);
+  }, [autoIntroduction, messages.length, loadingInitial]);
 
   /**
    * Get FI introduction
@@ -314,7 +315,8 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
         },
       };
 
-      setMessages([fiMessage]);
+      // SAFEGUARD: Only set introduction if no messages exist (prevent overwriting history)
+      setMessages(prev => prev.length === 0 ? [fiMessage] : prev);
       setIsTyping(false);
       setLoading(false);
       return response;
