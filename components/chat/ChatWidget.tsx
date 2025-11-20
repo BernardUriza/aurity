@@ -19,13 +19,13 @@ import { useState, useEffect } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { MessageCircle } from 'lucide-react';
 import { useFIConversation } from '@/hooks/useFIConversation';
-import { ChatWidgetContainer, type ChatViewMode } from './chat/ChatWidgetContainer';
-import { ChatWidgetHeader } from './chat/ChatWidgetHeader';
-import { ChatWidgetMessages } from './chat/ChatWidgetMessages';
-import { ChatWidgetInput } from './chat/ChatWidgetInput';
-import { ChatToolbar, type ResponseMode } from './chat/ChatToolbar';
-import { ScrollToBottomButton } from './chat/ChatUtilities';
-import { HistorySearch } from './chat/HistorySearch';
+import { ChatWidgetContainer, type ChatViewMode } from './ChatWidgetContainer';
+import { ChatWidgetHeader } from './ChatWidgetHeader';
+import { ChatWidgetMessages } from './ChatWidgetMessages';
+import { ChatWidgetInput } from './ChatWidgetInput';
+import { ChatToolbar, type ResponseMode } from './ChatToolbar';
+import { ScrollToBottomButton } from './ChatUtilities';
+import { HistorySearch } from './HistorySearch';
 import { defaultChatConfig, type ChatConfig } from '@/config/chat.config';
 
 export interface ChatWidgetProps {
