@@ -17,7 +17,7 @@
  * - WCAG 2.1 Guidelines (POUR principles)
  */
 
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import type { FIMessage } from '@/types/assistant';
 import { FIMessageBubble } from '../onboarding/FIMessageBubble';
 import { UserMessageBubble } from './UserMessageBubble';
@@ -76,6 +76,10 @@ export function ChatWidgetMessages({
   const previousScrollHeightRef = useRef<number>(0);
   const liveRegionRef = useRef<HTMLDivElement>(null);
 
+  // Ephemeral legal disclaimer - shows for 15 seconds then fades out
+  const [showLegalDisclaimer, setShowLegalDisclaimer] = useState(true);
+  const [isDisclaimerFading, setIsDisclaimerFading] = useState(false);
+
   // Handle scroll to detect when user reaches top
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop } = e.currentTarget;
@@ -110,6 +114,26 @@ export function ChatWidgetMessages({
         ? 'Mensaje enviado'
         : 'Nuevo mensaje del asistente';
       liveRegionRef.current.textContent = announcement;
+    }
+  }, [messages.length]);
+
+  // Timer for ephemeral legal disclaimer (15 seconds)
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Start fade-out at 14 seconds
+      const fadeTimer = setTimeout(() => {
+        setIsDisclaimerFading(true);
+      }, 14000);
+
+      // Hide completely at 15 seconds
+      const hideTimer = setTimeout(() => {
+        setShowLegalDisclaimer(false);
+      }, 15000);
+
+      return () => {
+        clearTimeout(fadeTimer);
+        clearTimeout(hideTimer);
+      };
     }
   }, [messages.length]);
 
@@ -316,12 +340,17 @@ export function ChatWidgetMessages({
               </div>
             )}
 
-            {/* Legal Disclaimer - Better spacing and presentation (4pt grid) */}
-            {messages.length > 0 && (
+            {/* Legal Disclaimer - Ephemeral (15s timer with fade-out) */}
+            {messages.length > 0 && showLegalDisclaimer && (
               <div
-                className="mt-12 pt-6 border-t border-slate-700/50"
+                className={`
+                  mt-12 pt-6 border-t border-slate-700/50
+                  transition-opacity duration-1000
+                  ${isDisclaimerFading ? 'opacity-0' : 'opacity-100'}
+                `}
                 role="contentinfo"
                 aria-label="Información legal"
+                aria-live="polite"
               >
                 <div className="px-4 py-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
                   <div className="text-xs text-slate-400 leading-relaxed space-y-4">
