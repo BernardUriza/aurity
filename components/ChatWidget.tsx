@@ -25,6 +25,7 @@ import { ChatWidgetMessages } from './chat/ChatWidgetMessages';
 import { ChatWidgetInput } from './chat/ChatWidgetInput';
 import { ChatToolbar, type ResponseMode } from './chat/ChatToolbar';
 import { ScrollToBottomButton } from './chat/ChatUtilities';
+import { HistorySearch } from './chat/HistorySearch';
 import { defaultChatConfig, type ChatConfig } from '@/config/chat.config';
 
 export interface ChatWidgetProps {
@@ -40,6 +41,7 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [responseMode, setResponseMode] = useState<ResponseMode>('explanatory');
+  const [showHistorySearch, setShowHistorySearch] = useState(false);
 
   // Merge custom config with defaults
   const config: ChatConfig = {
@@ -52,12 +54,22 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   };
 
   // Use conversation hook with doctor_id from Auth0
+  // Generate user-specific storage key to isolate conversation history per authenticated user
+  // For anonymous users: use sessionStorage key to make it truly ephemeral
+  const storageKey = user?.sub
+    ? `fi_chat_widget_${user.sub}`  // Authenticated: persistent across sessions
+    : undefined;  // Anonymous: NO persistence (ephemeral mode)
+
   const {
     messages,
     loading,
     isTyping,
+    loadingInitial,
     sendMessage,
     getIntroduction,
+    loadOlderMessages,
+    hasMoreMessages,
+    loadingOlder,
   } = useFIConversation({
     phase: undefined, // No specific phase for general chat widget
     context: {
@@ -65,7 +77,7 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
       doctor_name: user?.name,
       response_mode: responseMode, // Pass response mode to backend
     },
-    storageKey: 'fi_chat_widget',
+    storageKey,
     autoIntroduction: false, // Don't auto-introduce, wait for user to open
   });
 
@@ -206,15 +218,20 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
         onMinimize={handleMinimize}
         onMaximize={handleMaximize}
         onClose={handleClose}
+        onHistorySearch={() => setShowHistorySearch(true)}
       />
 
       {/* Messages */}
       <ChatWidgetMessages
         messages={messages}
         isTyping={isTyping}
+        loadingInitial={loadingInitial}
         config={config}
         userName={user?.name?.split(' ')[0]}
         mode={viewMode}
+        onLoadOlder={loadOlderMessages}
+        loadingOlder={loadingOlder}
+        hasMoreMessages={hasMoreMessages}
       />
 
       {/* Scroll to bottom */}
@@ -239,6 +256,19 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
         onMessageChange={setMessage}
         onSend={handleSend}
       />
+
+      {/* History Search Modal */}
+      {showHistorySearch && (
+        <HistorySearch
+          mode="modal"
+          onClose={() => setShowHistorySearch(false)}
+          onSelectResult={(result) => {
+            console.log('Selected history result:', result);
+            // TODO: Jump to conversation or show in context
+            setShowHistorySearch(false);
+          }}
+        />
+      )}
     </ChatWidgetContainer>
   );
 }

@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * Public Chat Page - AURITY Free Intelligence
+ * Chat Page - AURITY Free Intelligence
  *
- * Standalone public chat page using ChatWidget internals.
- * Bypasses the floating widget wrapper to show chat directly.
+ * Standalone chat page - anyone can use it!
+ * - If authenticated → memory enabled (infinite conversation)
+ * - If anonymous → ephemeral mode (localStorage only, no backend)
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import { useFIConversation } from '@/hooks/useFIConversation';
 import { AurityBanner } from '@/components/AurityBanner';
 import type { ChatViewMode } from '@/components/chat/ChatWidgetContainer';
@@ -19,13 +21,17 @@ import { ScrollToBottomButton } from '@/components/chat/ChatUtilities';
 import { defaultChatConfig, type ChatConfig } from '@/config/chat.config';
 
 /**
- * Public Chat Configuration
+ * Chat Configuration (adaptive based on auth state)
  */
-const publicChatConfig: ChatConfig = {
+const getChatConfig = (isAuthenticated: boolean): ChatConfig => ({
   ...defaultChatConfig,
   title: 'Free Intelligence',
-  subtitle: 'Chat público · Sin registro requerido',
-  footer: 'Conversación efímera · Rate-limited (20 req/min)',
+  subtitle: isAuthenticated
+    ? 'Chat con memoria infinita'
+    : 'Chat · Sin registro requerido',
+  footer: isAuthenticated
+    ? 'Conversación guardada permanentemente'
+    : 'Conversación efímera · Solo en este navegador',
   dimensions: {
     width: '100%',
     height: '100vh',
@@ -36,26 +42,36 @@ const publicChatConfig: ChatConfig = {
     ...defaultChatConfig.behavior,
     inputPlaceholder: 'Escribe tu mensaje... (presiona Enter para enviar)',
   },
-};
+});
 
-export default function PublicChatPage() {
+export default function ChatPage() {
+  const { user } = useAuth0();
   const [message, setMessage] = useState('');
   const [viewMode] = useState<ChatViewMode>('fullscreen');
   const [responseMode, setResponseMode] = useState<ResponseMode>('explanatory');
 
-  // Use conversation hook WITHOUT doctor_id → auto-detects public mode
+  // Adaptive: use doctor_id if authenticated, ephemeral if not
+  const storageKey = user?.sub
+    ? `fi_chat_${user.sub}`
+    : 'fi_chat_anonymous';
+
+  const chatConfig = getChatConfig(!!user);
+
   const {
     messages,
     loading,
     isTyping,
+    loadingInitial,
     sendMessage: sendMessageHook,
   } = useFIConversation({
-    phase: undefined, // No specific phase for public chat
+    phase: undefined,
     context: {
-      response_mode: responseMode, // Pass response mode to backend
-    }, // NO doctor_id → triggers public-chat endpoint
-    storageKey: 'fi_public_chat',
-    autoIntroduction: true, // Auto-load introduction
+      doctor_id: user?.sub,  // If authenticated → memory enabled
+      doctor_name: user?.name,
+      response_mode: responseMode,
+    },
+    storageKey,  // Persistent localStorage (anonymous or user-specific)
+    autoIntroduction: true,
   });
 
   // Handle send message
@@ -80,12 +96,12 @@ export default function PublicChatPage() {
   const handleResponseModeToggle = () => {
     const newMode: ResponseMode = responseMode === 'explanatory' ? 'concise' : 'explanatory';
     setResponseMode(newMode);
-    localStorage.setItem('fi_public_response_mode', newMode);
+    localStorage.setItem('fi_response_mode', newMode);
   };
 
   // Load response mode preference on mount
   useEffect(() => {
-    const savedMode = localStorage.getItem('fi_public_response_mode') as ResponseMode | null;
+    const savedMode = localStorage.getItem('fi_response_mode') as ResponseMode | null;
     if (savedMode) {
       setResponseMode(savedMode);
     }
@@ -100,22 +116,23 @@ export default function PublicChatPage() {
       <div className="flex-1 w-full flex flex-col overflow-hidden">
         {/* Header */}
         <ChatWidgetHeader
-          title={publicChatConfig.title}
-          subtitle={publicChatConfig.subtitle}
-          backgroundClass={publicChatConfig.theme.background.header}
+          title={chatConfig.title}
+          subtitle={chatConfig.subtitle}
+          backgroundClass={chatConfig.theme.background.header}
           mode={viewMode}
-          showControls={false} // Hide control buttons in public mode
-          onMinimize={() => {}} // Disabled
-          onMaximize={() => {}} // Disabled
-          onClose={() => {}} // Disabled
+          showControls={false}
+          onMinimize={() => {}}
+          onMaximize={() => {}}
+          onClose={() => {}}
         />
 
         {/* Messages */}
         <ChatWidgetMessages
           messages={messages}
           isTyping={isTyping}
-          config={publicChatConfig}
-          userName={undefined} // No user name in public mode
+          loadingInitial={loadingInitial}
+          config={chatConfig}
+          userName={user?.name?.split(' ')[0]}
           mode={viewMode}
         />
 
@@ -125,7 +142,7 @@ export default function PublicChatPage() {
         {/* Toolbar */}
         <ChatToolbar
           responseMode={responseMode}
-          showAttach={false} // Disabled in public mode
+          showAttach={false}
           showLanguage={true}
           showFormatting={true}
           showResponseMode={true}
@@ -137,8 +154,8 @@ export default function PublicChatPage() {
         <ChatWidgetInput
           message={message}
           loading={loading}
-          placeholder={publicChatConfig.behavior.inputPlaceholder}
-          footer={publicChatConfig.footer}
+          placeholder={chatConfig.behavior.inputPlaceholder}
+          footer={chatConfig.footer}
           onMessageChange={setMessage}
           onSend={handleSend}
         />

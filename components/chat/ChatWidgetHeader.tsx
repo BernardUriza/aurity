@@ -7,7 +7,7 @@
  * (minimize, fullscreen, close)
  */
 
-import { X, Minimize2, Maximize2, MessageCircle } from 'lucide-react';
+import { X, Minimize2, Maximize2, MessageCircle, Search } from 'lucide-react';
 
 export interface ChatWidgetHeaderProps {
   /** Widget title */
@@ -25,10 +25,14 @@ export interface ChatWidgetHeaderProps {
   /** Show control buttons (minimize, maximize, close) - defaults to true */
   showControls?: boolean;
 
+  /** Show history search button */
+  showHistorySearch?: boolean;
+
   /** Callbacks */
   onMinimize: () => void;
   onMaximize: () => void;
   onClose: () => void;
+  onHistorySearch?: () => void;
 }
 
 export function ChatWidgetHeader({
@@ -37,9 +41,11 @@ export function ChatWidgetHeader({
   backgroundClass = 'bg-gradient-to-r from-purple-600 to-blue-600',
   mode,
   showControls = true,
+  showHistorySearch = true,
   onMinimize,
   onMaximize,
   onClose,
+  onHistorySearch,
 }: ChatWidgetHeaderProps) {
   return (
     <div className={`${backgroundClass} px-4 py-3 flex items-center justify-between flex-shrink-0`}>
@@ -59,6 +65,18 @@ export function ChatWidgetHeader({
       {/* Right: Control Buttons */}
       {showControls && (
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* History Search */}
+          {showHistorySearch && onHistorySearch && mode !== 'minimized' && (
+            <button
+              onClick={onHistorySearch}
+              className="text-white/70 hover:text-white transition-colors p-1 rounded hover:bg-white/10"
+              aria-label="Search history"
+              title="Buscar en historial"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          )}
+
           {/* Minimize/Restore */}
           {mode !== 'minimized' && (
             <button

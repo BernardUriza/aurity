@@ -3,9 +3,10 @@
 /**
  * ChatWidgetMessages Component
  *
- * Messages container with day dividers, grouping, and scroll handling
+ * Messages container with day dividers, grouping, scroll handling, and infinite scroll
  */
 
+import { useRef, useCallback, useEffect } from 'react';
 import type { FIMessage } from '@/types/assistant';
 import { FIMessageBubble } from '../onboarding/FIMessageBubble';
 import { UserMessageBubble } from './UserMessageBubble';
@@ -22,6 +23,9 @@ export interface ChatWidgetMessagesProps {
   /** Is assistant typing */
   isTyping: boolean;
 
+  /** Loading initial conversation from storage/backend */
+  loadingInitial?: boolean;
+
   /** Configuration */
   config: ChatConfig;
 
@@ -33,21 +37,64 @@ export interface ChatWidgetMessagesProps {
 
   /** View mode (for watermark display) */
   mode?: ChatViewMode;
+
+  /** Infinite scroll: load older messages */
+  onLoadOlder?: () => void;
+
+  /** Infinite scroll: is loading older messages? */
+  loadingOlder?: boolean;
+
+  /** Infinite scroll: are there more messages to load? */
+  hasMoreMessages?: boolean;
 }
 
 export function ChatWidgetMessages({
   messages,
   isTyping,
+  loadingInitial = false,
   config,
   containerId = 'chat-widget-messages',
   userName,
   mode = 'normal',
+  onLoadOlder,
+  loadingOlder = false,
+  hasMoreMessages = false,
 }: ChatWidgetMessagesProps) {
   const showWatermark = mode === 'fullscreen';
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const previousScrollHeightRef = useRef<number>(0);
+
+  // Handle scroll to detect when user reaches top
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop } = e.currentTarget;
+
+    // If scrolled to top and there are more messages, load them
+    if (scrollTop <= 100 && !loadingOlder && hasMoreMessages && onLoadOlder) {
+      // Store current scroll height to restore position after loading
+      if (scrollContainerRef.current) {
+        previousScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+      }
+      onLoadOlder();
+    }
+  }, [loadingOlder, hasMoreMessages, onLoadOlder]);
+
+  // Restore scroll position after loading older messages
+  useEffect(() => {
+    if (!loadingOlder && scrollContainerRef.current && previousScrollHeightRef.current > 0) {
+      const newScrollHeight = scrollContainerRef.current.scrollHeight;
+      const scrollDiff = newScrollHeight - previousScrollHeightRef.current;
+      if (scrollDiff > 0) {
+        scrollContainerRef.current.scrollTop = scrollDiff;
+        previousScrollHeightRef.current = 0;
+      }
+    }
+  }, [loadingOlder]);
 
   return (
     <div
+      ref={scrollContainerRef}
       id={containerId}
+      onScroll={handleScroll}
       className={`
         relative flex-1 p-4 space-y-2
         ${config.theme.background.body}
@@ -80,9 +127,31 @@ export function ChatWidgetMessages({
         />
       )}
 
+      {/* Loading older messages indicator */}
+      {loadingOlder && (
+        <div className="flex justify-center py-3">
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <div className="animate-spin h-4 w-4 border-2 border-slate-400 border-t-transparent rounded-full" />
+            <span>Cargando mensajes anteriores...</span>
+          </div>
+        </div>
+      )}
+
       {/* Messages content */}
       <div className="relative" style={{ zIndex: 10, maxWidth: '100%', wordWrap: 'break-word' }}>
-      {messages.length === 0 && !isTyping ? (
+      {loadingInitial && messages.length === 0 ? (
+        /* Loading Initial State - Skeleton */
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center text-slate-400 text-sm">
+            <div className="animate-pulse space-y-3">
+              <div className="h-2 bg-slate-200 rounded w-3/4 mx-auto"></div>
+              <div className="h-2 bg-slate-200 rounded w-1/2 mx-auto"></div>
+              <div className="h-2 bg-slate-200 rounded w-5/6 mx-auto"></div>
+            </div>
+            <p className="mt-4 text-xs">Cargando conversación...</p>
+          </div>
+        </div>
+      ) : messages.length === 0 && !isTyping ? (
         /* Empty State */
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-slate-500 text-sm">

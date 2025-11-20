@@ -20,7 +20,7 @@ import { ChatWidget } from './ChatWidget';
  * Routes where the floating ChatWidget should not appear
  */
 const EXCLUDED_ROUTES = [
-  '/chat-public',  // Dedicated public chat page (has its own fullscreen chat)
+  '/chat',         // Dedicated chat page (has its own fullscreen chat)
   '/_not-found',   // 404 page
 ];
 
