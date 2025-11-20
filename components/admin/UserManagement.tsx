@@ -9,9 +9,15 @@
  * - Inline role assignment
  * - Email invitations
  * - User activity history
+ *
+ * Security:
+ * - Uses Auth0 SDK for secure token management (not localStorage)
+ * - Tokens stored in memory/httpOnly cookies
+ * - Automatic token refresh on expiration
  */
 
 import { useState, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import { useRBAC, ROLES, getRoleName, getRoleBadgeColor, type Role } from '@/hooks/useRBAC';
 
 interface User {
@@ -31,6 +37,7 @@ interface UserManagementProps {
 }
 
 export function UserManagement({ onClose }: UserManagementProps) {
+  const { getAccessTokenSilently } = useAuth0();
   const { isSuperAdmin, roles: currentUserRoles } = useRBAC();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +45,20 @@ export function UserManagement({ onClose }: UserManagementProps) {
   const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  // Helper: Get authenticated API token securely
+  const getAuthToken = async () => {
+    try {
+      return await getAccessTokenSilently({
+        authorizationParams: {
+          audience: process.env.NEXT_PUBLIC_AUTH0_AUDIENCE || 'https://api.fi-aurity.duckdns.org',
+        }
+      });
+    } catch (error) {
+      console.error('Failed to get access token:', error);
+      throw new Error('Authentication failed. Please login again.');
+    }
+  };
 
   // Load users (from Auth0 Management API via backend)
   useEffect(() => {
@@ -47,10 +68,11 @@ export function UserManagement({ onClose }: UserManagementProps) {
   const loadUsers = async () => {
     setLoading(true);
     try {
+      const token = await getAuthToken();
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
       const response = await fetch(`${backendUrl}/api/internal/admin/users?per_page=100`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth0_access_token') || ''}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -76,55 +98,11 @@ export function UserManagement({ onClose }: UserManagementProps) {
       setUsers(mappedUsers);
     } catch (error) {
       console.error('Failed to load users:', error);
+      // Show error state - no mock data fallback in production
+      setUsers([]);
 
-      // Fallback to mock data if API fails
-      console.warn('Using mock data - API unavailable or not configured');
-      const mockUsers: User[] = [
-        {
-          user_id: 'auth0|507f1f77bcf86cd799439011',
-          email: 'bernarduriza@gmail.com',
-          name: 'Bernard Uriza',
-          picture: 'https://gravatar.com/avatar/hash1',
-          created_at: new Date('2024-01-15').toISOString(),
-          last_login: new Date().toISOString(),
-          logins_count: 47,
-          roles: [ROLES.SUPERADMIN],
-          blocked: false,
-        },
-        {
-          user_id: 'auth0|507f1f77bcf86cd799439012',
-          email: 'doctor@hospital.com',
-          name: 'Dr. García',
-          picture: 'https://gravatar.com/avatar/hash2',
-          created_at: new Date('2024-02-20').toISOString(),
-          last_login: new Date(Date.now() - 86400000).toISOString(),
-          logins_count: 23,
-          roles: [ROLES.DOCTOR],
-          blocked: false,
-        },
-        {
-          user_id: 'auth0|507f1f77bcf86cd799439013',
-          email: 'admin@aurity.app',
-          name: 'Admin Sistema',
-          picture: 'https://gravatar.com/avatar/hash3',
-          created_at: new Date('2024-03-10').toISOString(),
-          last_login: new Date(Date.now() - 172800000).toISOString(),
-          logins_count: 15,
-          roles: [ROLES.ADMIN],
-          blocked: false,
-        },
-        {
-          user_id: 'auth0|507f1f77bcf86cd799439014',
-          email: 'nurse@hospital.com',
-          name: 'Enfermera López',
-          created_at: new Date('2024-04-05').toISOString(),
-          logins_count: 0,
-          roles: [ROLES.NURSE],
-          blocked: false,
-        },
-      ];
-
-      setUsers(mockUsers);
+      // TODO: Show toast notification with error message
+      // toast.error('No se pudieron cargar los usuarios. Verifica tu conexión.');
     } finally {
       setLoading(false);
     }
@@ -152,7 +130,7 @@ export function UserManagement({ onClose }: UserManagementProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth0_access_token') || ''}`,
+          'Authorization': `Bearer ${await getAuthToken()}`,
         },
         body: JSON.stringify({ roles: updatedRoles })
       });
@@ -185,7 +163,7 @@ export function UserManagement({ onClose }: UserManagementProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth0_access_token') || ''}`,
+          'Authorization': `Bearer ${await getAuthToken()}`,
         },
         body: JSON.stringify({ blocked: newBlockedState })
       });
@@ -426,7 +404,7 @@ function InviteUserModal({ onClose, onInvite }: { onClose: () => void; onInvite:
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth0_access_token') || ''}`,
+          'Authorization': `Bearer ${await getAuthToken()}`,
         },
         body: JSON.stringify({
           email,

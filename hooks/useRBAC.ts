@@ -21,12 +21,12 @@ import { useState, useEffect, useMemo } from 'react';
 // ============================================================================
 
 export const ROLES = {
-  SUPERADMIN: 'superadmin',
-  ADMIN: 'admin',
-  DOCTOR: 'doctor',
-  NURSE: 'nurse',
-  STAFF: 'staff',
-  VIEWER: 'viewer',
+  SUPERADMIN: 'FI-superadmin',
+  ADMIN: 'FI-admin',
+  DOCTOR: 'FI-doctor',
+  NURSE: 'FI-nurse',
+  STAFF: 'FI-staff',
+  VIEWER: 'FI-viewer',
 } as const;
 
 export type Role = (typeof ROLES)[keyof typeof ROLES];
@@ -114,7 +114,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
 
 /**
  * Superadmin email list (configurable via environment variable)
- * Fallback to hardcoded list for development
+ * IMPORTANT: Must set NEXT_PUBLIC_SUPERADMIN_EMAILS in .env.local
  */
 const getSuperAdminEmails = (): string[] => {
   if (typeof window === 'undefined') return [];
@@ -124,8 +124,9 @@ const getSuperAdminEmails = (): string[] => {
     return envEmails.split(',').map(email => email.trim().toLowerCase());
   }
 
-  // Fallback to hardcoded list (TODO: Move to database)
-  return ['bernarduriza@gmail.com'];
+  // No fallback - env var is required for security
+  console.warn('⚠️ NEXT_PUBLIC_SUPERADMIN_EMAILS not set. No superadmins configured.');
+  return [];
 };
 
 // ============================================================================
