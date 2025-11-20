@@ -10,6 +10,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
+// Required for static export (Next.js 16 with output: 'export')
+// Note: dynamicParams not compatible with static export
+export const dynamic = 'force-static';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }

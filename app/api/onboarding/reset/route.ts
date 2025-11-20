@@ -7,6 +7,9 @@
 
 import { NextResponse } from 'next/server';
 
+// Required for static export (Next.js 16 with output: 'export')
+export const dynamic = 'force-static';
+
 export async function DELETE() {
   // Return instructions for client-side reset
   // (LocalStorage can only be accessed client-side)

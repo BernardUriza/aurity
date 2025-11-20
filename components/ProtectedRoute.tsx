@@ -4,27 +4,29 @@
  * ProtectedRoute Component
  * HIPAA Card: G-003 - Auth0 Integration
  *
- * Protects routes by requiring authentication.
- * Redirects unauthenticated users to login page.
+ * Protects routes by requiring authentication and specific roles/permissions.
+ * Uses centralized RBAC hook for role management.
  */
 
 import { useAuth0 } from '@auth0/auth0-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, ReactNode } from 'react';
+import { useRBAC, type Role } from '@/hooks/useRBAC';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requireRoles?: string[];
+  requireRoles?: Role[];
 }
 
 export function ProtectedRoute({ children, requireRoles }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, loginWithRedirect, user, getAccessTokenSilently } = useAuth0();
+  const { isAuthenticated, isLoading: authLoading, loginWithRedirect, user } = useAuth0();
+  const { hasAnyRole, isSuperAdmin, isLoading: rbacLoading } = useRBAC();
   const router = useRouter();
 
   useEffect(() => {
     const checkAuth = async () => {
       // Wait for Auth0 to finish loading
-      if (isLoading) return;
+      if (authLoading || rbacLoading) return;
 
       // Redirect to login if not authenticated
       if (!isAuthenticated) {
@@ -38,47 +40,31 @@ export function ProtectedRoute({ children, requireRoles }: ProtectedRouteProps) 
 
       console.log('[ProtectedRoute] User authenticated:', user?.email);
 
-      // SUPERADMIN BYPASS - bernarduriza@gmail.com has full access
-      if (user?.email === 'bernarduriza@gmail.com') {
-        console.log('[ProtectedRoute] ⭐ SUPERADMIN BYPASS - Full access granted');
+      // Superadmin bypass (handled by useRBAC hook)
+      if (isSuperAdmin) {
+        console.log('[ProtectedRoute] ⭐ SUPERADMIN - Full access granted');
         return;
       }
 
       // Check role requirements if specified
       if (requireRoles && requireRoles.length > 0) {
-        try {
-          const token = await getAccessTokenSilently();
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          const userRoles = payload['https://aurity.app/roles'] || [];
+        console.log('[ProtectedRoute] Required roles:', requireRoles);
 
-          console.log('[ProtectedRoute] Required roles:', requireRoles);
-          console.log('[ProtectedRoute] User roles:', userRoles);
-
-          // Check if user has at least one required role
-          const hasRequiredRole = requireRoles.some(role => userRoles.includes(role));
-
-          if (!hasRequiredRole) {
-            console.warn('[ProtectedRoute] Access denied - missing required roles');
-            // User doesn't have required role - redirect to unauthorized page
-            router.push('/unauthorized');
-            return;
-          }
-
-          console.log('[ProtectedRoute] ✅ Access granted');
-        } catch (error) {
-          console.error('[ProtectedRoute] Failed to check user roles:', error);
-          // On error, allow access for now (lenient mode during setup)
-          console.warn('[ProtectedRoute] ⚠️ Role check failed, allowing access (setup mode)');
+        if (!hasAnyRole(requireRoles)) {
+          console.warn('[ProtectedRoute] Access denied - missing required roles');
+          router.push('/unauthorized');
           return;
         }
+
+        console.log('[ProtectedRoute] ✅ Access granted');
       }
     };
 
     checkAuth();
-  }, [isAuthenticated, isLoading, loginWithRedirect, requireRoles, getAccessTokenSilently, router, user]);
+  }, [isAuthenticated, authLoading, rbacLoading, loginWithRedirect, requireRoles, hasAnyRole, isSuperAdmin, router, user]);
 
   // Show loading state while checking authentication
-  if (isLoading) {
+  if (authLoading || rbacLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <div className="text-center">

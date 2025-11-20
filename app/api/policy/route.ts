@@ -7,6 +7,9 @@
 
 import { NextResponse } from 'next/server';
 
+// Required for static export (Next.js 16 with output: 'export')
+export const dynamic = 'force-static';
+
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
 
 export async function GET() {
@@ -16,8 +19,8 @@ export async function GET() {
       headers: {
         'Content-Type': 'application/json',
       },
-      // Don't cache policy responses
-      cache: 'no-store',
+      // Cache for static export (Next.js 16 requirement)
+      cache: 'force-cache',
     });
 
     if (!response.ok) {

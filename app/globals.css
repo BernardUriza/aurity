@@ -24,6 +24,26 @@
   background: rgb(148 163 184);
 }
 
+/* Thin Modern Scrollbar for Chat (Research-backed: scrollbar-width: thin) */
+#chat-widget-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+#chat-widget-messages::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 3px;
+}
+
+#chat-widget-messages::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+#chat-widget-messages::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
 /* Free-Intelligence Component Animations (FI-ONBOARD-002) */
 
 /* Fade in with upward motion for message bubbles */

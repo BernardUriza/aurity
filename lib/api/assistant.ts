@@ -175,6 +175,55 @@ export class AssistantAPI {
   }
 
   /**
+   * Public chat (anonymous, rate-limited)
+   *
+   * Endpoint: POST /api/workflows/aurity/assistant/public-chat
+   *
+   * This endpoint doesn't require Auth0 and has rate-limiting:
+   * - 20 req/min per IP
+   * - 10 req/min per session
+   *
+   * @param request Chat request with message, context, and session_id
+   * @returns FI response with remaining_requests
+   * @throws Error if request fails (including 429 rate-limit, 503 kill-switch)
+   *
+   * @example
+   * ```ts
+   * const api = new AssistantAPI();
+   * try {
+   *   const response = await api.publicChat({
+   *     message: '¿Qué es AURITY?',
+   *     session_id: 'public_session_123',
+   *   });
+   *   console.log(response.message);
+   *   console.log(`Remaining requests: ${response.remaining_requests}`);
+   * } catch (error) {
+   *   if (error.message.includes('429')) {
+   *     alert('Rate limit alcanzado. Espera un momento.');
+   *   }
+   * }
+   * ```
+   */
+  async publicChat(request: FIChatRequest): Promise<FIChatResponse & { remaining_requests: number }> {
+    const url = `${this.config.baseURL}/api/workflows/aurity/assistant/public-chat`;
+
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      },
+      this.config
+    );
+
+    const data = await response.json();
+    return data;
+  }
+
+  /**
    * Health check for Assistant API
    *
    * @returns true if API is healthy

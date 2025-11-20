@@ -1,67 +1,101 @@
 /**
- * AURITY Banner Component
+ * AURITY Banner Component - Compact 2025 Redesign
  *
- * Reusable banner showing AURITY acronym with medical symbols + UserDisplay
- * Used in: SlimIndexHub, Onboarding
+ * Minimal, efficient header following healthcare UX best practices:
+ * - Reduced cognitive load (no blur backgrounds)
+ * - Compact vertical spacing (py-3)
+ * - Clear visual hierarchy
+ * - Acronym always visible for constant reinforcement
+ * - NO sticky (prevents banner blindness)
+ *
+ * Used in: SlimIndexHub, Onboarding, ChatPublic
  */
 
-import { UserDisplay } from "./UserDisplay";
+'use client';
+
+import { UserDisplay } from './UserDisplay';
 
 export function AurityBanner() {
   return (
-    <div className="relative overflow-x-hidden bg-slate-900/60 backdrop-blur-xl border-b border-slate-700/50 shadow-lg z-10">
-      {/* Abstract geometric background - subtle */}
-      <div className="absolute inset-0 opacity-[0.03]">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-400 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-400 rounded-full blur-3xl" />
-      </div>
+    <div className="bg-slate-900/95 border-b border-slate-800/80 shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+        <div className="flex items-center justify-between gap-4">
+          {/* Compact icon + brand */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* Minimalist layered server icon */}
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              className="text-emerald-400 flex-shrink-0"
+            >
+              <path
+                d="M12 2L2 7L12 12L22 7L12 2Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="currentColor"
+                fillOpacity="0.2"
+              />
+              <path
+                d="M2 17L12 22L22 17"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M2 12L12 17L22 12"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
 
-      <div className="relative max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
-        <div className="flex items-center justify-between gap-6">
-          {/* Minimalist medical icon with subtle shadow */}
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-emerald-300/80 flex-shrink-0 drop-shadow-md">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="currentColor" fillOpacity="0.15"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+            {/* Brand name with inline acronym */}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="flex items-baseline gap-2 flex-shrink-0">
+                <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+                  AURITY
+                </h1>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  v0.1.0
+                </span>
+              </div>
 
-          {/* AURITY - Neo-minimalist typography */}
-          <div className="flex-1">
-            <div className="flex items-baseline justify-center gap-3 mb-4">
-              <h2 className="text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-emerald-300 via-emerald-400 to-cyan-400 drop-shadow-sm">
-                AURITY
-              </h2>
-              <span className="text-xs text-slate-400/60 font-light tracking-wide">v0.1.0</span>
-            </div>
-            {/* Refined acronym - better spacing */}
-            <div className="flex items-center justify-center gap-4 flex-wrap">
-              <span className="text-slate-200/90 text-sm font-light tracking-wide">
-                <span className="font-semibold text-emerald-300 text-base">A</span>dvanced
-              </span>
-              <span className="text-slate-600/50 text-xs">•</span>
-              <span className="text-slate-200/90 text-sm font-light tracking-wide">
-                <span className="font-semibold text-emerald-300 text-base">U</span>niversal
-              </span>
-              <span className="text-slate-600/50 text-xs">•</span>
-              <span className="text-slate-200/90 text-sm font-light tracking-wide">
-                <span className="font-semibold text-emerald-300 text-base">R</span>eliable
-              </span>
-              <span className="text-slate-600/50 text-xs">•</span>
-              <span className="text-slate-200/90 text-sm font-light tracking-wide">
-                <span className="font-semibold text-emerald-300 text-base">I</span>ntelligence
-              </span>
-              <span className="text-slate-600/50 text-xs">•</span>
-              <span className="text-slate-200/90 text-sm font-light tracking-wide">
-                for <span className="font-semibold text-emerald-300 text-base">T</span>elemedicine
-              </span>
-              <span className="text-slate-600/50 text-xs">•</span>
-              <span className="text-slate-200/90 text-sm font-light tracking-wide">
-                <span className="font-semibold text-emerald-300 text-base">Y</span>ield
-              </span>
+              {/* Acronym - always visible, compact inline */}
+              <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-400 min-w-0 overflow-hidden">
+                <span className="whitespace-nowrap">
+                  <span className="font-semibold text-emerald-400">A</span>dvanced
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="whitespace-nowrap">
+                  <span className="font-semibold text-emerald-400">U</span>niversal
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="whitespace-nowrap">
+                  <span className="font-semibold text-emerald-400">R</span>eliable
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="whitespace-nowrap">
+                  <span className="font-semibold text-emerald-400">I</span>ntelligence
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="whitespace-nowrap">
+                  for <span className="font-semibold text-emerald-400">T</span>elemedicine
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="whitespace-nowrap">
+                  <span className="font-semibold text-emerald-400">Y</span>ield
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* User Authentication Display */}
+          {/* User display - compact */}
           <div className="flex-shrink-0">
             <UserDisplay />
           </div>

@@ -47,7 +47,7 @@ export function Auth0Provider({ children }: Auth0ProviderProps) {
       authorizationParams={{
         redirect_uri: redirectUri,
         audience: audience,
-        scope: 'openid profile email',
+        scope: 'openid profile email offline_access',
       }}
       onRedirectCallback={onRedirectCallback}
       useRefreshTokens={true}

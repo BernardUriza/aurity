@@ -12,6 +12,7 @@ import type {
   FIChatContext,
   FIChatResponse,
   OnboardingPhase,
+  FITone,
 } from '@/types/assistant';
 
 /**
@@ -194,11 +195,20 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
     setIsTyping(true);
 
     try {
-      const response = await assistantAPI.chat({
-        message: userMessage,
-        context: { ...context, phase },
-        conversationHistory: messages,
-      });
+      // Auto-detect: if no doctor_id in context → use public-chat endpoint
+      const isPublicMode = !context?.doctor_id;
+
+      const response = isPublicMode
+        ? await assistantAPI.publicChat({
+            message: userMessage,
+            context: { ...context, phase },
+            conversationHistory: messages,
+          })
+        : await assistantAPI.chat({
+            message: userMessage,
+            context: { ...context, phase },
+            conversationHistory: messages,
+          });
 
       const fiMessage: FIMessage = {
         role: 'assistant',

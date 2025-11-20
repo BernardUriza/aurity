@@ -15,6 +15,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
+import { useRBAC } from '@/hooks/useRBAC';
 
 export function UserDisplay() {
   const {
@@ -26,6 +27,7 @@ export function UserDisplay() {
     getAccessTokenSilently,
   } = useAuth0();
 
+  const { isSuperAdmin } = useRBAC();
   const router = useRouter();
   const [userRole, setUserRole] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -160,7 +162,7 @@ export function UserDisplay() {
           </button>
 
           {/* Configuración - SUPERADMIN ONLY */}
-          {user?.email === 'bernarduriza@gmail.com' && (
+          {isSuperAdmin && (
             <button
               onClick={() => {
                 setDropdownOpen(false);

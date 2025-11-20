@@ -3,11 +3,15 @@
  *
  * Card: FI-ONBOARD-002
  * Displays Free-Intelligence messages with persona-based styling
+ * Enhanced with smart timestamps and tooltips
  */
 
 import type { FIMessage } from '@/types/assistant';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
+import { CopyButton } from '@/components/chat/MessageActions';
+import type { TimestampConfig } from '@/config/chat.config';
 
 /**
  * Persona-based styling configuration
@@ -84,6 +88,9 @@ export interface FIMessageBubbleProps {
   /** Show timestamp */
   showTimestamp?: boolean;
 
+  /** Timestamp configuration */
+  timestampConfig?: Partial<TimestampConfig>;
+
   /** Animate entrance */
   animate?: boolean;
 
@@ -116,7 +123,8 @@ export interface FIMessageBubbleProps {
  */
 export function FIMessageBubble({
   message,
-  showTimestamp = false,
+  showTimestamp = true,
+  timestampConfig,
   animate = true,
   className = '',
 }: FIMessageBubbleProps) {
@@ -125,14 +133,6 @@ export function FIMessageBubble({
 
   // Get style for persona (with fallback)
   const style = PERSONA_STYLES[persona as keyof typeof PERSONA_STYLES] || FALLBACK_STYLE;
-
-  // Format timestamp
-  const formattedTime = showTimestamp
-    ? new Date(message.timestamp).toLocaleTimeString('es-MX', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : null;
 
   return (
     <div
@@ -147,6 +147,7 @@ export function FIMessageBubble({
       {/* Message Bubble */}
       <div
         className={`
+          relative group
           flex-1 max-w-[85%]
           p-4 rounded-2xl rounded-tl-sm
           border ${style.border}
@@ -157,19 +158,29 @@ export function FIMessageBubble({
           hover:shadow-xl
         `}
       >
-        {/* Header: Label + Icon */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className={`text-xs font-semibold tracking-wide ${style.labelColor}`}>
-            {style.label}
-          </span>
-          <span className="text-base" role="img" aria-label={`Persona: ${persona}`}>
-            {style.icon}
-          </span>
-          {showTimestamp && formattedTime && (
-            <span className="ml-auto text-xs text-slate-400/60 font-light">
-              {formattedTime}
+        {/* Header: Label + Icon + Timestamp + Actions */}
+        <div className="flex items-center gap-2 mb-3 justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-semibold tracking-wide ${style.labelColor}`}>
+              {style.label}
             </span>
-          )}
+            <span className="text-base" role="img" aria-label={`Persona: ${persona}`}>
+              {style.icon}
+            </span>
+            {showTimestamp && (
+              <MessageTimestamp
+                timestamp={message.timestamp}
+                config={timestampConfig}
+                position="inline"
+                size="xs"
+              />
+            )}
+          </div>
+
+          {/* Action buttons */}
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+            <CopyButton content={message.content} size="sm" />
+          </div>
         </div>
 
         {/* Message Content */}

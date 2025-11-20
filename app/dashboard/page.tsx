@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState, useCallback, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { KPICard, KPIStatus } from "../../components/KPICard"
 import { PageHeader } from "../../components/PageHeader"
@@ -23,7 +23,7 @@ import {
 import Link from "next/link"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode') // 'control' for doctor view, null for patient TV view
 
@@ -437,5 +437,14 @@ export default function DashboardPage() {
     </div>
       </div>
     </ProtectedRoute>
+  )
+}
+
+// Wrap in Suspense for useSearchParams() (Next.js 16 requirement)
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen">Cargando dashboard...</div>}>
+      <DashboardContent />
+    </Suspense>
   )
 }
