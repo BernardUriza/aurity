@@ -4,11 +4,12 @@
  * ChatWidgetHeader Component
  *
  * Header for chat widget with title, subtitle, and control buttons
- * (minimize, fullscreen, close)
+ * (minimize, maximize/expand, close)
  */
 
 import Link from 'next/link';
 import { X, Minimize2, Maximize2, MessageCircle, Search } from 'lucide-react';
+import type { ChatViewMode } from './ChatWidgetContainer';
 
 export interface ChatWidgetHeaderProps {
   /** Widget title */
@@ -21,7 +22,7 @@ export interface ChatWidgetHeaderProps {
   backgroundClass?: string;
 
   /** Current view mode */
-  mode: 'normal' | 'minimized' | 'fullscreen';
+  mode: ChatViewMode;
 
   /** Show control buttons (minimize, maximize, close) - defaults to true */
   showControls?: boolean;
