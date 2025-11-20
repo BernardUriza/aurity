@@ -94,13 +94,13 @@ export function ChatWidgetHeader({
             </button>
           )}
 
-          {/* Fullscreen/Normal */}
+          {/* Expand/Normal */}
           {mode !== 'minimized' && (
             <button
               onClick={onMaximize}
               className="text-white/70 hover:text-white transition-colors p-1 rounded hover:bg-white/10"
-              aria-label={mode === 'fullscreen' ? 'Exit fullscreen' : 'Fullscreen'}
-              title={mode === 'fullscreen' ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              aria-label={mode === 'expanded' ? 'Restaurar tamaño' : 'Expandir'}
+              title={mode === 'expanded' ? 'Restaurar tamaño' : 'Expandir (60% más grande)'}
             >
               <Maximize2 className="h-4 w-4" />
             </button>

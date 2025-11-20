@@ -8,7 +8,7 @@
 "use client"
 
 import { useRouter } from 'next/navigation'
-import { UserDisplay } from './UserDisplay'
+import { UserDisplay } from '@/components/auth/UserDisplay'
 import {
   ArrowLeft,
   Home,

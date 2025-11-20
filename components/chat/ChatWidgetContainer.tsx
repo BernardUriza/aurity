@@ -12,7 +12,7 @@
 import { MessageCircle, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-export type ChatViewMode = 'normal' | 'fullscreen' | 'minimized';
+export type ChatViewMode = 'normal' | 'fullscreen' | 'minimized' | 'expanded';
 
 export interface ChatWidgetContainerProps {
   /** Current view mode */
@@ -71,6 +71,29 @@ export function ChatWidgetContainer({
         >
           <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
         </button>
+      </div>
+    );
+  }
+
+  // ========================================================================
+  // EXPANDED VIEW (60% larger than normal)
+  // ========================================================================
+  if (mode === 'expanded') {
+    return (
+      <div
+        className="
+          fixed bottom-6 right-6
+          w-[614px] h-[960px]
+          bg-slate-900 border border-slate-700
+          rounded-2xl shadow-2xl
+          z-50
+          flex flex-col
+          overflow-hidden
+          animate-scale-in
+          transition-all duration-300
+        "
+      >
+        {children}
       </div>
     );
   }

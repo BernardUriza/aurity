@@ -118,7 +118,7 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   };
 
   const handleMinimize = () => setViewMode('minimized');
-  const handleMaximize = () => setViewMode(viewMode === 'fullscreen' ? 'normal' : 'fullscreen');
+  const handleMaximize = () => setViewMode(viewMode === 'expanded' ? 'normal' : 'expanded');
   const handleClose = () => setIsOpen(false);
 
   // Toolbar handlers

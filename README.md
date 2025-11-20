@@ -22,7 +22,7 @@ Aurity es un framework de telemedicina que integra **Free Intelligence (FI)** co
 
 ## ⚡ Tech Stack
 
-- ⚡ Next.js 14 con App Router
+- ⚡ Next.js 16 con App Router
 - 🔷 TypeScript para type safety
 - 🎨 Tailwind CSS para estilos
 - 📱 Diseño responsive
@@ -36,14 +36,14 @@ Aurity es un framework de telemedicina que integra **Free Intelligence (FI)** co
 ### Prerequisites
 
 - Node.js 20.x LTS
-- npm 9+ or pnpm
+- pnpm (preferred package manager)
 - Docker & Docker Compose (opcional)
 
 ### Installation
 
 1. **Clone and install dependencies**
    ```bash
-   npm install
+   pnpm install
    ```
 
 2. **Setup environment**
@@ -54,19 +54,19 @@ Aurity es un framework de telemedicina que integra **Free Intelligence (FI)** co
 
 3. **Run development server**
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 4. **Open browser**
-   Abre [http://localhost:3000](http://localhost:3000) para ver la aplicación.
+   Abre [http://localhost:9000](http://localhost:9000) para ver la aplicación.
 
 ## Scripts Disponibles
 
-- `npm run dev` - Inicia el servidor de desarrollo
-- `npm run build` - Construye la aplicación para producción
-- `npm run start` - Inicia el servidor de producción
-- `npm run lint` - Ejecuta ESLint
-- `npm run type-check` - Verifica los tipos de TypeScript
+- `pnpm dev` - Inicia el servidor de desarrollo (puerto 9000)
+- `pnpm build` - Construye la aplicación para producción
+- `pnpm start` - Inicia el servidor de producción
+- `pnpm lint` - Ejecuta ESLint
+- `pnpm type-check` - Verifica los tipos de TypeScript
 
 ## 📁 Project Structure
 
