@@ -11,8 +11,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NAV_ROUTES, getRouteByShortcut } from "@/lib/navigation";
-import { AccessTile } from "./AccessTile";
-import { AurityBanner } from "./AurityBanner";
+import { AccessTile } from "../dashboard/AccessTile";
+import { AurityBanner } from "@/components/layout/AurityBanner";
 
 export function SlimIndexHub() {
   const router = useRouter();
