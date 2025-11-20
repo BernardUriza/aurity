@@ -176,52 +176,6 @@ export class AssistantAPI {
 
   /**
    * Public chat (anonymous, rate-limited)
-   *
-   * @deprecated Use `chat()` instead. This method is deprecated and will be removed
-   * in a future version. The `chat()` method handles both authenticated (with memory)
-   * and anonymous (ephemeral) conversations automatically.
-   *
-   * Endpoint: POST /api/workflows/aurity/assistant/public-chat
-   *
-   * This endpoint doesn't require Auth0 and has rate-limiting:
-   * - 20 req/min per IP
-   * - 10 req/min per session
-   *
-   * @param request Chat request with message, context, and session_id
-   * @returns FI response with remaining_requests
-   * @throws Error if request fails (including 429 rate-limit, 503 kill-switch)
-   *
-   * @example
-   * ```ts
-   * // ❌ DEPRECATED - Don't use publicChat()
-   * const response = await api.publicChat({ message: '...' });
-   *
-   * // ✅ USE THIS INSTEAD - Use chat() without doctor_id
-   * const response = await api.chat({
-   *   message: '¿Qué es AURITY?',
-   *   context: {}, // No doctor_id = ephemeral mode
-   *   session_id: 'public_session_123',
-   * });
-   * ```
-   */
-  async publicChat(request: FIChatRequest): Promise<FIChatResponse & { remaining_requests: number }> {
-    const url = `${this.config.baseURL}/api/workflows/aurity/assistant/public-chat`;
-
-    const response = await fetchWithRetry(
-      url,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      },
-      this.config
-    );
-
-    const data = await response.json();
-    return data;
-  }
 
   /**
    * Health check for Assistant API

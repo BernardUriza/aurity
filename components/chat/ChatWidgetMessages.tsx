@@ -211,6 +211,25 @@ export function ChatWidgetMessages({
 
           {/* Typing Indicator */}
           {isTyping && <FITypingIndicator />}
+
+          {/* Legal Disclaimer - Always at bottom */}
+          {messages.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-slate-700/50">
+              <div className="text-xs text-slate-500 leading-relaxed space-y-2">
+                <p className="font-medium text-slate-400">
+                  ⚕️ Aviso Legal y Protección de Datos
+                </p>
+                <p>
+                  Esta aplicación cumple con estándares de protección de información de salud (HIPAA).
+                  Los datos permanecen en tu infraestructura local y no se transmiten a la nube.
+                  Como asistente de IA, no tengo acceso directo a PHI sin tu autorización explícita.
+                </p>
+                <p className="text-slate-600">
+                  Si necesitas más información sobre privacidad, consulta la política de tu institución.
+                </p>
+              </div>
+            </div>
+          )}
         </>
       )}
       </div>

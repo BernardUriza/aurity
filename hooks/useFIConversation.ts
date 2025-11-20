@@ -217,8 +217,9 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
       }
     }
 
-    // Initial load complete (either from storage or empty)
+    // Initial load complete - reset UI state
     setLoadingInitial(false);
+    setIsTyping(false); // Reset typing indicator from previous session
   }, [storageKey, storage]);
 
   // Background sync with backend (cross-device consistency)
