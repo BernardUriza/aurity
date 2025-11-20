@@ -183,6 +183,7 @@ export class WebSocketSyncStrategy implements IRealtimeSync {
   private backendUrl: string;
   private reconnectAttempts = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private intentionalDisconnect = false; // NEW: Prevent reconnect on intentional close
 
   constructor(backendUrl?: string) {
     this.backendUrl = backendUrl || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
@@ -190,6 +191,9 @@ export class WebSocketSyncStrategy implements IRealtimeSync {
 
   connect(doctorId: string, onMessage: (message: FIMessage) => void): void {
     try {
+      // Reset intentional disconnect flag (new connection is intentional)
+      this.intentionalDisconnect = false;
+
       // Determine WebSocket URL (wss:// for production, ws:// for dev)
       const wsProtocol = this.backendUrl.startsWith('https') ? 'wss' : 'ws';
       const wsUrl = this.backendUrl.replace(/^https?/, wsProtocol);
@@ -235,6 +239,12 @@ export class WebSocketSyncStrategy implements IRealtimeSync {
       this.ws.onclose = () => {
         console.log('[WebSocket] Disconnected');
 
+        // Only auto-reconnect if NOT an intentional disconnect
+        if (this.intentionalDisconnect) {
+          console.log('[WebSocket] Intentional disconnect - NOT reconnecting');
+          return;
+        }
+
         // Exponential backoff for reconnection
         const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
         this.reconnectAttempts += 1;
@@ -261,6 +271,9 @@ export class WebSocketSyncStrategy implements IRealtimeSync {
   }
 
   disconnect(): void {
+    // Set flag BEFORE closing to prevent auto-reconnect
+    this.intentionalDisconnect = true;
+
     if (this.ws) {
       // Clear ping interval
       const pingInterval = (this.ws as any)._pingInterval;
