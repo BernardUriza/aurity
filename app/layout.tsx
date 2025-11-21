@@ -19,6 +19,21 @@ export const metadata: Metadata = {
   description: 'Asistente médico con IA en la nube. Tus datos seguros, notas SOAP automáticas, asesoría clínica basada en evidencia. Opción self-hosted disponible.',
   keywords: ['healthcare', 'cloud AI', 'data security', 'PHI', 'HIPAA', 'medical AI', 'SOAP notes', 'clinical advisor', 'telemedicine', 'self-hosted'],
 
+  // PWA Configuration
+  manifest: '/manifest.json',
+  applicationName: 'AURITY',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'AURITY',
+  },
+  formatDetection: {
+    telephone: true,
+    date: true,
+    address: true,
+    email: true,
+  },
+
   // Open Graph (WhatsApp, Facebook, LinkedIn)
   openGraph: {
     title: 'Free Intelligence · AURITY',
@@ -56,7 +71,7 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.png',
     shortcut: '/favicon.png',
-    apple: '/favicon.png',
+    apple: '/icons/icon-192x192.svg',
   },
 };
 
@@ -69,10 +84,48 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+
+        {/* PWA Meta Tags */}
+        <meta name="theme-color" content="#0f172a" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="AURITY" />
+        <meta name="msapplication-TileColor" content="#0f172a" />
+        <meta name="msapplication-tap-highlight" content="no" />
+
+        {/* Apple Touch Icons */}
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.svg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.svg" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192x192.svg" />
+
+        {/* Splash Screens for iOS (optional - can be generated later) */}
+        <link rel="apple-touch-startup-image" href="/icons/icon-512x512.svg" />
+
         {/* Eruda - Mobile DevTools Console (TEMPORARY - Remove after debugging) */}
         <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
         <script dangerouslySetInnerHTML={{ __html: `eruda.init();` }} />
+
+        {/* Service Worker Registration */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                      console.log('[PWA] Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(function(error) {
+                      console.error('[PWA] Service Worker registration failed:', error);
+                    });
+                });
+              }
+            `,
+          }}
+        />
       </head>
       <body className="min-h-screen bg-slate-900 antialiased">
         <Auth0Provider>
