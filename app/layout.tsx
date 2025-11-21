@@ -15,9 +15,49 @@ import { Auth0Provider } from '@/components/auth/Auth0Provider';
 import { ConditionalChatWidget } from '@/components/chat/ConditionalChatWidget';
 
 export const metadata: Metadata = {
-  title: 'Aurity Framework',
-  description: 'Free Intelligence - Data Sovereignty Framework for Healthcare',
-  keywords: ['healthcare', 'data sovereignty', 'PHI', 'HIPAA', 'medical'],
+  title: 'Free Intelligence · AURITY',
+  description: 'Asistente médico con IA en la nube. Tus datos seguros, notas SOAP automáticas, asesoría clínica basada en evidencia. Opción self-hosted disponible.',
+  keywords: ['healthcare', 'cloud AI', 'data security', 'PHI', 'HIPAA', 'medical AI', 'SOAP notes', 'clinical advisor', 'telemedicine', 'self-hosted'],
+
+  // Open Graph (WhatsApp, Facebook, LinkedIn)
+  openGraph: {
+    title: 'Free Intelligence · AURITY',
+    description: 'Asistente médico con IA en la nube. Tus datos siempre seguros, con opción de instalación propia.',
+    url: 'https://app.aurity.io/chat',
+    siteName: 'Free Intelligence',
+    images: [
+      {
+        url: 'https://app.aurity.io/og-banner.png',
+        width: 1200,
+        height: 630,
+        alt: 'Free Intelligence - IA Médica Segura en la Nube',
+      },
+    ],
+    locale: 'es_MX',
+    type: 'website',
+  },
+
+  // Twitter Card
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Free Intelligence · AURITY',
+    description: 'Asistente médico con IA en la nube. Tus datos siempre seguros, con opción de instalación propia.',
+    images: ['https://app.aurity.io/og-banner.png'],
+    creator: '@freeintelligence', // TODO: Update with real Twitter handle
+  },
+
+  // Additional metadata
+  authors: [{ name: 'Dr. Bernard Uriza Orozco' }],
+  creator: 'Free Intelligence Team',
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
+  },
 };
 
 export default function RootLayout({
@@ -30,6 +70,9 @@ export default function RootLayout({
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Eruda - Mobile DevTools Console (TEMPORARY - Remove after debugging) */}
+        <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+        <script dangerouslySetInnerHTML={{ __html: `eruda.init();` }} />
       </head>
       <body className="min-h-screen bg-slate-900 antialiased">
         <Auth0Provider>
