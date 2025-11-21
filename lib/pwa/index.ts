@@ -2,6 +2,17 @@
 // PWA Module - Public API
 // =============================================================================
 
+// Context & Provider
+export {
+  PWAProvider,
+  usePWA,
+  usePWAInstall,
+  usePWAOnline,
+  usePWAUpdate,
+} from './context';
+
+export type { PWAConfig, PWAState } from './context';
+
 // Storage utilities
 export {
   STORES,

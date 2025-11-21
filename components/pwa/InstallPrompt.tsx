@@ -1,81 +1,75 @@
 'use client';
 
 // =============================================================================
-// PWA Install Prompt Component
+// PWA Install Prompt Component - SOLID Refactor
 // =============================================================================
-// Shows install prompt for Android/Chrome and instructions for iOS
+// Single Responsibility: Only handles UI for install prompt
+// Dependency Inversion: Uses context instead of direct hook calls
 // =============================================================================
 
 import { useState, useEffect } from 'react';
-import { useInstallPrompt } from '@/hooks/useInstallPrompt';
+import { usePWAInstall } from '@/lib/pwa/context';
 import { X, Download, Share, Plus } from 'lucide-react';
 
-interface InstallPromptProps {
-  /** Delay before showing the prompt (ms) */
-  delay?: number;
-  /** Whether to show on iOS with manual instructions */
-  showOnIOS?: boolean;
-}
+const DISMISS_STORAGE_KEY = 'pwa-install-dismissed';
+const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-export function InstallPrompt({ delay = 3000, showOnIOS = true }: InstallPromptProps) {
-  const { isInstallable, isInstalled, isIOS, isStandalone, promptInstall, dismissPrompt } =
-    useInstallPrompt();
+export function InstallPrompt() {
+  const {
+    isInstallable,
+    isInstalled,
+    isIOS,
+    isStandalone,
+    promptInstall,
+    dismissInstallPrompt,
+    enabled,
+  } = usePWAInstall();
+
   const [isVisible, setIsVisible] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // Check if user previously dismissed
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
-    if (dismissed) {
-      const dismissedTime = parseInt(dismissed, 10);
-      // Show again after 7 days
-      if (Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) {
-        setIsDismissed(true);
-        return;
-      }
+    if (!enabled) return;
+
+    // Check if previously dismissed
+    const dismissedTime = localStorage.getItem(DISMISS_STORAGE_KEY);
+    if (dismissedTime && Date.now() - parseInt(dismissedTime, 10) < DISMISS_DURATION_MS) {
+      return;
     }
 
-    // Show prompt after delay
+    // Show after delay if conditions met
     const timer = setTimeout(() => {
-      if (!isInstalled && !isStandalone && (isInstallable || (isIOS && showOnIOS))) {
+      if (!isInstalled && !isStandalone && (isInstallable || isIOS)) {
         setIsVisible(true);
       }
-    }, delay);
+    }, 5000);
 
     return () => clearTimeout(timer);
-  }, [isInstallable, isInstalled, isIOS, isStandalone, delay, showOnIOS]);
+  }, [enabled, isInstallable, isInstalled, isIOS, isStandalone]);
 
   const handleInstall = async () => {
     const success = await promptInstall();
-    if (success) {
-      setIsVisible(false);
-    }
+    if (success) setIsVisible(false);
   };
 
   const handleDismiss = () => {
     setIsVisible(false);
-    setIsDismissed(true);
-    dismissPrompt();
-    localStorage.setItem('pwa-install-dismissed', String(Date.now()));
+    dismissInstallPrompt();
+    localStorage.setItem(DISMISS_STORAGE_KEY, String(Date.now()));
   };
 
-  if (!isVisible || isDismissed || isInstalled || isStandalone) {
-    return null;
-  }
+  if (!isVisible || !enabled) return null;
 
-  // iOS Instructions
+  // iOS: Manual instructions
   if (isIOS) {
     return (
-      <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up">
+      <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom duration-300">
         <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl">
           <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Download className="w-6 h-6 text-white" />
-            </div>
+            <IconBadge />
             <div className="flex-1 min-w-0">
-              <h3 className="text-white font-semibold text-base">Instalar AURITY</h3>
+              <Title />
               <p className="text-slate-400 text-sm mt-1">
-                Agrega esta app a tu pantalla de inicio para acceso rapido
+                Agrega esta app a tu pantalla de inicio
               </p>
               <div className="mt-3 flex items-center gap-2 text-slate-300 text-sm">
                 <span>Toca</span>
@@ -87,31 +81,23 @@ export function InstallPrompt({ delay = 3000, showOnIOS = true }: InstallPromptP
                 </span>
               </div>
             </div>
-            <button
-              onClick={handleDismiss}
-              className="flex-shrink-0 p-1 text-slate-500 hover:text-slate-300 transition-colors"
-              aria-label="Cerrar"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <CloseButton onClick={handleDismiss} />
           </div>
         </div>
       </div>
     );
   }
 
-  // Android/Chrome Install Prompt
+  // Android/Chrome/Desktop
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up">
+    <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom duration-300">
       <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl">
         <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-            <Download className="w-6 h-6 text-white" />
-          </div>
+          <IconBadge />
           <div className="flex-1 min-w-0">
-            <h3 className="text-white font-semibold text-base">Instalar AURITY</h3>
+            <Title />
             <p className="text-slate-400 text-sm mt-1">
-              Instala la app para acceso rapido y uso sin conexion
+              Instala la app para acceso rapido y uso offline
             </p>
             <div className="mt-3 flex gap-2">
               <button
@@ -128,15 +114,34 @@ export function InstallPrompt({ delay = 3000, showOnIOS = true }: InstallPromptP
               </button>
             </div>
           </div>
-          <button
-            onClick={handleDismiss}
-            className="flex-shrink-0 p-1 text-slate-500 hover:text-slate-300 transition-colors"
-            aria-label="Cerrar"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <CloseButton onClick={handleDismiss} />
         </div>
       </div>
     </div>
+  );
+}
+
+// Sub-components (Single Responsibility)
+function IconBadge() {
+  return (
+    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+      <Download className="w-6 h-6 text-white" />
+    </div>
+  );
+}
+
+function Title() {
+  return <h3 className="text-white font-semibold text-base">Instalar AURITY</h3>;
+}
+
+function CloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex-shrink-0 p-1 text-slate-500 hover:text-slate-300 transition-colors"
+      aria-label="Cerrar"
+    >
+      <X className="w-5 h-5" />
+    </button>
   );
 }

@@ -13,6 +13,8 @@ import { GlobalPolicyBanner } from '@/components/policy/GlobalPolicyBanner';
 import { ThemeProvider } from '@/components/shared/ThemeProvider';
 import { Auth0Provider } from '@/components/auth/Auth0Provider';
 import { ConditionalChatWidget } from '@/components/chat/ConditionalChatWidget';
+import { PWAProvider } from '@/lib/pwa';
+import { PWAManager } from '@/components/pwa';
 
 export const metadata: Metadata = {
   title: 'Free Intelligence · AURITY',
@@ -128,13 +130,16 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-slate-900 antialiased">
-        <Auth0Provider>
-          <ThemeProvider>
-            <GlobalPolicyBanner />
-            {children}
-            <ConditionalChatWidget />
-          </ThemeProvider>
-        </Auth0Provider>
+        <PWAProvider>
+          <Auth0Provider>
+            <ThemeProvider>
+              <PWAManager />
+              <GlobalPolicyBanner />
+              {children}
+              <ConditionalChatWidget />
+            </ThemeProvider>
+          </Auth0Provider>
+        </PWAProvider>
       </body>
     </html>
   );
