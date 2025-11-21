@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
+import { CheckinQRDisplay } from '@/components/checkin'
 
 function DashboardContent() {
   const searchParams = useSearchParams()
@@ -175,13 +176,24 @@ function DashboardContent() {
             />
           </div>
 
-          {/* FI Avatar with rotating content */}
-          <div className="max-w-4xl mx-auto">
-            <FIAvatar
-              mode="broadcast"
-              clinicName="Clínica AURITY"
-              doctorMessage={doctorMessage}
-            />
+          {/* Main Content: FI Avatar + Check-in QR */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+            {/* FI Avatar with rotating content (2/3 width) */}
+            <div className="lg:col-span-2">
+              <FIAvatar
+                mode="broadcast"
+                clinicName="Clínica AURITY"
+                doctorMessage={doctorMessage}
+              />
+            </div>
+
+            {/* Check-in QR Code (1/3 width) */}
+            <div className="lg:col-span-1">
+              <CheckinQRDisplay
+                clinicId="aurity-clinic-001"
+                clinicName="Clínica AURITY"
+              />
+            </div>
           </div>
         </div>
       </div>
