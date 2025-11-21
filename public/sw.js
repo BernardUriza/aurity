@@ -2,10 +2,12 @@
 // AURITY PWA - Service Worker
 // =============================================================================
 // Provides offline support and caching for the PWA
-// Version: 1.0.0
+// Version: 2.0.0 - Modern Architecture
 // =============================================================================
 
-const CACHE_NAME = 'aurity-v1';
+const CACHE_VERSION = 'v2';
+const STATIC_CACHE = `aurity-static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `aurity-dynamic-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 
 // Assets to cache on install (App Shell)
@@ -16,23 +18,36 @@ const STATIC_ASSETS = [
   '/offline.html',
   '/manifest.json',
   '/favicon.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
+  '/icons/icon-192x192.svg',
+  '/icons/icon-512x512.svg',
 ];
+
+// Cache size limits
+const DYNAMIC_CACHE_LIMIT = 50;
+
+// Trim cache to limit
+async function trimCache(cacheName, maxItems) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length > maxItems) {
+    await cache.delete(keys[0]);
+    trimCache(cacheName, maxItems);
+  }
+}
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing Service Worker...');
 
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(STATIC_CACHE)
       .then((cache) => {
         console.log('[SW] Caching app shell...');
         return cache.addAll(STATIC_ASSETS);
       })
       .then(() => {
         console.log('[SW] App shell cached successfully');
-        return self.skipWaiting();
+        // Don't skip waiting automatically - let the app control updates
       })
       .catch((error) => {
         console.error('[SW] Failed to cache app shell:', error);
@@ -49,7 +64,11 @@ self.addEventListener('activate', (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames
-            .filter((cacheName) => cacheName !== CACHE_NAME)
+            .filter((cacheName) => {
+              // Delete caches that don't match current version
+              return cacheName.startsWith('aurity-') &&
+                     !cacheName.includes(CACHE_VERSION);
+            })
             .map((cacheName) => {
               console.log('[SW] Deleting old cache:', cacheName);
               return caches.delete(cacheName);
@@ -63,7 +82,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - network first, fallback to cache
+// Message handler - for controlled updates from the app
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] Skip waiting requested');
+    self.skipWaiting();
+  }
+});
+
+// Fetch event - implements different strategies per resource type
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -78,25 +105,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle navigation requests (HTML pages)
+  // STRATEGY: Network First for navigation (HTML pages)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Clone the response to cache it
           const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
+          caches.open(DYNAMIC_CACHE).then((cache) => {
             cache.put(request, responseClone);
           });
           return response;
         })
         .catch(() => {
-          // Fallback to cache, then offline page
           return caches.match(request)
             .then((cachedResponse) => {
-              if (cachedResponse) {
-                return cachedResponse;
-              }
+              if (cachedResponse) return cachedResponse;
               return caches.match(OFFLINE_URL);
             });
         })
@@ -104,7 +127,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle static assets - cache first, network fallback
+  // STRATEGY: Stale While Revalidate for static assets
   if (
     request.destination === 'style' ||
     request.destination === 'script' ||
@@ -114,39 +137,29 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(request)
         .then((cachedResponse) => {
-          if (cachedResponse) {
-            // Return cached version and update cache in background
-            fetch(request)
-              .then((networkResponse) => {
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(request, networkResponse);
-                });
-              })
-              .catch(() => {});
-            return cachedResponse;
-          }
-
-          // Not in cache, fetch from network
-          return fetch(request)
+          const fetchPromise = fetch(request)
             .then((networkResponse) => {
-              const responseClone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, responseClone);
+              caches.open(STATIC_CACHE).then((cache) => {
+                cache.put(request, networkResponse.clone());
               });
               return networkResponse;
-            });
+            })
+            .catch(() => cachedResponse);
+
+          return cachedResponse || fetchPromise;
         })
     );
     return;
   }
 
-  // Default: Network first
+  // STRATEGY: Network First with cache fallback (default)
   event.respondWith(
     fetch(request)
       .then((response) => {
         const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
+        caches.open(DYNAMIC_CACHE).then((cache) => {
           cache.put(request, responseClone);
+          trimCache(DYNAMIC_CACHE, DYNAMIC_CACHE_LIMIT);
         });
         return response;
       })
