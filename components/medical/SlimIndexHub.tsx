@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { NAV_ROUTES, getRouteByShortcut } from "@/lib/navigation";
 import { AccessTile } from "../dashboard/AccessTile";
 import { AurityBanner } from "@/components/layout/AurityBanner";
@@ -52,6 +53,18 @@ export function SlimIndexHub() {
       <div className="fixed inset-0 opacity-[0.02] pointer-events-none">
         <div className="absolute top-1/4 left-1/3 w-[600px] h-[600px] bg-emerald-400 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/3 w-[600px] h-[600px] bg-cyan-400 rounded-full blur-3xl" />
+      </div>
+
+      {/* Aurity Logo Watermark */}
+      <div className="fixed inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
+        <Image
+          src="/logos/aurity-logo-light.png"
+          alt=""
+          width={800}
+          height={200}
+          className="w-auto h-auto max-w-[60%]"
+          priority={false}
+        />
       </div>
 
       {/* AURITY Banner */}

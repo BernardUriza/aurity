@@ -8,6 +8,7 @@
 "use client"
 
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { UserDisplay } from '@/components/auth/UserDisplay'
 import {
   ArrowLeft,
@@ -95,7 +96,13 @@ export function PageHeader({
                   className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
                 >
                   <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-                  <span className="font-medium">AURITY</span>
+                  <Image
+                    src="/logos/aurity-logo-light.png"
+                    alt="AURITY"
+                    width={80}
+                    height={24}
+                    className="h-6 w-auto"
+                  />
                 </button>
                 <div className="h-6 w-px bg-slate-700" />
               </>

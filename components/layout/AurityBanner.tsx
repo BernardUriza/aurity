@@ -13,6 +13,7 @@
 
 'use client';
 
+import Image from 'next/image';
 import { UserDisplay } from '@/components/auth/UserDisplay';
 
 export function AurityBanner() {
@@ -22,45 +23,18 @@ export function AurityBanner() {
         <div className="flex items-center justify-between gap-4">
           {/* Compact icon + brand */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* Minimalist layered server icon */}
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              className="text-emerald-400 flex-shrink-0"
-            >
-              <path
-                d="M12 2L2 7L12 12L22 7L12 2Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="currentColor"
-                fillOpacity="0.2"
-              />
-              <path
-                d="M2 17L12 22L22 17"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M2 12L12 17L22 12"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            {/* Aurity Logo */}
+            <Image
+              src="/logos/aurity-logo-light.png"
+              alt="AURITY"
+              width={120}
+              height={32}
+              className="h-8 w-auto flex-shrink-0"
+            />
 
             {/* Brand name with inline acronym */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="flex items-baseline gap-2 flex-shrink-0">
-                <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
-                  AURITY
-                </h1>
                 <span className="text-[10px] text-slate-500 font-medium">
                   v0.1.0
                 </span>
