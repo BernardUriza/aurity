@@ -11,7 +11,7 @@
  * - Voice input
  */
 
-import { Plus, Globe, Type, Zap, FileText, Brain } from 'lucide-react';
+import { Plus, Globe, Type, Zap, FileText, Brain, Stethoscope, FileEdit, Microscope, Compass } from 'lucide-react';
 import { VoiceMicButton } from './VoiceMicButton';
 
 export type ResponseMode = 'explanatory' | 'concise';
@@ -61,11 +61,15 @@ export interface ChatToolbarProps {
   onVoiceStop?: () => void;
 }
 
-const PERSONA_OPTIONS: { value: PersonaType; label: string; icon: string }[] = [
-  { value: 'general_assistant', label: 'General', icon: '🩺' },
-  { value: 'soap_editor', label: 'SOAP Editor', icon: '📋' },
-  { value: 'clinical_advisor', label: 'Advisor', icon: '🔬' },
-  { value: 'onboarding_guide', label: 'Guide', icon: '🎯' },
+const PERSONA_OPTIONS: {
+  value: PersonaType;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { value: 'general_assistant', label: 'General', Icon: Stethoscope },
+  { value: 'soap_editor', label: 'SOAP Editor', Icon: FileEdit },
+  { value: 'clinical_advisor', label: 'Advisor', Icon: Microscope },
+  { value: 'onboarding_guide', label: 'Guide', Icon: Compass },
 ];
 
 export function ChatToolbar({
@@ -112,12 +116,19 @@ export function ChatToolbar({
       {/* Left side: Utility actions */}
       <div className="flex items-center gap-1">
         {showPersonaSelector && (
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
+            {/* Current persona icon */}
+            {(() => {
+              const currentOption = PERSONA_OPTIONS.find(opt => opt.value === selectedPersona);
+              const CurrentIcon = currentOption?.Icon || Brain;
+              return <CurrentIcon className="w-4 h-4 text-purple-400" />;
+            })()}
+
             <select
               value={selectedPersona}
               onChange={(e) => onPersonaChange?.(e.target.value as PersonaType)}
               className="
-                px-3 py-2 pr-8
+                pl-2 pr-6 py-2
                 rounded-lg
                 bg-slate-800/80 hover:bg-slate-700/80
                 border border-slate-600/50
@@ -132,11 +143,11 @@ export function ChatToolbar({
             >
               {PERSONA_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.icon} {option.label}
+                  {option.label}
                 </option>
               ))}
             </select>
-            <Brain className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Brain className="absolute right-1 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
           </div>
         )}
 
