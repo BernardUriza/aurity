@@ -48,8 +48,8 @@ export const loadingStateConfig = {
 export const legalDisclaimerConfig = {
   emoji: '⚕️',
   title: 'Aviso Legal y Protección de Datos',
-  mainContent: `Esta aplicación cumple con estándares de protección de información de salud (HIPAA). Los datos permanecen en tu infraestructura local y no se transmiten a la nube. Como asistente de IA, no tengo acceso directo a PHI sin tu autorización explícita.`,
-  footerNote: 'Si necesitas más información sobre privacidad, consulta la política de tu institución.',
+  mainContent: `Esta aplicación cumple con estándares de protección de información de salud (HIPAA). Tus datos están encriptados y protegidos en nuestros servidores seguros. Como asistente de IA, no tengo acceso directo a PHI sin tu autorización explícita.`,
+  footerNote: 'Opción self-hosted disponible para instituciones que requieran control total de infraestructura.',
 
   // Timer configuration (ephemeral behavior)
   timer: {

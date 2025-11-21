@@ -8,15 +8,16 @@
  * - If anonymous → ephemeral mode (localStorage only, no backend)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useFIConversation } from '@/hooks/useFIConversation';
+import { useChatVoiceRecorder } from '@/hooks/useChatVoiceRecorder';
 import { AurityBanner } from '@/components/layout/AurityBanner';
 import type { ChatViewMode } from '@/components/chat/ChatWidgetContainer';
 import { ChatWidgetHeader } from '@/components/chat/ChatWidgetHeader';
 import { ChatWidgetMessages } from '@/components/chat/ChatWidgetMessages';
 import { ChatWidgetInput } from '@/components/chat/ChatWidgetInput';
-import { ChatToolbar, type ResponseMode } from '@/components/chat/ChatToolbar';
+import { ChatToolbar, type ResponseMode, type PersonaType } from '@/components/chat/ChatToolbar';
 import { ScrollToBottomButton } from '@/components/chat/ChatUtilities';
 import { defaultChatConfig, type ChatConfig } from '@/config/chat.config';
 
@@ -49,6 +50,43 @@ export default function ChatPage() {
   const [message, setMessage] = useState('');
   const [viewMode] = useState<ChatViewMode>('fullscreen');
   const [responseMode, setResponseMode] = useState<ResponseMode>('explanatory');
+  const [selectedPersona, setSelectedPersona] = useState<PersonaType>('general_assistant');
+
+  // Capture message before recording (for append behavior)
+  const messageBeforeRecordingRef = useRef('');
+
+  // Voice recording with useChatVoiceRecorder hook
+  const {
+    isRecording: isVoiceRecording,
+    recordingTime,
+    audioLevel,
+    isSilent,
+    liveTranscript,
+    isTranscribing,
+    startRecording: startVoiceRecording,
+    stopRecording: stopVoiceRecording,
+  } = useChatVoiceRecorder({
+    userId: user?.sub || 'anonymous',
+    onTranscriptUpdate: (transcript) => {
+      console.log('[ChatPage] Live transcript:', transcript);
+      // Append to existing message (captured before recording started)
+      const combined = messageBeforeRecordingRef.current
+        ? `${messageBeforeRecordingRef.current} ${transcript}`.trim()
+        : transcript;
+      setMessage(combined);
+    },
+    onError: (error) => {
+      console.error('[ChatPage] Voice error:', error);
+    },
+  });
+
+  const voiceRecordingState = useMemo(() => ({
+    isRecording: isVoiceRecording,
+    isTranscribing,
+    audioLevel,
+    isSilent,
+    recordingTime,
+  }), [isVoiceRecording, isTranscribing, audioLevel, isSilent, recordingTime]);
 
   // Adaptive: use doctor_id if authenticated, ephemeral if not
   const storageKey = user?.sub
@@ -63,12 +101,15 @@ export default function ChatPage() {
     isTyping,
     loadingInitial,
     sendMessage: sendMessageHook,
+    getIntroduction,
+    clearConversation,
   } = useFIConversation({
     phase: undefined,
     context: {
       doctor_id: user?.sub,  // If authenticated → memory enabled
       doctor_name: user?.name,
       response_mode: responseMode,
+      persona: selectedPersona,  // Pass selected persona to backend
     },
     storageKey,  // Persistent localStorage (anonymous or user-specific)
     autoIntroduction: true,
@@ -99,11 +140,50 @@ export default function ChatPage() {
     localStorage.setItem('fi_response_mode', newMode);
   };
 
+  // Handle persona change: keep conversation history, change behavior on next message
+  const handlePersonaChange = (newPersona: PersonaType) => {
+    if (newPersona === selectedPersona) return; // No change
+
+    console.log(`[ChatPage] Persona changing: ${selectedPersona} → ${newPersona}`);
+
+    // Update persona state
+    setSelectedPersona(newPersona);
+
+    // Persist persona preference
+    localStorage.setItem('fi_persona', newPersona);
+
+    // Next AI message will automatically use the new persona
+    // (context.persona is passed to backend on every request)
+  };
+
+  // Voice handlers
+  const handleVoiceStart = async () => {
+    console.log('[ChatPage] handleVoiceStart called');
+    // Capture current message before starting recording
+    messageBeforeRecordingRef.current = message;
+    await startVoiceRecording();
+  };
+
+  const handleVoiceStop = async () => {
+    console.log('[ChatPage] handleVoiceStop called');
+    const finalTranscript = await stopVoiceRecording();
+    console.log('[ChatPage] Final transcript:', finalTranscript);
+    // Transcript already in message state via onTranscriptUpdate
+  };
+
   // Load response mode preference on mount
   useEffect(() => {
     const savedMode = localStorage.getItem('fi_response_mode') as ResponseMode | null;
     if (savedMode) {
       setResponseMode(savedMode);
+    }
+  }, []);
+
+  // Load persona preference on mount
+  useEffect(() => {
+    const savedPersona = localStorage.getItem('fi_persona') as PersonaType | null;
+    if (savedPersona) {
+      setSelectedPersona(savedPersona);
     }
   }, []);
 
@@ -142,12 +222,18 @@ export default function ChatPage() {
         {/* Toolbar */}
         <ChatToolbar
           responseMode={responseMode}
+          selectedPersona={selectedPersona}
+          voiceRecording={voiceRecordingState}
           showAttach={false}
           showLanguage={true}
           showFormatting={true}
           showResponseMode={true}
           showVoice={true}
+          showPersonaSelector={true}
           onResponseModeToggle={handleResponseModeToggle}
+          onPersonaChange={handlePersonaChange}
+          onVoiceStart={handleVoiceStart}
+          onVoiceStop={handleVoiceStop}
         />
 
         {/* Input */}

@@ -22,3 +22,4 @@ export { OrderEntry } from './OrderEntry';
 export { SummaryExport } from './SummaryExport';
 export { DiarizationProcessingModal } from './DiarizationProcessingModal';
 export { PatientInfoModal, type PatientInfo } from './PatientInfoModal';
+export { SessionAuditPanel } from './SessionAuditPanel';

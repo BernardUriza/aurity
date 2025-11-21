@@ -7,7 +7,7 @@
  * Card: FI-TV-REFAC-003
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://fi-aurity.duckdns.org';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.aurity.io';
 
 // ============================================================================
 // Type Definitions

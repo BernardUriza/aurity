@@ -185,10 +185,20 @@ export function useRecorder(config: UseRecorderConfig): UseRecorderReturn {
       }
 
       // ========================================================================
-      // STOP CHUNKED RECORDER
+      // STOP CHUNKED RECORDER & PROCESS FINAL CHUNK
       // ========================================================================
       if (recorderRef.current) {
-        await recorderRef.current.stop();
+        const lastChunk = await recorderRef.current.stop();
+
+        // Process final chunk if it has data (e.g., recording stopped before timeSlice)
+        if (lastChunk && lastChunk.size > 0) {
+          const finalChunkNumber = chunkNumberRef.current++;
+          console.log(
+            `[Chunked Recorder] Processing final chunk ${finalChunkNumber} (${(lastChunk.size / 1024).toFixed(1)}KB)`
+          );
+          await onChunk(lastChunk, finalChunkNumber);
+        }
+
         console.log('[Chunked Recorder] Stopped successfully');
       }
 

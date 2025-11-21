@@ -9,13 +9,18 @@
 import type { FIMessage } from '@/types/assistant';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Stethoscope, FileEdit, Microscope, Compass, Network, Shield, TrendingUp, Activity, type LucideIcon } from 'lucide-react';
 import { MessageTimestamp } from '@/components/chat/MessageTimestamp';
-import { CopyButton } from '@/components/chat/MessageActions';
+import { CopyButton, SpeakButton } from '@/components/chat/MessageActions';
 import type { TimestampConfig } from '@/config/chat.config';
+import { usePersonas } from '@/hooks/usePersonas';
 
 /**
  * Persona-based styling configuration
- * Maps backend personas to visual themes
+ * Maps backend personas to VISUAL themes ONLY
+ *
+ * NOTE: Labels are no longer hardcoded here.
+ * Persona names come from backend dynamically.
  */
 const PERSONA_STYLES = {
   // Onboarding Guide - Sovereignty theme (emerald)
@@ -23,8 +28,7 @@ const PERSONA_STYLES = {
     border: 'border-emerald-600/60',
     bg: 'bg-emerald-950/20',
     glow: 'shadow-emerald-500/10',
-    icon: '🏠', // Residencia local
-    label: 'FREE-INTELLIGENCE',
+    Icon: Compass,
     labelColor: 'text-emerald-300',
   },
 
@@ -33,8 +37,7 @@ const PERSONA_STYLES = {
     border: 'border-slate-600/60',
     bg: 'bg-slate-900/20',
     glow: 'shadow-slate-500/10',
-    icon: '💬',
-    label: 'FREE-INTELLIGENCE',
+    Icon: Stethoscope,
     labelColor: 'text-slate-300',
   },
 
@@ -43,8 +46,7 @@ const PERSONA_STYLES = {
     border: 'border-blue-600/60',
     bg: 'bg-blue-950/20',
     glow: 'shadow-blue-500/10',
-    icon: '📊', // Evidence-based
-    label: 'FREE-INTELLIGENCE · CLINICAL',
+    Icon: Microscope,
     labelColor: 'text-blue-300',
   },
 
@@ -53,8 +55,7 @@ const PERSONA_STYLES = {
     border: 'border-cyan-600/60',
     bg: 'bg-cyan-950/20',
     glow: 'shadow-cyan-500/10',
-    icon: '📝', // Documentation
-    label: 'FREE-INTELLIGENCE · SOAP',
+    Icon: FileEdit,
     labelColor: 'text-cyan-300',
   },
 
@@ -63,9 +64,46 @@ const PERSONA_STYLES = {
     border: 'border-purple-600/60',
     bg: 'bg-purple-950/20',
     glow: 'shadow-purple-500/10',
-    icon: '👋', // Bienvenida
-    label: 'FREE-INTELLIGENCE · SALA DE ESPERA',
+    Icon: Compass,
     labelColor: 'text-purple-300',
+  },
+
+  // ==== PHILOSOPHICAL PERSONAS (Free Intelligence Core Principles) ====
+
+  // Pattern Weaver - Memory archaeology theme (violet)
+  pattern_weaver: {
+    border: 'border-violet-600/60',
+    bg: 'bg-violet-950/20',
+    glow: 'shadow-violet-500/10',
+    Icon: Network,
+    labelColor: 'text-violet-300',
+  },
+
+  // Sovereignty Guide - Data sovereignty theme (amber)
+  sovereignty_guide: {
+    border: 'border-amber-600/60',
+    bg: 'bg-amber-950/20',
+    glow: 'shadow-amber-500/10',
+    Icon: Shield,
+    labelColor: 'text-amber-300',
+  },
+
+  // Growth Mirror - Symbiotic development theme (rose)
+  growth_mirror: {
+    border: 'border-rose-600/60',
+    bg: 'bg-rose-950/20',
+    glow: 'shadow-rose-500/10',
+    Icon: TrendingUp,
+    labelColor: 'text-rose-300',
+  },
+
+  // Honest Limiter - Anti-oracle theme (orange)
+  honest_limiter: {
+    border: 'border-orange-600/60',
+    bg: 'bg-orange-950/20',
+    glow: 'shadow-orange-500/10',
+    Icon: Activity,
+    labelColor: 'text-orange-300',
   },
 } as const;
 
@@ -76,10 +114,33 @@ const FALLBACK_STYLE = {
   border: 'border-slate-600/60',
   bg: 'bg-slate-900/20',
   glow: 'shadow-slate-500/10',
-  icon: '🤖',
-  label: 'FREE-INTELLIGENCE',
+  Icon: Stethoscope,
   labelColor: 'text-slate-300',
 };
+
+/**
+ * Generate label from persona name (backend format → display format)
+ * Examples:
+ *   "General Assistant" → "FREE-INTELLIGENCE"
+ *   "SOAP Editor" → "FREE-INTELLIGENCE · SOAP EDITOR"
+ *   "Honest Limiter" → "FI · HONEST LIMITER"
+ */
+function generatePersonaLabel(personaName: string | undefined): string {
+  if (!personaName) return 'FREE-INTELLIGENCE';
+
+  // Philosophical personas use short "FI" prefix
+  const philosophicalPersonas = ['Pattern Weaver', 'Sovereignty Guide', 'Growth Mirror', 'Honest Limiter'];
+  const isPhilosophical = philosophicalPersonas.includes(personaName);
+
+  if (personaName === 'General Assistant') {
+    return 'FREE-INTELLIGENCE';
+  }
+
+  const prefix = isPhilosophical ? 'FI' : 'FREE-INTELLIGENCE';
+  const suffix = personaName.toUpperCase();
+
+  return `${prefix} · ${suffix}`;
+}
 
 export interface FIMessageBubbleProps {
   /** Message to display */
@@ -131,8 +192,15 @@ export function FIMessageBubble({
   // Get persona from metadata (fallback to general_assistant)
   const persona = message.metadata?.tone || 'general_assistant';
 
+  // Fetch personas to get real names from backend
+  const { personas } = usePersonas();
+
   // Get style for persona (with fallback)
   const style = PERSONA_STYLES[persona as keyof typeof PERSONA_STYLES] || FALLBACK_STYLE;
+
+  // Get persona name from backend (single source of truth)
+  const personaData = personas.find(p => p.id === persona);
+  const personaLabel = generatePersonaLabel(personaData?.name);
 
   return (
     <div
@@ -162,11 +230,12 @@ export function FIMessageBubble({
         <div className="flex items-center gap-2 mb-3 justify-between">
           <div className="flex items-center gap-2">
             <span className={`text-xs font-semibold tracking-wide ${style.labelColor}`}>
-              {style.label}
+              {personaLabel}
             </span>
-            <span className="text-base" role="img" aria-label={`Persona: ${persona}`}>
-              {style.icon}
-            </span>
+            <style.Icon
+              className={`w-3.5 h-3.5 ${style.labelColor}`}
+              aria-label={`Persona: ${personaData?.name || persona}`}
+            />
             {showTimestamp && (
               <MessageTimestamp
                 timestamp={message.timestamp}
@@ -180,6 +249,7 @@ export function FIMessageBubble({
           {/* Action buttons */}
           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
             <CopyButton content={message.content} size="sm" />
+            <SpeakButton content={message.content} size="sm" voice={message.metadata?.voice} />
           </div>
         </div>
 

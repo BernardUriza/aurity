@@ -15,11 +15,12 @@
  *   ChatWidget → useFIConversation → assistantAPI → /assistant/chat → /internal/llm/chat
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { MessageCircle } from 'lucide-react';
 import { useFIConversation } from '@/hooks/useFIConversation';
 import { useChatVoiceRecorder } from '@/hooks/useChatVoiceRecorder';
+import { useBreakpoints } from '@/hooks/useMediaQuery';
 import { ChatWidgetContainer, type ChatViewMode } from './ChatWidgetContainer';
 import { ChatWidgetHeader } from './ChatWidgetHeader';
 import { ChatWidgetMessages } from './ChatWidgetMessages';
@@ -27,7 +28,7 @@ import { ChatWidgetInput } from './ChatWidgetInput';
 import { ChatToolbar, type ResponseMode, type PersonaType } from './ChatToolbar';
 import { ScrollToBottomButton } from './ChatUtilities';
 import { HistorySearch } from './HistorySearch';
-import { defaultChatConfig, type ChatConfig } from '@/config/chat.config';
+import { defaultChatConfig, type ChatConfig, CHAT_BREAKPOINTS } from '@/config/chat.config';
 
 export interface ChatWidgetProps {
   /** Custom configuration (optional) */
@@ -35,10 +36,12 @@ export interface ChatWidgetProps {
 }
 
 export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
-  // ULTRA SIMPLE DEBUG: This should ALWAYS execute on every render
-  console.error('🚨🚨🚨 CHATWIDGET RENDER 🚨🚨🚨');
-
   const { user } = useAuth0();
+
+  // Detect device breakpoints for responsive behavior
+  const { isMobile, isTablet, isDesktop } = useBreakpoints(CHAT_BREAKPOINTS, {
+    ssrMatch: false,
+  });
 
   // View state
   const [viewMode, setViewMode] = useState<ChatViewMode>('normal');
@@ -75,6 +78,7 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     loadOlderMessages,
     hasMoreMessages,
     loadingOlder,
+    clearConversation,
   } = useFIConversation({
     phase: undefined, // No specific phase for general chat widget
     context: {
@@ -146,6 +150,22 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     localStorage.setItem('fi_response_mode', newMode);
   };
 
+  // Handle persona change: keep conversation history, change behavior on next message
+  const handlePersonaChange = (newPersona: PersonaType) => {
+    if (newPersona === selectedPersona) return; // No change
+
+    console.log(`[ChatWidget] Persona changing: ${selectedPersona} → ${newPersona}`);
+
+    // Update persona state
+    setSelectedPersona(newPersona);
+
+    // Persist persona preference
+    localStorage.setItem('fi_persona', newPersona);
+
+    // Next AI message will automatically use the new persona
+    // (context.persona is passed to backend on every request)
+  };
+
   // Load response mode preference on mount
   useEffect(() => {
     const savedMode = localStorage.getItem('fi_response_mode') as ResponseMode | null;
@@ -153,6 +173,17 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
       setResponseMode(savedMode);
     }
   }, []);
+
+  // Load persona preference on mount
+  useEffect(() => {
+    const savedPersona = localStorage.getItem('fi_persona') as PersonaType | null;
+    if (savedPersona) {
+      setSelectedPersona(savedPersona);
+    }
+  }, []);
+
+  // Capture message before recording (for append behavior)
+  const messageBeforeRecordingRef = useRef('');
 
   // Voice recording with useChatVoiceRecorder hook
   const {
@@ -168,7 +199,11 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     userId: user?.sub || 'anonymous',
     onTranscriptUpdate: (transcript) => {
       console.log('[ChatWidget] Live transcript:', transcript);
-      setMessage(transcript); // Update input with live transcript
+      // Append to existing message (captured before recording started)
+      const combined = messageBeforeRecordingRef.current
+        ? `${messageBeforeRecordingRef.current} ${transcript}`.trim()
+        : transcript;
+      setMessage(combined);
     },
     onError: (error) => {
       console.error('[ChatWidget] Voice error:', error);
@@ -186,6 +221,8 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   // Voice handlers
   const handleVoiceStart = async () => {
     console.log('[ChatWidget] handleVoiceStart called');
+    // Capture current message before starting recording
+    messageBeforeRecordingRef.current = message;
     await startVoiceRecording();
   };
 
@@ -197,15 +234,20 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   };
 
   // ========================================================================
-  // FLOATING BUTTON (when closed)
+  // FLOATING BUTTON (when closed) - Responsive sizing
   // ========================================================================
   if (!isOpen) {
+    // Compute responsive button size
+    const buttonSize = isMobile ? 'w-16 h-16' : 'w-14 h-14';
+    const iconSize = isMobile ? 'h-7 w-7' : 'h-6 w-6';
+    const buttonPosition = isMobile ? 'bottom-4 right-4' : 'bottom-6 right-6';
+
     return (
       <button
         onClick={handleOpen}
-        className="
-          fixed bottom-6 right-6
-          w-14 h-14
+        className={`
+          fixed ${buttonPosition}
+          ${buttonSize}
           bg-gradient-to-br from-purple-600 to-blue-600
           hover:from-purple-700 hover:to-blue-700
           rounded-full shadow-2xl
@@ -215,26 +257,28 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
           z-50
           flex items-center justify-center
           group
-        "
+        `}
         aria-label="Chat with Free Intelligence"
       >
-        <MessageCircle className="h-6 w-6 text-white" />
+        <MessageCircle className={`${iconSize} text-white`} />
 
         {/* Notification badge */}
         <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse" />
 
-        {/* Tooltip */}
-        <div className="
-          absolute bottom-full right-0 mb-2
-          px-3 py-1.5
-          bg-slate-800 text-white text-sm
-          rounded-lg
-          opacity-0 group-hover:opacity-100
-          transition-opacity
-          whitespace-nowrap
-        ">
-          Habla con Free Intelligence
-        </div>
+        {/* Tooltip (hide on mobile) */}
+        {!isMobile && (
+          <div className="
+            absolute bottom-full right-0 mb-2
+            px-3 py-1.5
+            bg-slate-800 text-white text-sm
+            rounded-lg
+            opacity-0 group-hover:opacity-100
+            transition-opacity
+            whitespace-nowrap
+          ">
+            Habla con Free Intelligence
+          </div>
+        )}
       </button>
     );
   }
@@ -285,7 +329,7 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
         onLanguage={handleLanguage}
         onFormatting={handleFormatting}
         onResponseModeToggle={handleResponseModeToggle}
-        onPersonaChange={setSelectedPersona}
+        onPersonaChange={handlePersonaChange}
         onVoiceStart={handleVoiceStart}
         onVoiceStop={handleVoiceStop}
       />

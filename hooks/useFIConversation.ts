@@ -329,6 +329,7 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
           tone: response.persona as FITone, // Map persona to tone (for UI styling)
           phase,
           id: introMsgId,
+          voice: response.voice, // Azure TTS voice for this persona
         },
       };
 
@@ -398,6 +399,7 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
           tone: response.persona as FITone, // Map persona to tone (for UI styling)
           phase,
           id: assistantMsgId,
+          voice: response.voice, // Azure TTS voice for this persona
         },
       };
 

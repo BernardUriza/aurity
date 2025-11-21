@@ -71,7 +71,7 @@ export function ChatWidgetInput({
         {/* Send Button */}
         <button
           onClick={onSend}
-          disabled={loading || !message.trim()}
+          disabled={loading}
           className="
             bg-gradient-to-r from-purple-600 to-blue-600
             hover:from-purple-700 hover:to-blue-700

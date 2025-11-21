@@ -103,7 +103,7 @@ interface FIAvatarProps {
  */
 async function fetchContentSeeds(): Promise<ContentItem[]> {
   try {
-    const backendURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://fi-aurity.duckdns.org';
+    const backendURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.aurity.io';
     const response = await fetch(`${backendURL}/api/workflows/aurity/tv-content/list?active_only=true`);
 
     if (!response.ok) {
@@ -278,7 +278,7 @@ export function FIAvatar({
         clinicSlides.forEach(slide => {
           if (slide.media_type === 'image' && slide.file_path) {
             // Build image URL from file_path
-            const imageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'https://fi-aurity.duckdns.org'}/api/workflows/aurity/clinic-media/file/${slide.file_path}`;
+            const imageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.aurity.io'}/api/workflows/aurity/clinic-media/file/${slide.file_path}`;
             updatedContent.push({
               type: 'widget',
               content: '',
@@ -292,7 +292,7 @@ export function FIAvatar({
             });
           } else if (slide.media_type === 'video' && slide.file_path) {
             // Build video URL from file_path
-            const videoUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'https://fi-aurity.duckdns.org'}/api/workflows/aurity/clinic-media/file/${slide.file_path}`;
+            const videoUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.aurity.io'}/api/workflows/aurity/clinic-media/file/${slide.file_path}`;
             updatedContent.push({
               type: 'widget',
               content: '',

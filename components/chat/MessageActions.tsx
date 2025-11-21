@@ -7,8 +7,8 @@
  * Simple, clean, functional.
  */
 
-import { useState } from 'react';
-import { Copy, Check, MoreVertical, Trash2, Pin, Reply } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Copy, Check, MoreVertical, Trash2, Pin, Reply, Volume2, VolumeX } from 'lucide-react';
 
 export interface MessageActionsProps {
   /** Message content to copy */
@@ -93,6 +93,123 @@ export function CopyButton({ content, size = 'sm' }: { content: string; size?: '
         shadow-xl
       ">
         {copied ? '✓ ¡Copiado!' : 'Copiar mensaje'}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Speak button with Azure TTS
+ */
+export function SpeakButton({
+  content,
+  size = 'sm',
+  voice = 'nova'
+}: {
+  content: string;
+  size?: 'xs' | 'sm' | 'md';
+  voice?: string;
+}) {
+  const [speaking, setSpeaking] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
+
+  const handleSpeak = async () => {
+    if (speaking && audioRef.current) {
+      // Stop speaking
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setSpeaking(false);
+    } else {
+      try {
+        setSpeaking(true);
+
+        // Call Azure TTS endpoint
+        const ttsResponse = await fetch(`${BACKEND_URL}/api/tts/synthesize`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: content,
+            voice: voice, // Use persona-specific voice from metadata
+            speed: 1.0,
+          }),
+        });
+
+        if (!ttsResponse.ok) {
+          throw new Error(`TTS failed: ${ttsResponse.status}`);
+        }
+
+        const audioBlob = await ttsResponse.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+
+        audio.onended = () => {
+          setSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        audio.onerror = () => {
+          setSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+
+        await audio.play();
+        audioRef.current = audio;
+      } catch (error) {
+        console.error('[TTS] Error:', error);
+        setSpeaking(false);
+      }
+    }
+  };
+
+  const sizeClasses = {
+    xs: 'w-3 h-3',
+    sm: 'w-3.5 h-3.5',
+    md: 'w-4 h-4',
+  };
+
+  const buttonSizeClasses = {
+    xs: 'p-1',
+    sm: 'p-1.5',
+    md: 'p-2',
+  };
+
+  return (
+    <button
+      onClick={handleSpeak}
+      className={`
+        ${buttonSizeClasses[size]}
+        rounded-md
+        ${speaking ? 'bg-blue-500/20 text-blue-400' : 'bg-transparent hover:bg-slate-700 text-slate-400 hover:text-slate-200'}
+        transition-all duration-200
+        group-speak
+        relative
+      `}
+      title={speaking ? 'Detener audio' : 'Escuchar mensaje'}
+      aria-label={speaking ? 'Stop speaking' : 'Speak message'}
+    >
+      {speaking ? (
+        <VolumeX className={`${sizeClasses[size]} animate-pulse`} />
+      ) : (
+        <Volume2 className={sizeClasses[size]} />
+      )}
+
+      {/* Tooltip */}
+      <span className="
+        absolute -top-9 left-1/2 -translate-x-1/2
+        px-2.5 py-1.5 rounded-md
+        bg-slate-900/95 backdrop-blur-sm border border-slate-700/50
+        text-slate-200 text-xs font-medium
+        opacity-0 group-speak-hover:opacity-100
+        pointer-events-none
+        transition-opacity
+        whitespace-nowrap
+        shadow-xl
+      ">
+        {speaking ? 'Detener audio' : 'Escuchar mensaje'}
       </span>
     </button>
   );

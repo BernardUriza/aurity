@@ -80,8 +80,18 @@ export function PersonaCard({ persona, isSelected, onClick, onEdit }: PersonaCar
           </div>
         </div>
         <div className="p-2 bg-slate-800/50 rounded border border-slate-700">
+          <div className="text-xs text-slate-500">Voice</div>
+          <div className="text-sm font-mono text-white capitalize" title={persona.voice || 'No configurada'}>
+            {persona.voice || 'N/A'}
+          </div>
+        </div>
+        <div className="p-2 bg-slate-800/50 rounded border border-slate-700">
           <div className="text-xs text-slate-500">Temperature</div>
           <div className="text-sm font-mono text-white">{persona.temperature.toFixed(2)}</div>
+        </div>
+        <div className="p-2 bg-slate-800/50 rounded border border-slate-700">
+          <div className="text-xs text-slate-500">Max Tokens</div>
+          <div className="text-sm font-mono text-white">{persona.max_tokens.toLocaleString()}</div>
         </div>
       </div>
 

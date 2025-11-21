@@ -92,6 +92,9 @@ export interface FIMessage {
 
     /** Message ID for tracking */
     id?: string;
+
+    /** Azure TTS voice for this persona (assistant only) */
+    voice?: string;
   };
 }
 
@@ -125,6 +128,9 @@ export interface FIChatResponse {
 
   /** Response latency in milliseconds */
   latency_ms: number;
+
+  /** Azure TTS voice for this persona (optional for backward compatibility) */
+  voice?: string;
 }
 
 /**

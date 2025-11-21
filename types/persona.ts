@@ -21,6 +21,7 @@ export interface Persona {
   description: string;
   system_prompt: string;
   model: string;
+  voice?: string | null;  // TTS voice (e.g., 'nova', 'shimmer')
   temperature: number;
   max_tokens: number;
   examples: PersonaExample[];

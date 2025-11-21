@@ -419,3 +419,31 @@ export const clinicalChatConfig: ChatConfig = {
   },
   footer: 'HIPAA Compliant · AES-256 Encrypted',
 };
+
+// ============================================================================
+// RESPONSIVE BREAKPOINTS
+// ============================================================================
+
+/**
+ * Mobile-first breakpoints for responsive chat widget
+ *
+ * Layout behavior:
+ * - Mobile (<640px): Fullscreen overlay, entire viewport
+ * - Tablet (640-1024px): Modal dialog, 90% viewport width
+ * - Desktop (>1024px): Fixed widget, 384×600px bottom-right
+ *
+ * The .98px offset avoids edge-case rounding issues where
+ * both (max-width: 640px) and (min-width: 640px) might match
+ * simultaneously due to floating-point precision.
+ */
+export interface ChatBreakpoints {
+  mobile: string;
+  tablet: string;
+  desktop: string;
+}
+
+export const CHAT_BREAKPOINTS: ChatBreakpoints = {
+  mobile: '(max-width: 639.98px)',
+  tablet: '(min-width: 640px) and (max-width: 1023.98px)',
+  desktop: '(min-width: 1024px)',
+};

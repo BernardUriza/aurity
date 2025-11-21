@@ -9,13 +9,15 @@
  * - Text formatting
  * - Theme toggle
  * - Voice input
+ * - Dynamic persona selector (fetched from backend)
  */
 
-import { Plus, Globe, Type, Zap, FileText, Brain, Stethoscope, FileEdit, Microscope, Compass } from 'lucide-react';
+import { Plus, Globe, Type, Zap, FileText, Brain, Stethoscope, FileEdit, Microscope, Compass, Network, Shield, TrendingUp, Activity } from 'lucide-react';
 import { VoiceMicButton } from './VoiceMicButton';
+import { usePersonas } from '@/hooks/usePersonas';
 
 export type ResponseMode = 'explanatory' | 'concise';
-export type PersonaType = 'soap_editor' | 'clinical_advisor' | 'general_assistant' | 'onboarding_guide';
+export type PersonaType = string; // Dynamic - fetched from backend
 
 export interface ChatToolbarProps {
   /** Enable/disable attach button */
@@ -61,16 +63,17 @@ export interface ChatToolbarProps {
   onVoiceStop?: () => void;
 }
 
-const PERSONA_OPTIONS: {
-  value: PersonaType;
-  label: string;
-  Icon: React.ComponentType<{ className?: string }>;
-}[] = [
-  { value: 'general_assistant', label: 'General', Icon: Stethoscope },
-  { value: 'soap_editor', label: 'SOAP Editor', Icon: FileEdit },
-  { value: 'clinical_advisor', label: 'Advisor', Icon: Microscope },
-  { value: 'onboarding_guide', label: 'Guide', Icon: Compass },
-];
+// Icon mapping for personas (hardcoded for UI only)
+const PERSONA_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  'general_assistant': Stethoscope,
+  'soap_editor': FileEdit,
+  'clinical_advisor': Microscope,
+  'onboarding_guide': Compass,
+  'pattern_weaver': Network,
+  'sovereignty_guide': Shield,
+  'growth_mirror': TrendingUp,
+  'honest_limiter': Activity,
+};
 
 export function ChatToolbar({
   showAttach = true,
@@ -90,13 +93,8 @@ export function ChatToolbar({
   onVoiceStart,
   onVoiceStop,
 }: ChatToolbarProps) {
-  // Debug logging (removed to prevent render loops)
-  // console.log('[ChatToolbar] Props:', {
-  //   showVoice,
-  //   voiceRecording,
-  //   hasOnVoiceStart: !!onVoiceStart,
-  //   hasOnVoiceStop: !!onVoiceStop,
-  // });
+  // Fetch personas dynamically from backend (single source of truth)
+  const { personas, loading: personasLoading } = usePersonas();
 
   const buttonBaseClass = `
     p-2.5 rounded-lg
@@ -119,8 +117,7 @@ export function ChatToolbar({
           <div className="relative flex items-center gap-2">
             {/* Current persona icon */}
             {(() => {
-              const currentOption = PERSONA_OPTIONS.find(opt => opt.value === selectedPersona);
-              const CurrentIcon = currentOption?.Icon || Brain;
+              const CurrentIcon = PERSONA_ICON_MAP[selectedPersona] || Brain;
               return <CurrentIcon className="w-4 h-4 text-purple-400" />;
             })()}
 
@@ -137,13 +134,21 @@ export function ChatToolbar({
                 transition-all duration-200
                 appearance-none
                 focus:outline-none focus:ring-2 focus:ring-purple-500/50
+                disabled:opacity-50 disabled:cursor-not-allowed
               "
               title="Seleccionar AI Persona"
               aria-label="Seleccionar AI Persona"
+              disabled={personasLoading || personas.length === 0}
             >
-              {PERSONA_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              {personasLoading && (
+                <option value="">Cargando personas...</option>
+              )}
+              {!personasLoading && personas.length === 0 && (
+                <option value="">No hay personas disponibles</option>
+              )}
+              {!personasLoading && personas.map((persona) => (
+                <option key={persona.id} value={persona.id} title={persona.description}>
+                  {persona.name}
                 </option>
               ))}
             </select>
