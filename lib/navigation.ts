@@ -14,6 +14,7 @@ import {
   Stethoscope,
   BookOpen,
   UserPlus,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 
@@ -84,6 +85,15 @@ export const NAV_ROUTES: NavRoute[] = [
     href: "/infra/nas-installer",
     icon: Server,
     shortcut: "7",
+  },
+  {
+    id: "personas-admin",
+    title: "AI Personas",
+    description: "Gestión de personas médicas del sistema",
+    href: "/admin/personas",
+    icon: Brain,
+    shortcut: "8",
+    badge: "Admin",
   },
 ];
 
