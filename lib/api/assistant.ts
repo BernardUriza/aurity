@@ -26,7 +26,7 @@ interface AssistantAPIConfig {
  * Default configuration
  */
 const DEFAULT_CONFIG: Required<AssistantAPIConfig> = {
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7001',
+  baseURL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7001',
   timeout: 30000, // 30 seconds (backend can take 10-15s for LLM calls)
   maxRetries: 3,
   retryDelay: 1000, // 1 second

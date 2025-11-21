@@ -51,7 +51,7 @@ export function UserManagement({ onClose }: UserManagementProps) {
     try {
       return await getAccessTokenSilently({
         authorizationParams: {
-          audience: process.env.NEXT_PUBLIC_AUTH0_AUDIENCE || 'https://api.fi-aurity.duckdns.org',
+          audience: process.env.NEXT_PUBLIC_AUTH0_AUDIENCE || 'https://app.aurity.io',
         }
       });
     } catch (error) {

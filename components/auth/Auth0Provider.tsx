@@ -22,7 +22,7 @@ export function Auth0Provider({ children }: Auth0ProviderProps) {
   // Auth0 configuration (matches backend config)
   const domain = process.env.NEXT_PUBLIC_AUTH0_DOMAIN || 'dev-1r4daup7ofj7q6gn.us.auth0.com';
   const clientId = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID || 'rYOowVCxSqeSNFVOFsZuVIiYsjw4wkKp';
-  const audience = process.env.NEXT_PUBLIC_AUTH0_AUDIENCE || 'https://api.fi-aurity.duckdns.org';
+  const audience = process.env.NEXT_PUBLIC_AUTH0_AUDIENCE || 'https://app.aurity.io';
 
   // Determine redirect URI based on environment
   const redirectUri = typeof window !== 'undefined'
