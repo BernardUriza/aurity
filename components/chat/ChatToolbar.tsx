@@ -11,9 +11,11 @@
  * - Voice input
  */
 
-import { Plus, Globe, Type, Zap, FileText, Mic } from 'lucide-react';
+import { Plus, Globe, Type, Zap, FileText, Brain } from 'lucide-react';
+import { VoiceMicButton } from './VoiceMicButton';
 
 export type ResponseMode = 'explanatory' | 'concise';
+export type PersonaType = 'soap_editor' | 'clinical_advisor' | 'general_assistant' | 'onboarding_guide';
 
 export interface ChatToolbarProps {
   /** Enable/disable attach button */
@@ -31,19 +33,40 @@ export interface ChatToolbarProps {
   /** Enable/disable voice button */
   showVoice?: boolean;
 
+  /** Enable/disable persona selector */
+  showPersonaSelector?: boolean;
+
   /** Current response mode ('explanatory' | 'concise') */
   responseMode?: ResponseMode;
 
-  /** Is voice input currently listening? */
-  isListening?: boolean;
+  /** Current selected persona */
+  selectedPersona?: PersonaType;
+
+  /** Voice recording state (NEW: for VoiceMicButton) */
+  voiceRecording?: {
+    isRecording: boolean;
+    isTranscribing: boolean;
+    audioLevel: number;
+    isSilent: boolean;
+    recordingTime: number;
+  };
 
   /** Callbacks */
   onAttach?: () => void;
   onLanguage?: () => void;
   onFormatting?: () => void;
   onResponseModeToggle?: () => void;
-  onVoice?: () => void;
+  onPersonaChange?: (persona: PersonaType) => void;
+  onVoiceStart?: () => void;
+  onVoiceStop?: () => void;
 }
+
+const PERSONA_OPTIONS: { value: PersonaType; label: string; icon: string }[] = [
+  { value: 'general_assistant', label: 'General', icon: '🩺' },
+  { value: 'soap_editor', label: 'SOAP Editor', icon: '📋' },
+  { value: 'clinical_advisor', label: 'Advisor', icon: '🔬' },
+  { value: 'onboarding_guide', label: 'Guide', icon: '🎯' },
+];
 
 export function ChatToolbar({
   showAttach = true,
@@ -51,14 +74,26 @@ export function ChatToolbar({
   showFormatting = true,
   showResponseMode = true,
   showVoice = true,
+  showPersonaSelector = true,
   responseMode = 'explanatory',
-  isListening = false,
+  selectedPersona = 'general_assistant',
+  voiceRecording,
   onAttach,
   onLanguage,
   onFormatting,
   onResponseModeToggle,
-  onVoice,
+  onPersonaChange,
+  onVoiceStart,
+  onVoiceStop,
 }: ChatToolbarProps) {
+  // Debug logging (removed to prevent render loops)
+  // console.log('[ChatToolbar] Props:', {
+  //   showVoice,
+  //   voiceRecording,
+  //   hasOnVoiceStart: !!onVoiceStart,
+  //   hasOnVoiceStop: !!onVoiceStop,
+  // });
+
   const buttonBaseClass = `
     p-2.5 rounded-lg
     text-slate-400 hover:text-white hover:bg-slate-700/50
@@ -76,6 +111,35 @@ export function ChatToolbar({
     ">
       {/* Left side: Utility actions */}
       <div className="flex items-center gap-1">
+        {showPersonaSelector && (
+          <div className="relative">
+            <select
+              value={selectedPersona}
+              onChange={(e) => onPersonaChange?.(e.target.value as PersonaType)}
+              className="
+                px-3 py-2 pr-8
+                rounded-lg
+                bg-slate-800/80 hover:bg-slate-700/80
+                border border-slate-600/50
+                text-slate-200 text-sm
+                cursor-pointer
+                transition-all duration-200
+                appearance-none
+                focus:outline-none focus:ring-2 focus:ring-purple-500/50
+              "
+              title="Seleccionar AI Persona"
+              aria-label="Seleccionar AI Persona"
+            >
+              {PERSONA_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.icon} {option.label}
+                </option>
+              ))}
+            </select>
+            <Brain className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          </div>
+        )}
+
         {showAttach && (
           <button
             onClick={onAttach}
@@ -128,18 +192,15 @@ export function ChatToolbar({
         )}
 
         {showVoice && (
-          <button
-            onClick={onVoice}
-            className={`${buttonBaseClass} ${
-              isListening
-                ? 'text-red-400 hover:text-red-300 animate-pulse'
-                : 'hover:text-purple-400'
-            }`}
-            title={isListening ? 'Detener grabación' : 'Entrada de voz'}
-            aria-label={isListening ? 'Detener grabación' : 'Entrada de voz'}
-          >
-            <Mic className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
-          </button>
+          <VoiceMicButton
+            isRecording={voiceRecording?.isRecording || false}
+            isTranscribing={voiceRecording?.isTranscribing || false}
+            audioLevel={voiceRecording?.audioLevel || 0}
+            isSilent={voiceRecording?.isSilent ?? true}
+            recordingTime={voiceRecording?.recordingTime || 0}
+            onStart={onVoiceStart || (() => {})}
+            onStop={onVoiceStop || (() => {})}
+          />
         )}
       </div>
     </div>

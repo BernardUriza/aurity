@@ -15,16 +15,16 @@
  *   ChatWidget → useFIConversation → assistantAPI → /assistant/chat → /internal/llm/chat
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { MessageCircle } from 'lucide-react';
 import { useFIConversation } from '@/hooks/useFIConversation';
-import { useWebSpeech } from '@/hooks/useWebSpeech';
+import { useChatVoiceRecorder } from '@/hooks/useChatVoiceRecorder';
 import { ChatWidgetContainer, type ChatViewMode } from './ChatWidgetContainer';
 import { ChatWidgetHeader } from './ChatWidgetHeader';
 import { ChatWidgetMessages } from './ChatWidgetMessages';
 import { ChatWidgetInput } from './ChatWidgetInput';
-import { ChatToolbar, type ResponseMode } from './ChatToolbar';
+import { ChatToolbar, type ResponseMode, type PersonaType } from './ChatToolbar';
 import { ScrollToBottomButton } from './ChatUtilities';
 import { HistorySearch } from './HistorySearch';
 import { defaultChatConfig, type ChatConfig } from '@/config/chat.config';
@@ -35,6 +35,9 @@ export interface ChatWidgetProps {
 }
 
 export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
+  // ULTRA SIMPLE DEBUG: This should ALWAYS execute on every render
+  console.error('🚨🚨🚨 CHATWIDGET RENDER 🚨🚨🚨');
+
   const { user } = useAuth0();
 
   // View state
@@ -42,6 +45,7 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [responseMode, setResponseMode] = useState<ResponseMode>('explanatory');
+  const [selectedPersona, setSelectedPersona] = useState<PersonaType>('general_assistant');
   const [showHistorySearch, setShowHistorySearch] = useState(false);
 
   // Merge custom config with defaults
@@ -77,6 +81,7 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
       doctor_id: user?.sub, // Auth0 user.sub as doctor_id
       doctor_name: user?.name,
       response_mode: responseMode, // Pass response mode to backend
+      persona: selectedPersona, // Pass selected persona to backend
     },
     storageKey,
     autoIntroduction: false, // Don't auto-introduce, wait for user to open
@@ -149,41 +154,46 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     }
   }, []);
 
-  // Voice input with Web Speech API
+  // Voice recording with useChatVoiceRecorder hook
   const {
-    isListening,
-    interimTranscript,
-    error: voiceError,
-    isSupported: isVoiceSupported,
-    startWebSpeech,
-    stopWebSpeech,
-  } = useWebSpeech({
-    onTranscript: (transcript, isFinal) => {
-      if (isFinal) {
-        // Set final transcript in input (user can edit before sending)
-        console.log('[Voice] Final transcript:', transcript);
-        setMessage(transcript);
-      } else {
-        // Show interim transcript in real-time
-        setMessage(transcript);
-      }
+    isRecording: isVoiceRecording,
+    recordingTime,
+    audioLevel,
+    isSilent,
+    liveTranscript,
+    isTranscribing,
+    startRecording: startVoiceRecording,
+    stopRecording: stopVoiceRecording,
+  } = useChatVoiceRecorder({
+    userId: user?.sub || 'anonymous',
+    onTranscriptUpdate: (transcript) => {
+      console.log('[ChatWidget] Live transcript:', transcript);
+      setMessage(transcript); // Update input with live transcript
     },
-    language: 'es-MX', // Spanish (Mexico)
-    continuous: false, // Stop after one phrase
-    interimResults: true, // Show real-time preview
+    onError: (error) => {
+      console.error('[ChatWidget] Voice error:', error);
+    },
   });
 
-  const handleVoice = () => {
-    if (!isVoiceSupported) {
-      alert('Tu navegador no soporta reconocimiento de voz. Intenta con Chrome o Edge.');
-      return;
-    }
+  const voiceRecordingState = useMemo(() => ({
+    isRecording: isVoiceRecording,
+    isTranscribing,
+    audioLevel,
+    isSilent,
+    recordingTime,
+  }), [isVoiceRecording, isTranscribing, audioLevel, isSilent, recordingTime]);
 
-    if (isListening) {
-      stopWebSpeech();
-    } else {
-      startWebSpeech();
-    }
+  // Voice handlers
+  const handleVoiceStart = async () => {
+    console.log('[ChatWidget] handleVoiceStart called');
+    await startVoiceRecording();
+  };
+
+  const handleVoiceStop = async () => {
+    console.log('[ChatWidget] handleVoiceStop called');
+    const finalTranscript = await stopVoiceRecording();
+    console.log('[ChatWidget] Final transcript:', finalTranscript);
+    // Transcript already in message state via onTranscriptUpdate
   };
 
   // ========================================================================
@@ -269,12 +279,15 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
       {/* Toolbar */}
       <ChatToolbar
         responseMode={responseMode}
-        isListening={isListening}
+        selectedPersona={selectedPersona}
+        voiceRecording={voiceRecordingState}
         onAttach={handleAttach}
         onLanguage={handleLanguage}
         onFormatting={handleFormatting}
         onResponseModeToggle={handleResponseModeToggle}
-        onVoice={handleVoice}
+        onPersonaChange={setSelectedPersona}
+        onVoiceStart={handleVoiceStart}
+        onVoiceStop={handleVoiceStop}
       />
 
       {/* Input */}
