@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef } from 'react';
-import { Copy, Check, MoreVertical, Trash2, Pin, Reply, Volume2, VolumeX } from 'lucide-react';
+import { Copy, Check, MoreVertical, Trash2, Pin, Reply, Volume2, VolumeX, Loader2 } from 'lucide-react';
 
 export interface MessageActionsProps {
   /** Message content to copy */
@@ -100,6 +100,11 @@ export function CopyButton({ content, size = 'sm' }: { content: string; size?: '
 
 /**
  * Speak button with Azure TTS
+ *
+ * States:
+ * - idle: Ready to play
+ * - loading: Fetching audio from Azure TTS (shows progress)
+ * - playing: Audio is playing
  */
 export function SpeakButton({
   content,
@@ -110,58 +115,102 @@ export function SpeakButton({
   size?: 'xs' | 'sm' | 'md';
   voice?: string;
 }) {
-  const [speaking, setSpeaking] = useState(false);
+  const [state, setState] = useState<'idle' | 'loading' | 'playing'>('idle');
+  const [progress, setProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
 
+  // Cleanup interval on unmount
+  const clearProgressInterval = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
+
   const handleSpeak = async () => {
-    if (speaking && audioRef.current) {
-      // Stop speaking
+    // If playing, stop
+    if (state === 'playing' && audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
-      setSpeaking(false);
-    } else {
-      try {
-        setSpeaking(true);
+      setState('idle');
+      return;
+    }
 
-        // Call Azure TTS endpoint
-        const ttsResponse = await fetch(`${BACKEND_URL}/api/tts/synthesize`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: content,
-            voice: voice, // Use persona-specific voice from metadata
-            speed: 1.0,
-          }),
-        });
+    // If loading, cancel
+    if (state === 'loading') {
+      clearProgressInterval();
+      setState('idle');
+      setProgress(0);
+      return;
+    }
 
-        if (!ttsResponse.ok) {
-          throw new Error(`TTS failed: ${ttsResponse.status}`);
-        }
+    try {
+      setState('loading');
+      setProgress(0);
 
-        const audioBlob = await ttsResponse.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
+      // Calculate estimated time based on text length
+      // Azure TTS processes ~150 chars/second, minimum 2 seconds
+      const estimatedSeconds = Math.max(2, Math.ceil(content.length / 150));
+      const updateIntervalMs = 200;
+      const maxProgress = 90; // Cap at 90% to avoid "lying" if estimate is wrong
+      const progressPerUpdate = maxProgress / (estimatedSeconds * (1000 / updateIntervalMs));
 
-        audio.onended = () => {
-          setSpeaking(false);
-          URL.revokeObjectURL(audioUrl);
-        };
+      // Start progress interval
+      let currentProgress = 0;
+      progressIntervalRef.current = setInterval(() => {
+        currentProgress = Math.min(currentProgress + progressPerUpdate, maxProgress);
+        setProgress(Math.round(currentProgress));
+      }, updateIntervalMs);
 
-        audio.onerror = () => {
-          setSpeaking(false);
-          URL.revokeObjectURL(audioUrl);
-        };
+      // Call Azure TTS endpoint
+      const ttsResponse = await fetch(`${BACKEND_URL}/api/tts/synthesize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: content,
+          voice: voice,
+          speed: 1.0,
+        }),
+      });
 
-        await audio.play();
-        audioRef.current = audio;
-      } catch (error) {
-        console.error('[TTS] Error:', error);
-        setSpeaking(false);
+      // Clear progress interval once response arrives
+      clearProgressInterval();
+
+      if (!ttsResponse.ok) {
+        throw new Error(`TTS failed: ${ttsResponse.status}`);
       }
+
+      setProgress(100); // Show complete
+
+      const audioBlob = await ttsResponse.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => {
+        setState('idle');
+        setProgress(0);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = () => {
+        setState('idle');
+        setProgress(0);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      await audio.play();
+      audioRef.current = audio;
+      setState('playing');
+    } catch (error) {
+      console.error('[TTS] Error:', error);
+      clearProgressInterval();
+      setState('idle');
+      setProgress(0);
     }
   };
 
@@ -177,21 +226,57 @@ export function SpeakButton({
     md: 'p-2',
   };
 
+  // Tooltip text based on state
+  const tooltipText = {
+    idle: 'Escuchar mensaje',
+    loading: `Generando audio... ${progress}%`,
+    playing: 'Detener audio',
+  };
+
+  // Button styling based on state
+  const stateStyles = {
+    idle: 'bg-transparent hover:bg-slate-700 text-slate-400 hover:text-slate-200',
+    loading: 'bg-amber-500/20 text-amber-400',
+    playing: 'bg-blue-500/20 text-blue-400',
+  };
+
   return (
     <button
       onClick={handleSpeak}
       className={`
         ${buttonSizeClasses[size]}
         rounded-md
-        ${speaking ? 'bg-blue-500/20 text-blue-400' : 'bg-transparent hover:bg-slate-700 text-slate-400 hover:text-slate-200'}
+        ${stateStyles[state]}
         transition-all duration-200
         group-speak
         relative
       `}
-      title={speaking ? 'Detener audio' : 'Escuchar mensaje'}
-      aria-label={speaking ? 'Stop speaking' : 'Speak message'}
+      title={tooltipText[state]}
+      aria-label={tooltipText[state]}
     >
-      {speaking ? (
+      {/* Progress ring for loading state */}
+      {state === 'loading' && (
+        <svg
+          className="absolute inset-0 w-full h-full -rotate-90"
+          viewBox="0 0 36 36"
+        >
+          <circle
+            cx="18"
+            cy="18"
+            r="14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeDasharray={`${progress * 0.88} 100`}
+            className="opacity-60"
+          />
+        </svg>
+      )}
+
+      {/* Icon based on state */}
+      {state === 'loading' ? (
+        <Loader2 className={`${sizeClasses[size]} animate-spin`} />
+      ) : state === 'playing' ? (
         <VolumeX className={`${sizeClasses[size]} animate-pulse`} />
       ) : (
         <Volume2 className={sizeClasses[size]} />
@@ -209,7 +294,7 @@ export function SpeakButton({
         whitespace-nowrap
         shadow-xl
       ">
-        {speaking ? 'Detener audio' : 'Escuchar mensaje'}
+        {tooltipText[state]}
       </span>
     </button>
   );
