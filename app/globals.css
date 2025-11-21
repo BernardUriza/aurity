@@ -1,0 +1,106 @@
+/* Import Medical AI Demo Styles */
+@import "./medical-styles.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Scrollbar for Diarization Segments */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgb(30 41 59 / 0.5);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(100 116 139);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184);
+}
+
+/* Thin Modern Scrollbar for Chat (Research-backed: scrollbar-width: thin) */
+#chat-widget-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+#chat-widget-messages::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 3px;
+}
+
+#chat-widget-messages::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+#chat-widget-messages::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Free-Intelligence Component Animations (FI-ONBOARD-002) */
+
+/* Fade in with upward motion for message bubbles */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out;
+}
+
+/* Simple fade in for typing indicator */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Bouncing dots for typing indicator */
+@keyframes bounce-dot {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  30% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+.animate-bounce-dot {
+  animation: bounce-dot 1.4s ease-in-out infinite;
+}
+
+/* Animation delays for typing dots */
+.animation-delay-0 {
+  animation-delay: 0ms;
+}
+
+.animation-delay-150 {
+  animation-delay: 150ms;
+}
+
+.animation-delay-300 {
+  animation-delay: 300ms;
+}
