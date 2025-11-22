@@ -149,6 +149,9 @@ export interface FIMessageBubbleProps {
   /** Show timestamp */
   showTimestamp?: boolean;
 
+  /** Show sender name (for first message in group) */
+  showSenderName?: boolean;
+
   /** Timestamp configuration */
   timestampConfig?: Partial<TimestampConfig>;
 
@@ -157,6 +160,9 @@ export interface FIMessageBubbleProps {
 
   /** Additional CSS classes */
   className?: string;
+
+  /** Override border radius (for grouped messages) */
+  borderRadiusOverride?: string;
 }
 
 /**
@@ -185,10 +191,14 @@ export interface FIMessageBubbleProps {
 export function FIMessageBubble({
   message,
   showTimestamp = true,
+  showSenderName = true,
   timestampConfig,
   animate = true,
   className = '',
+  borderRadiusOverride,
 }: FIMessageBubbleProps) {
+  // Use override or default border radius
+  const borderRadius = borderRadiusOverride || 'rounded-2xl rounded-tl-sm';
   // Get persona from metadata (fallback to general_assistant)
   const persona = message.metadata?.tone || 'general_assistant';
 
@@ -220,7 +230,7 @@ export function FIMessageBubble({
         className={`
           relative group
           flex-1 max-w-[85%]
-          p-4 rounded-2xl rounded-tl-sm
+          p-4 ${borderRadius}
           border ${style.border}
           ${style.bg}
           backdrop-blur-xl
@@ -230,31 +240,37 @@ export function FIMessageBubble({
         `}
       >
         {/* Header: Label + Icon + Timestamp + Actions */}
-        <div className="flex items-center gap-2 mb-3 justify-between">
-          <div className="flex items-center gap-2">
-            <span className={`text-xs font-semibold tracking-wide ${style.labelColor}`}>
-              {personaLabel}
-            </span>
-            <style.Icon
-              className={`w-3.5 h-3.5 ${style.labelColor}`}
-              aria-label={`Persona: ${personaData?.name || persona}`}
-            />
-            {showTimestamp && (
-              <MessageTimestamp
-                timestamp={message.timestamp}
-                config={timestampConfig}
-                position="inline"
-                size="xs"
-              />
-            )}
-          </div>
+        {(showSenderName || showTimestamp) && (
+          <div className={`flex items-center gap-2 ${showSenderName ? 'mb-3' : 'mb-2'} justify-between`}>
+            <div className="flex items-center gap-2">
+              {showSenderName && (
+                <>
+                  <span className={`text-xs font-semibold tracking-wide ${style.labelColor}`}>
+                    {personaLabel}
+                  </span>
+                  <style.Icon
+                    className={`w-3.5 h-3.5 ${style.labelColor}`}
+                    aria-label={`Persona: ${personaData?.name || persona}`}
+                  />
+                </>
+              )}
+              {showTimestamp && (
+                <MessageTimestamp
+                  timestamp={message.timestamp}
+                  config={timestampConfig}
+                  position="inline"
+                  size="xs"
+                />
+              )}
+            </div>
 
-          {/* Action buttons */}
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-            <CopyButton content={message.content} size="sm" />
-            <SpeakButton content={message.content} size="sm" voice={personaVoice} />
+            {/* Action buttons */}
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+              <CopyButton content={message.content} size="sm" />
+              <SpeakButton content={message.content} size="sm" voice={personaVoice} />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Message Content */}
         <div className="text-sm text-slate-200 leading-relaxed prose prose-invert max-w-none">

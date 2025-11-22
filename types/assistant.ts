@@ -73,6 +73,9 @@ export interface FIChatContext {
  * Single message in FI conversation
  */
 export interface FIMessage {
+  /** Unique message ID */
+  id?: string;
+
   /** Message role (user or assistant) */
   role: 'user' | 'assistant';
 

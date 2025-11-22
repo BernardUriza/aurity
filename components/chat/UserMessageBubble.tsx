@@ -26,6 +26,9 @@ export interface UserMessageBubbleProps {
 
   /** Additional CSS classes */
   className?: string;
+
+  /** Override border radius (for grouped messages) */
+  borderRadiusOverride?: string;
 }
 
 /**
@@ -37,7 +40,10 @@ export function UserMessageBubble({
   timestampConfig,
   animate = true,
   className = '',
+  borderRadiusOverride,
 }: UserMessageBubbleProps) {
+  // Use override or default border radius
+  const borderRadius = borderRadiusOverride || 'rounded-2xl rounded-tr-sm';
   return (
     <div
       className={`
@@ -53,7 +59,7 @@ export function UserMessageBubble({
         className={`
           relative group
           max-w-[85%]
-          p-4 rounded-2xl rounded-tr-sm
+          p-4 ${borderRadius}
           bg-gradient-to-br from-blue-600/20 to-purple-600/20
           border border-blue-500/30
           backdrop-blur-xl

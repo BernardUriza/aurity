@@ -22,6 +22,7 @@ export { ScrollSnapAnchor } from './ScrollSnapAnchor';
 export { AnimatedMessage, AnimatedMessageList } from './AnimatedMessage';
 export { TypingIndicator, TypingIndicatorPulse } from './TypingIndicator';
 export { MessageStatusIndicator } from './MessageStatusIndicator';
+export { DateDivider, DateDividerCompact } from './DateDivider';
 
 // Types
 export type { ChatMessagesContainerProps } from './ChatMessagesContainer';
@@ -30,3 +31,4 @@ export type { ScrollToBottomFABProps } from './ScrollToBottomFAB';
 export type { AnimatedMessageProps } from './AnimatedMessage';
 export type { TypingIndicatorProps } from './TypingIndicator';
 export type { MessageStatusIndicatorProps } from './MessageStatusIndicator';
+export type { DateDividerProps } from './DateDivider';

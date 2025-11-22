@@ -23,20 +23,8 @@ export interface TypingIndicatorProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-// Animation configuration
-const dotVariants = {
-  initial: { y: 0 },
-  animate: (i: number) => ({
-    y: [-2, 2, -2],
-    transition: {
-      duration: 0.6,
-      repeat: Infinity,
-      repeatType: 'loop' as const,
-      delay: i * 0.15,
-      ease: 'easeInOut',
-    },
-  }),
-};
+// Animation configuration - using direct motion props instead of variants
+// to avoid TypeScript issues with custom dynamic variants
 
 const containerVariants = {
   initial: { opacity: 0, scale: 0.8 },
@@ -88,14 +76,21 @@ export const TypingIndicator = memo(function TypingIndicator({
       {/* Screen reader text */}
       <span className="sr-only">{ariaLabel}</span>
 
-      {/* Animated dots */}
+      {/* Animated dots - using inline animation for proper TypeScript support */}
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
-          custom={i}
-          variants={dotVariants}
-          initial="initial"
-          animate="animate"
+          initial={{ y: 0 }}
+          animate={{
+            y: [-2, 2, -2],
+          }}
+          transition={{
+            duration: 0.6,
+            repeat: Infinity,
+            repeatType: 'loop',
+            delay: i * 0.15,
+            ease: 'easeInOut',
+          }}
           className={`${config.dot} ${dotColor} rounded-full`}
         />
       ))}
