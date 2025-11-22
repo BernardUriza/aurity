@@ -15,6 +15,7 @@ import {
   BookOpen,
   UserPlus,
   Brain,
+  Building2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -93,6 +94,15 @@ export const NAV_ROUTES: NavRoute[] = [
     href: "/admin/personas",
     icon: Brain,
     shortcut: "8",
+    badge: "Admin",
+  },
+  {
+    id: "clinics-admin",
+    title: "Clínicas",
+    description: "Gestión de clínicas, doctores y check-in",
+    href: "/admin/clinics",
+    icon: Building2,
+    shortcut: "9",
     badge: "Admin",
   },
 ];
