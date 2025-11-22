@@ -23,6 +23,7 @@ export { AnimatedMessage, AnimatedMessageList } from './AnimatedMessage';
 export { TypingIndicator, TypingIndicatorPulse } from './TypingIndicator';
 export { MessageStatusIndicator } from './MessageStatusIndicator';
 export { DateDivider, DateDividerCompact } from './DateDivider';
+export { UnreadDivider, useUnreadMessages } from './UnreadDivider';
 
 // Types
 export type { ChatMessagesContainerProps } from './ChatMessagesContainer';
@@ -32,3 +33,8 @@ export type { AnimatedMessageProps } from './AnimatedMessage';
 export type { TypingIndicatorProps } from './TypingIndicator';
 export type { MessageStatusIndicatorProps } from './MessageStatusIndicator';
 export type { DateDividerProps } from './DateDivider';
+export type {
+  UnreadDividerProps,
+  UseUnreadMessagesOptions,
+  UseUnreadMessagesReturn,
+} from './UnreadDivider';
