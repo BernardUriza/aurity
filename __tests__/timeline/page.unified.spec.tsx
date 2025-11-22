@@ -7,13 +7,17 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
-import TimelinePage from '@/app/timeline/page';
 import type { UnifiedEvent } from '@/lib/api/unified-timeline';
 
 // ============================================================================
-// Mocks
+// Mocks - Must be hoisted before imports
 // ============================================================================
+
+// Mock functions - defined before vi.mock calls
+const mockLoadMore = vi.fn();
+const mockRefresh = vi.fn();
+const mockSetEventType = vi.fn();
+const mockSetTimeRangePreset = vi.fn();
 
 // Mock Auth0
 vi.mock('@auth0/auth0-react', () => ({
@@ -24,38 +28,9 @@ vi.mock('@auth0/auth0-react', () => ({
   })),
 }));
 
-// Mock the unified timeline hook
-const mockLoadMore = vi.fn();
-const mockRefresh = vi.fn();
-const mockSetEventType = vi.fn();
-const mockSetTimeRangePreset = vi.fn();
-
-const mockUseUnifiedTimeline = vi.fn(() => ({
-  events: [] as UnifiedEvent[],
-  stats: null,
-  isLoading: false,
-  isLoadingMore: false,
-  error: null,
-  hasMore: false,
-  total: 0,
-  chatCount: 0,
-  audioCount: 0,
-  filters: {
-    eventType: 'all' as const,
-    preset: null,
-    timeRange: { start: null, end: null },
-  },
-  setEventType: mockSetEventType,
-  setTimeRangePreset: mockSetTimeRangePreset,
-  setCustomTimeRange: vi.fn(),
-  loadMore: mockLoadMore,
-  refresh: mockRefresh,
-  isAuthenticated: true,
-  doctorId: 'test-user-123',
-}));
-
+// Mock the unified timeline hook - factory returns a fresh mock each time
 vi.mock('@/hooks/useUnifiedTimeline', () => ({
-  useUnifiedTimeline: mockUseUnifiedTimeline,
+  useUnifiedTimeline: vi.fn(),
 }));
 
 // Mock EventTimeline component
@@ -108,12 +83,41 @@ vi.mock('@/lib/timeline-config', () => ({
   unifiedTimelineConfig: {},
 }));
 
+// Import component AFTER mocks are set up
+import TimelinePage from '@/app/timeline/page';
+import { useUnifiedTimeline } from '@/hooks/useUnifiedTimeline';
+
 // ============================================================================
 // Test Helpers
 // ============================================================================
 
-function mockHookReturn(overrides: Partial<ReturnType<typeof mockUseUnifiedTimeline>>) {
-  mockUseUnifiedTimeline.mockReturnValue({
+// Type for mock return value
+interface MockHookReturn {
+  events: UnifiedEvent[];
+  stats: null;
+  isLoading: boolean;
+  isLoadingMore: boolean;
+  error: string | null;
+  hasMore: boolean;
+  total: number;
+  chatCount: number;
+  audioCount: number;
+  filters: {
+    eventType: 'all' | 'chat' | 'audio';
+    preset: null;
+    timeRange: { start: null; end: null };
+  };
+  setEventType: typeof mockSetEventType;
+  setTimeRangePreset: typeof mockSetTimeRangePreset;
+  setCustomTimeRange: ReturnType<typeof vi.fn>;
+  loadMore: typeof mockLoadMore;
+  refresh: typeof mockRefresh;
+  isAuthenticated: boolean;
+  doctorId: string;
+}
+
+function mockHookReturn(overrides: Partial<MockHookReturn>) {
+  vi.mocked(useUnifiedTimeline).mockReturnValue({
     events: [],
     stats: null,
     isLoading: false,
