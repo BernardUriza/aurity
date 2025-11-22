@@ -16,6 +16,7 @@ import { FITypingIndicator } from "./FITypingIndicator";
 import { PatientSetupForm, PatientFormData } from "./PatientSetupForm";
 import { HDF5Preview } from "./HDF5Preview";
 import { FlowDiagram } from "./FlowDiagram";
+import { MiniCalendarPreview } from "./MiniCalendarPreview";
 import { ConsultationSimulation } from "./ConsultationSimulation";
 import { ExportReport } from "./ExportReport";
 import { CompletionCelebration } from "./CompletionCelebration";
@@ -27,10 +28,12 @@ type Phase = "welcome" | "survey" | "glitch" | "beta" | "residencia" | "patient_
 
 const STORAGE_KEY = "fi_onboarding_progress";
 
+type ConsultasPerDay = '1-5' | '6-15' | '16-30' | '31+';
+
 interface SurveyData {
   userRole?: UserRole;
   clinicType?: ClinicType;
-  consultasPerDay?: '1-5' | '6-15' | '16-30' | '31+';
+  consultasPerDay?: ConsultasPerDay;
   aiExperience?: AIExperience;
 }
 
@@ -292,7 +295,7 @@ export function OnboardingFlow() {
                   ].map((option) => (
                     <button
                       key={option.value}
-                      onClick={() => handleSurveySelect('consultasPerDay', option.value as SurveyData['consultasPerDay'])}
+                      onClick={() => handleSurveySelect('consultasPerDay', option.value as ConsultasPerDay)}
                       className={`
                         p-4 rounded-xl border-2 transition-all
                         ${surveyData.consultasPerDay === option.value
@@ -1087,28 +1090,27 @@ export function OnboardingFlow() {
               </div>
             </div>
 
-            {/* Main Grid: Form + Preview + Diagram */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Left Column: Patient Form */}
-              <div className="lg:col-span-1">
+            {/* Main Grid: Form + Preview + Calendar */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Left Column: Patient Form + HDF5 Preview */}
+              <div className="space-y-6">
                 <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50">
                   <PatientSetupForm
                     onDataChange={setPatientData}
                     onSkipDemo={handleSkipWithDemo}
                   />
                 </div>
-              </div>
-
-              {/* Middle Column: HDF5 Preview */}
-              <div className="lg:col-span-1">
-                <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50 h-full">
+                <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50">
                   <HDF5Preview patientData={patientData} />
                 </div>
               </div>
 
-              {/* Right Column: Flow Diagram */}
-              <div className="lg:col-span-1">
-                <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50 h-full">
+              {/* Right Column: Mini Calendar Preview */}
+              <div className="space-y-6">
+                <div className="bg-slate-900/50 p-6 rounded-xl border border-cyan-700/30">
+                  <MiniCalendarPreview />
+                </div>
+                <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700/50">
                   <FlowDiagram />
                 </div>
               </div>
