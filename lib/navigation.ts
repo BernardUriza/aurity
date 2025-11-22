@@ -16,6 +16,7 @@ import {
   UserPlus,
   Brain,
   Building2,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 
@@ -103,6 +104,15 @@ export const NAV_ROUTES: NavRoute[] = [
     href: "/admin/clinics",
     icon: Building2,
     shortcut: "9",
+    badge: "Admin",
+  },
+  {
+    id: "appointments-calendar",
+    title: "Agenda de Citas",
+    description: "Calendario de citas con Bryntum Scheduler",
+    href: "/admin/appointments",
+    icon: CalendarDays,
+    shortcut: "0",
     badge: "Admin",
   },
 ];
