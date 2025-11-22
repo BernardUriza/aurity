@@ -118,3 +118,12 @@ service-account.json
 /src/api/index.ts
 
 # =============================================================================
+# BRYNTUM SCHEDULER PRO - Licensed Assets (FI-CHECKIN-005)
+# =============================================================================
+# These files contain embedded license key and must NOT be committed
+# Download from: https://bryntum.com/products/scheduler/ (requires license)
+# Copy to: public/js/bryntum/ and public/css/bryntum/
+public/js/bryntum/
+public/css/bryntum/
+
+# =============================================================================
