@@ -30,6 +30,12 @@ import {
   X,
   MessageCircle,
   Mic,
+  ZoomIn,
+  ZoomOut,
+  ArrowRight,
+  Clock,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { type UnifiedEvent } from '@/lib/api/unified-timeline';
 import { TIMELINE_COLORS } from '@/config/timeline.config';
@@ -261,6 +267,143 @@ function NavigateDrawer({
 }
 
 // ============================================================================
+// Event Detail Modal Component
+// ============================================================================
+
+interface EventDetailModalProps {
+  event: UnifiedEvent | null;
+  onClose: () => void;
+}
+
+function EventDetailModal({ event, onClose }: EventDetailModalProps) {
+  const [copied, setCopied] = useState(false);
+
+  if (!event) return null;
+
+  const timestamp = new Date(event.timestamp * 1000);
+  const eventTypeLabel =
+    event.event_type === 'chat_user' ? 'Usuario' :
+    event.event_type === 'chat_assistant' ? 'Asistente' : 'Transcripción';
+  const eventColor = getEventColor(event.event_type);
+
+  const handleCopyContent = async () => {
+    try {
+      await navigator.clipboard.writeText(event.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+          <div className="flex items-center gap-3">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: eventColor }}
+            />
+            <span className="font-medium text-white">{eventTypeLabel}</span>
+            {event.source === 'audio' && event.duration && (
+              <span className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+                {event.duration.toFixed(1)}s
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Timestamp */}
+        <div className="px-4 py-3 bg-slate-800/50 border-b border-slate-700">
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <Clock className="h-4 w-4" />
+            <span>{timestamp.toLocaleString('es-MX', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })}</span>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 max-h-[50vh] overflow-y-auto">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <span className="text-xs text-slate-500 uppercase tracking-wide">Contenido</span>
+            <button
+              onClick={handleCopyContent}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+            >
+              {copied ? (
+                <>
+                  <Check className="h-3 w-3 text-emerald-400" />
+                  <span className="text-emerald-400">Copiado</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3 w-3" />
+                  <span>Copiar</span>
+                </>
+              )}
+            </button>
+          </div>
+          <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
+            {event.content}
+          </p>
+        </div>
+
+        {/* Metadata Footer */}
+        {(event.session_id || event.persona || event.confidence) && (
+          <div className="px-4 py-3 bg-slate-800/30 border-t border-slate-700 grid grid-cols-2 gap-2 text-xs">
+            {event.session_id && (
+              <div>
+                <span className="text-slate-500">Sesión:</span>{' '}
+                <span className="text-slate-400 font-mono">{event.session_id.slice(0, 12)}...</span>
+              </div>
+            )}
+            {event.persona && (
+              <div>
+                <span className="text-slate-500">Persona:</span>{' '}
+                <span className="text-slate-400">{event.persona}</span>
+              </div>
+            )}
+            {event.confidence && (
+              <div>
+                <span className="text-slate-500">Confianza:</span>{' '}
+                <span className="text-slate-400">{(event.confidence * 100).toFixed(0)}%</span>
+              </div>
+            )}
+            {event.language && (
+              <div>
+                <span className="text-slate-500">Idioma:</span>{' '}
+                <span className="text-slate-400">{event.language}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
@@ -279,6 +422,8 @@ export function TimelineScheduler({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedEvent, setSelectedEvent] = useState<UnifiedEvent | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1); // 0.5 to 2
 
   // Extract unique sessions from events
   const sessions = useMemo(() => {
@@ -442,8 +587,13 @@ export function TimelineScheduler({
 
       listeners: {
         eventClick: ({ eventRecord }: { eventRecord: { data: { originalEvent?: UnifiedEvent } } }) => {
-          if (onEventClick && eventRecord.data.originalEvent) {
-            onEventClick(eventRecord.data.originalEvent);
+          if (eventRecord.data.originalEvent) {
+            // Show modal for event details
+            setSelectedEvent(eventRecord.data.originalEvent);
+            // Also call external handler if provided
+            if (onEventClick) {
+              onEventClick(eventRecord.data.originalEvent);
+            }
           }
         },
       },
@@ -573,6 +723,80 @@ export function TimelineScheduler({
     });
   };
 
+  // Zoom handler
+  const handleZoom = (direction: 'in' | 'out') => {
+    const delta = direction === 'in' ? 0.25 : -0.25;
+    const newZoom = Math.max(0.5, Math.min(2, zoomLevel + delta));
+    setZoomLevel(newZoom);
+
+    // Update scheduler tick width based on zoom
+    const scheduler = schedulerInstanceRef.current as {
+      tickSize?: number;
+    } | null;
+    if (scheduler) {
+      const baseTickWidth = VIEW_PRESETS[viewMode].preset;
+      const tickWidth = (baseTickWidth as { tickWidth?: number }).tickWidth || 60;
+      scheduler.tickSize = Math.round(tickWidth * newZoom);
+    }
+  };
+
+  // Jump to latest event
+  const jumpToLatestEvent = () => {
+    if (events.length === 0) return;
+
+    // Find the most recent event (first in array since they're sorted desc)
+    const latestEvent = events[0];
+    const eventDate = new Date(latestEvent.timestamp * 1000);
+
+    setCurrentDate(eventDate);
+    updateSchedulerTimeSpan(eventDate);
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if not in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowLeft':
+          if (e.shiftKey) {
+            navigateDate('prev');
+          }
+          break;
+        case 'ArrowRight':
+          if (e.shiftKey) {
+            navigateDate('next');
+          }
+          break;
+        case 'Escape':
+          if (selectedEvent) {
+            setSelectedEvent(null);
+          } else if (drawerOpen) {
+            setDrawerOpen(false);
+          }
+          break;
+        case '+':
+        case '=':
+          handleZoom('in');
+          break;
+        case '-':
+          handleZoom('out');
+          break;
+        case 't':
+        case 'T':
+          goToToday();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Functions are stable within render
+  }, [selectedEvent, drawerOpen, viewMode, currentDate, zoomLevel]);
+
   // ============================================================================
   // Render
   // ============================================================================
@@ -649,6 +873,44 @@ export function TimelineScheduler({
           </button>
         </div>
 
+        {/* Zoom Controls + Jump to Latest */}
+        <div className="flex items-center gap-2">
+          {/* Zoom */}
+          <div className="flex items-center bg-slate-800 rounded-lg p-0.5">
+            <button
+              onClick={() => handleZoom('out')}
+              disabled={zoomLevel <= 0.5}
+              className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Alejar"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </button>
+            <span className="px-2 text-xs text-slate-400 min-w-[40px] text-center">
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              onClick={() => handleZoom('in')}
+              disabled={zoomLevel >= 2}
+              className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Acercar"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Jump to Latest Event */}
+          {events.length > 0 && (
+            <button
+              onClick={jumpToLatestEvent}
+              className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+              title="Ir al último evento"
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Último</span>
+            </button>
+          )}
+        </div>
+
         {/* Event Legend */}
         <div className="hidden md:flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
@@ -704,6 +966,20 @@ export function TimelineScheduler({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Event Detail Modal */}
+      <EventDetailModal
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+      />
+
+      {/* Keyboard Shortcuts Help */}
+      <div className="px-3 py-2 bg-slate-900/30 border-t border-slate-800 text-xs text-slate-500 flex items-center gap-4">
+        <span><kbd className="px-1 py-0.5 bg-slate-800 rounded text-slate-400">Shift</kbd>+<kbd className="px-1 py-0.5 bg-slate-800 rounded text-slate-400">←/→</kbd> Navegar</span>
+        <span><kbd className="px-1 py-0.5 bg-slate-800 rounded text-slate-400">+/-</kbd> Zoom</span>
+        <span><kbd className="px-1 py-0.5 bg-slate-800 rounded text-slate-400">T</kbd> Hoy</span>
+        <span><kbd className="px-1 py-0.5 bg-slate-800 rounded text-slate-400">Esc</kbd> Cerrar</span>
       </div>
     </div>
   );
