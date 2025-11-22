@@ -76,7 +76,7 @@ export function ReceptionistChatWidget({
       response_mode: 'concise', // Short responses for check-in
     },
     storageKey: undefined, // Ephemeral - no persistence
-    autoIntroduction: true, // Auto-greet the patient
+    autoIntroduction: false, // Show custom empty state with quick actions instead
   });
 
   // Handle send message
