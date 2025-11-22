@@ -76,10 +76,13 @@ export interface UseCheckinConversationReturn {
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:7001';
 
 interface StartConversationResponse {
-  session_id: string;
   message: string;
   state: ConversationState['state'];
   quick_replies: string[];
+  metadata: {
+    session_id: string;
+    [key: string]: unknown;
+  };
 }
 
 interface SendMessageResponse {
@@ -188,12 +191,12 @@ export function useCheckinConversation({
     try {
       const response = await apiStartConversation(clinicId, clinicName);
 
-      setSessionId(response.session_id);
+      setSessionId(response.metadata.session_id);
       setConversationState({
         state: response.state,
         quickReplies: response.quick_replies || [],
         actions: [],
-        metadata: {},
+        metadata: response.metadata,
       });
 
       // Add greeting message
