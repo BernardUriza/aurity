@@ -30,10 +30,10 @@ export interface ChatWidgetHeaderProps {
   /** Show history search button */
   showHistorySearch?: boolean;
 
-  /** Callbacks */
-  onMinimize: () => void;
-  onMaximize: () => void;
-  onClose: () => void;
+  /** Callbacks - optional when showControls=false */
+  onMinimize?: () => void;
+  onMaximize?: () => void;
+  onClose?: () => void;
   onHistorySearch?: () => void;
 }
 

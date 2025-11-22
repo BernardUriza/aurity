@@ -7,6 +7,7 @@
 
 export { CheckinQRDisplay } from './CheckinQRDisplay';
 export { CheckinFlow } from './CheckinFlow';
+export { ReceptionistChatWidget } from './ReceptionistChatWidget';
 
 // Re-export types for convenience
 export type {

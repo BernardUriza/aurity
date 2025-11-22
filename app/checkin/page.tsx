@@ -11,8 +11,9 @@
 
 import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { CheckinFlow } from '@/components/checkin';
-import { AlertCircle, QrCode } from 'lucide-react';
+import { AlertCircle, QrCode, MessageCircle } from 'lucide-react';
 
 function CheckinContent() {
   const searchParams = useSearchParams();
@@ -81,8 +82,32 @@ function CheckinContent() {
   // TODO: Fetch clinic name from API
   const clinicName = 'Clínica AURITY';
 
+  // Build params for chat mode link
+  const chatParams = new URLSearchParams();
+  chatParams.set('clinic', clinicId);
+  if (timestamp) chatParams.set('t', timestamp);
+  if (nonce) chatParams.set('n', nonce);
+
   return (
-    <CheckinFlow
+    <div className="relative">
+      {/* Floating Chat Mode Toggle */}
+      <Link
+        href={`/checkin/chat?${chatParams.toString()}`}
+        className="
+          fixed bottom-6 right-6 z-50
+          flex items-center gap-2
+          px-4 py-3
+          bg-indigo-600 hover:bg-indigo-700
+          text-white text-sm font-medium
+          rounded-full shadow-lg
+          transition-all hover:scale-105
+        "
+      >
+        <MessageCircle className="w-5 h-5" />
+        <span className="hidden sm:inline">Prefiero chatear</span>
+      </Link>
+
+      <CheckinFlow
       clinicId={clinicId}
       clinicName={clinicName}
       onComplete={(response) => {
@@ -97,6 +122,7 @@ function CheckinContent() {
         }
       }}
     />
+    </div>
   );
 }
 
