@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Calendar, ChevronLeft, ChevronRight, Plus, RefreshCw, CalendarDays, CalendarRange, LayoutGrid } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 // View preset configurations
 type ViewMode = "day" | "week" | "month";
@@ -499,25 +500,20 @@ export default function AppointmentsCalendarPage() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      {/* Header */}
-      <header className="bg-slate-900 border-b border-slate-700 px-6 py-4">
-        <div className="flex items-center justify-between">
+      <PageHeader
+        showBackButton
+        backPath="/"
+        icon="calendarDays"
+        iconColor="text-cyan-400"
+        title="Agenda de Citas"
+        subtitle="Gestión de citas médicas con Bryntum Scheduler Pro"
+        actions={
           <div className="flex items-center gap-3">
-            <Calendar className="h-8 w-8 text-cyan-400" />
-            <div>
-              <h1 className="text-2xl font-bold text-slate-100">Agenda de Citas</h1>
-              <p className="text-sm text-slate-400">
-                Gestión de citas médicas con Bryntum Scheduler Pro
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
             {/* Clinic Selector */}
             <select
               value={selectedClinic}
               onChange={(e) => setSelectedClinic(e.target.value)}
-              className="px-4 py-2 bg-slate-800 border border-slate-600 text-slate-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+              className="px-3 py-1.5 bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
             >
               {clinics.map((clinic) => (
                 <option key={clinic.clinic_id} value={clinic.clinic_id}>
@@ -527,7 +523,7 @@ export default function AppointmentsCalendarPage() {
             </select>
 
             {/* View Mode Selector */}
-            <div className="flex items-center bg-slate-800 rounded-lg p-1">
+            <div className="flex items-center bg-slate-800 rounded-lg p-0.5">
               {(Object.keys(VIEW_PRESETS) as ViewMode[]).map((mode) => {
                 const config = VIEW_PRESETS[mode];
                 const Icon = config.icon;
@@ -536,69 +532,65 @@ export default function AppointmentsCalendarPage() {
                   <button
                     key={mode}
                     onClick={() => changeViewMode(mode)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                       isActive
                         ? "bg-cyan-600 text-white shadow-sm"
                         : "text-slate-400 hover:bg-slate-700 hover:text-slate-200"
                     }`}
                     title={config.label}
                   >
-                    <Icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{config.label}</span>
+                    <Icon className="h-3.5 w-3.5" />
+                    <span className="hidden lg:inline">{config.label}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Date Navigation */}
-            <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-0.5">
               <button
                 onClick={() => navigateDate("prev")}
-                className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200"
-                title={`${VIEW_PRESETS[viewMode].navigationUnit === "day" ? "Día" : VIEW_PRESETS[viewMode].navigationUnit === "week" ? "Semana" : "Mes"} anterior`}
+                className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={goToToday}
-                className="px-3 py-1 text-sm font-medium hover:bg-slate-700 rounded text-slate-300"
+                className="px-2 py-1 text-xs font-medium hover:bg-slate-700 rounded text-slate-300"
               >
                 Hoy
               </button>
-              <span className="px-3 py-1 font-medium min-w-[180px] text-center text-slate-200">
+              <span className="px-2 py-1 text-xs font-medium min-w-[120px] text-center text-slate-200">
                 {getDateDisplayText()}
               </span>
               <button
                 onClick={() => navigateDate("next")}
-                className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200"
-                title={`${VIEW_PRESETS[viewMode].navigationUnit === "day" ? "Día" : VIEW_PRESETS[viewMode].navigationUnit === "week" ? "Semana" : "Mes"} siguiente`}
+                className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200"
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Actions */}
+            {/* Refresh */}
             <button
               onClick={() => fetchAppointments(selectedClinic, currentDate)}
-              className="p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 rounded-lg"
+              className="p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 rounded-lg"
               title="Actualizar"
             >
-              <RefreshCw className="h-5 w-5" />
+              <RefreshCw className="h-4 w-4" />
             </button>
 
+            {/* New Appointment */}
             <button
-              onClick={() => {
-                // TODO: Open new appointment modal
-                alert("Crear nueva cita - TODO");
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-500"
+              onClick={() => alert("Crear nueva cita - TODO")}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 text-white text-sm rounded-lg hover:bg-cyan-500"
             >
-              <Plus className="h-5 w-5" />
+              <Plus className="h-4 w-4" />
               Nueva Cita
             </button>
           </div>
-        </div>
-      </header>
+        }
+      />
 
       {/* Status Legend */}
       <div className="bg-slate-900/50 border-b border-slate-700 px-6 py-2">

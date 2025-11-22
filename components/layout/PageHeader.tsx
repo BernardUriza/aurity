@@ -25,6 +25,8 @@ import {
   Settings,
   FileText,
   Tag,
+  Building2,
+  CalendarDays,
   type LucideIcon
 } from 'lucide-react'
 
@@ -42,6 +44,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   settings: Settings,
   fileText: FileText,
   tag: Tag,
+  building2: Building2,
+  calendarDays: CalendarDays,
 }
 
 export interface PageHeaderMetric {

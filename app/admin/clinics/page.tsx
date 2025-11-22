@@ -25,6 +25,7 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 import type { Clinic, ClinicCreate, Doctor, Appointment } from '@/lib/api/clinics';
 import {
   fetchClinics,
@@ -108,19 +109,15 @@ export default function ClinicsAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950/20 to-slate-950 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-              <Building2 className="w-8 h-8 text-indigo-400" />
-              Gestión de Clínicas
-            </h1>
-            <p className="text-slate-400 mt-2">
-              Administra clínicas, doctores y citas del sistema de check-in
-            </p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950/20 to-slate-950">
+      <PageHeader
+        showBackButton
+        backPath="/"
+        icon="building2"
+        iconColor="text-indigo-400"
+        title="Gestión de Clínicas"
+        subtitle="Administra clínicas, doctores y citas del sistema de check-in"
+        actions={
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
@@ -128,7 +125,10 @@ export default function ClinicsAdminPage() {
             <Plus className="w-4 h-4" />
             Nueva Clínica
           </button>
-        </div>
+        }
+      />
+
+      <div className="max-w-7xl mx-auto p-8">
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Clinics List */}
