@@ -2,19 +2,18 @@
  * ReceptionistChatWidget - FI Receptionist Chat Interface
  *
  * Card: FI-CHECKIN-005
- * Wrapper around ChatWidget configured for patient check-in flow
+ * Conversational check-in widget using the state-machine backend
  *
  * Uses:
- * - receptionistChatConfig from config/chat.config.ts
- * - receptionistEmptyStateConfig from config/chat-messages.config.ts
- * - fi_receptionist persona style
+ * - useCheckinConversation hook for backend communication
+ * - receptionistChatConfig for styling
+ * - Quick replies from backend conversation state
  */
 
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useFIConversation } from '@/hooks/useFIConversation';
-import { ChatWidgetContainer } from '@/components/chat/ChatWidgetContainer';
+import { useState, useEffect } from 'react';
+import { useCheckinConversation } from '@/hooks/useCheckinConversation';
 import { ChatWidgetHeader } from '@/components/chat/ChatWidgetHeader';
 import { ChatWidgetMessages } from '@/components/chat/ChatWidgetMessages';
 import { ChatWidgetInput } from '@/components/chat/ChatWidgetInput';
@@ -32,6 +31,8 @@ import {
 export interface ReceptionistChatWidgetProps {
   /** Clinic ID from QR code */
   clinicId: string;
+  /** Optional clinic display name */
+  clinicName?: string;
   /** Optional pre-filled patient name */
   patientName?: string;
   /** Called when check-in is successfully completed */
@@ -41,8 +42,8 @@ export interface ReceptionistChatWidgetProps {
 export interface CheckinResult {
   patientId: string;
   appointmentId: string;
-  queuePosition: number;
-  estimatedWaitMinutes: number;
+  queuePosition?: number;
+  estimatedWaitMinutes?: number;
 }
 
 // =============================================================================
@@ -51,32 +52,35 @@ export interface CheckinResult {
 
 export function ReceptionistChatWidget({
   clinicId,
+  clinicName,
   patientName,
   onCheckinComplete,
 }: ReceptionistChatWidgetProps) {
   const [message, setMessage] = useState('');
+  const [hasStarted, setHasStarted] = useState(false);
 
-  // Ephemeral storage for check-in session (no persistence needed)
-  const sessionStorageKey = `fi_receptionist_${clinicId}_${Date.now()}`;
-
-  // Use FI conversation hook with receptionist persona
+  // Use the check-in specific conversation hook
   const {
     messages,
+    conversationState,
     loading,
     isTyping,
-    loadingInitial,
+    sessionId,
+    startConversation,
     sendMessage,
-    getIntroduction,
-  } = useFIConversation({
-    phase: undefined,
-    context: {
-      clinic_id: clinicId,
-      patient_name: patientName,
-      persona: 'fi_receptionist',
-      response_mode: 'concise', // Short responses for check-in
+    sendQuickReply,
+  } = useCheckinConversation({
+    clinicId,
+    clinicName: clinicName || 'la clínica',
+    onComplete: (result) => {
+      onCheckinComplete?.({
+        patientId: result.patientId,
+        appointmentId: result.appointmentId,
+      });
     },
-    storageKey: undefined, // Ephemeral - no persistence
-    autoIntroduction: false, // Show custom empty state with quick actions instead
+    onError: (error) => {
+      console.error('[ReceptionistChatWidget] Error:', error);
+    },
   });
 
   // Handle send message
@@ -86,20 +90,43 @@ export function ReceptionistChatWidget({
     const userMessage = message.trim();
     setMessage(''); // Clear input immediately
 
-    await sendMessage(userMessage);
+    // Start conversation if not started
+    if (!hasStarted) {
+      setHasStarted(true);
+      await startConversation();
+      // Then send the message
+      await sendMessage(userMessage);
+    } else {
+      await sendMessage(userMessage);
+    }
   };
 
-  // Handle quick action click
+  // Handle quick action click (from empty state)
   const handleQuickAction = async (actionMessage: string) => {
     if (loading) return;
-    await sendMessage(actionMessage);
+
+    setHasStarted(true);
+    await startConversation();
+    // Wait a bit for the greeting, then send the action
+    setTimeout(() => {
+      sendMessage(actionMessage);
+    }, 500);
+  };
+
+  // Handle quick reply click (from backend state)
+  const handleQuickReply = async (reply: string) => {
+    if (loading) return;
+    await sendQuickReply(reply);
   };
 
   // Config for this widget
   const config = receptionistChatConfig;
 
-  // Show empty state with quick actions if no messages yet
-  const showEmptyState = messages.length === 0 && !loadingInitial && !isTyping;
+  // Show empty state before conversation starts
+  const showEmptyState = !hasStarted && messages.length === 0;
+
+  // Get quick replies from backend state
+  const quickReplies = conversationState?.quickReplies || [];
 
   return (
     <div className="h-full flex flex-col bg-slate-950">
@@ -110,7 +137,6 @@ export function ReceptionistChatWidget({
         backgroundClass={config.theme.background.header}
         mode="fullscreen"
         onClose={() => {
-          // Could trigger exit flow
           if (window.opener) {
             window.close();
           }
@@ -177,11 +203,27 @@ export function ReceptionistChatWidget({
           <ChatWidgetMessages
             messages={messages}
             isTyping={isTyping}
-            loadingInitial={loadingInitial}
+            loadingInitial={false}
             config={config}
             userName={patientName?.split(' ')[0]}
             mode="fullscreen"
           />
+
+          {/* Quick Replies from Backend */}
+          {quickReplies.length > 0 && !loading && (
+            <div className="px-4 pb-2 flex flex-wrap gap-2 justify-center">
+              {quickReplies.map((reply, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleQuickReply(reply)}
+                  disabled={loading}
+                  className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/40 text-indigo-300 text-sm rounded-full transition-all disabled:opacity-50"
+                >
+                  {reply}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Scroll to bottom */}
           <ScrollToBottomButton containerId="chat-widget-messages" />
