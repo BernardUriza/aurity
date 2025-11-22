@@ -202,28 +202,53 @@ export default function AppointmentsCalendarPage() {
     }
   }
 
-  function initializeScheduler() {
-    // Load Bryntum dynamically to avoid SSR issues
-    const script = document.createElement("script");
-    script.src = "/js/bryntum/schedulerpro.wc.module.js";
-    script.type = "module";
-    script.onload = () => {
-      createScheduler();
-    };
-    document.head.appendChild(script);
-
-    // Load CSS
+  async function initializeScheduler() {
+    // Load CSS first (dark theme to match app)
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/css/bryntum/schedulerpro.classic-light.css";
+    link.href = "/css/bryntum/schedulerpro.classic-dark.css";
     document.head.appendChild(link);
+
+    // Load Bryntum via script tag to bypass bundler processing
+    // ES Modules from /public need to be loaded this way in Next.js
+    return new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.type = "module";
+      script.textContent = `
+        import { SchedulerPro } from "/js/bryntum/schedulerpro.wc.module.js";
+        window.__BryntumSchedulerPro = SchedulerPro;
+        window.dispatchEvent(new CustomEvent("bryntum-loaded"));
+      `;
+
+      const handleLoaded = () => {
+        window.removeEventListener("bryntum-loaded", handleLoaded);
+        // @ts-expect-error - dynamically loaded
+        const SchedulerPro = window.__BryntumSchedulerPro;
+        if (SchedulerPro) {
+          createScheduler(SchedulerPro);
+          resolve();
+        } else {
+          reject(new Error("Bryntum SchedulerPro not loaded"));
+        }
+      };
+
+      window.addEventListener("bryntum-loaded", handleLoaded);
+      document.head.appendChild(script);
+
+      // Timeout fallback
+      setTimeout(() => {
+        window.removeEventListener("bryntum-loaded", handleLoaded);
+        // @ts-expect-error - dynamically loaded
+        if (!window.__BryntumSchedulerPro) {
+          reject(new Error("Bryntum load timeout"));
+        }
+      }, 10000);
+    });
   }
 
-  function createScheduler() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function createScheduler(SchedulerPro: any) {
     if (!schedulerRef.current || schedulerInstanceRef.current) return;
-
-    // @ts-expect-error - Bryntum is loaded dynamically
-    const { SchedulerPro } = window.bryntum || {};
 
     if (!SchedulerPro) {
       console.error("Bryntum SchedulerPro not loaded");
@@ -473,15 +498,15 @@ export default function AppointmentsCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950">
       {/* Header */}
-      <header className="bg-white border-b px-6 py-4">
+      <header className="bg-slate-900 border-b border-slate-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Calendar className="h-8 w-8 text-blue-600" />
+            <Calendar className="h-8 w-8 text-cyan-400" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Agenda de Citas</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-2xl font-bold text-slate-100">Agenda de Citas</h1>
+              <p className="text-sm text-slate-400">
                 Gestión de citas médicas con Bryntum Scheduler Pro
               </p>
             </div>
@@ -492,7 +517,7 @@ export default function AppointmentsCalendarPage() {
             <select
               value={selectedClinic}
               onChange={(e) => setSelectedClinic(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-slate-800 border border-slate-600 text-slate-200 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
             >
               {clinics.map((clinic) => (
                 <option key={clinic.clinic_id} value={clinic.clinic_id}>
@@ -502,7 +527,7 @@ export default function AppointmentsCalendarPage() {
             </select>
 
             {/* View Mode Selector */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center bg-slate-800 rounded-lg p-1">
               {(Object.keys(VIEW_PRESETS) as ViewMode[]).map((mode) => {
                 const config = VIEW_PRESETS[mode];
                 const Icon = config.icon;
@@ -513,8 +538,8 @@ export default function AppointmentsCalendarPage() {
                     onClick={() => changeViewMode(mode)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                       isActive
-                        ? "bg-white text-blue-600 shadow-sm"
-                        : "text-gray-600 hover:bg-gray-200"
+                        ? "bg-cyan-600 text-white shadow-sm"
+                        : "text-slate-400 hover:bg-slate-700 hover:text-slate-200"
                     }`}
                     title={config.label}
                   >
@@ -526,26 +551,26 @@ export default function AppointmentsCalendarPage() {
             </div>
 
             {/* Date Navigation */}
-            <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+            <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-1">
               <button
                 onClick={() => navigateDate("prev")}
-                className="p-2 hover:bg-gray-200 rounded"
+                className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200"
                 title={`${VIEW_PRESETS[viewMode].navigationUnit === "day" ? "Día" : VIEW_PRESETS[viewMode].navigationUnit === "week" ? "Semana" : "Mes"} anterior`}
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 onClick={goToToday}
-                className="px-3 py-1 text-sm font-medium hover:bg-gray-200 rounded"
+                className="px-3 py-1 text-sm font-medium hover:bg-slate-700 rounded text-slate-300"
               >
                 Hoy
               </button>
-              <span className="px-3 py-1 font-medium min-w-[180px] text-center">
+              <span className="px-3 py-1 font-medium min-w-[180px] text-center text-slate-200">
                 {getDateDisplayText()}
               </span>
               <button
                 onClick={() => navigateDate("next")}
-                className="p-2 hover:bg-gray-200 rounded"
+                className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200"
                 title={`${VIEW_PRESETS[viewMode].navigationUnit === "day" ? "Día" : VIEW_PRESETS[viewMode].navigationUnit === "week" ? "Semana" : "Mes"} siguiente`}
               >
                 <ChevronRight className="h-5 w-5" />
@@ -555,7 +580,7 @@ export default function AppointmentsCalendarPage() {
             {/* Actions */}
             <button
               onClick={() => fetchAppointments(selectedClinic, currentDate)}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              className="p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 rounded-lg"
               title="Actualizar"
             >
               <RefreshCw className="h-5 w-5" />
@@ -566,7 +591,7 @@ export default function AppointmentsCalendarPage() {
                 // TODO: Open new appointment modal
                 alert("Crear nueva cita - TODO");
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-500"
             >
               <Plus className="h-5 w-5" />
               Nueva Cita
@@ -576,32 +601,32 @@ export default function AppointmentsCalendarPage() {
       </header>
 
       {/* Status Legend */}
-      <div className="bg-white border-b px-6 py-2">
+      <div className="bg-slate-900/50 border-b border-slate-700 px-6 py-2">
         <div className="flex items-center gap-6 text-sm">
-          <span className="text-gray-500">Estado:</span>
+          <span className="text-slate-500">Estado:</span>
           <div className="flex items-center gap-1">
             <span className="w-3 h-3 rounded-full bg-blue-500" />
-            <span>Programada</span>
+            <span className="text-slate-300">Programada</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-3 h-3 rounded-full bg-green-500" />
-            <span>Confirmada</span>
+            <span className="text-slate-300">Confirmada</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-3 h-3 rounded-full bg-teal-500" />
-            <span>Check-in</span>
+            <span className="text-slate-300">Check-in</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-3 h-3 rounded-full bg-orange-500" />
-            <span>En curso</span>
+            <span className="text-slate-300">En curso</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded-full bg-gray-500" />
-            <span>Completada</span>
+            <span className="w-3 h-3 rounded-full bg-slate-500" />
+            <span className="text-slate-300">Completada</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-3 h-3 rounded-full bg-red-500" />
-            <span>Cancelada</span>
+            <span className="text-slate-300">Cancelada</span>
           </div>
         </div>
       </div>
@@ -610,18 +635,18 @@ export default function AppointmentsCalendarPage() {
       <div className="p-6">
         <div
           ref={schedulerRef}
-          className="bg-white rounded-lg shadow-sm border"
+          className="bg-slate-900 rounded-lg shadow-lg border border-slate-700"
           style={{ height: "calc(100vh - 220px)" }}
         />
 
         {doctors.length === 0 && !loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80">
             <div className="text-center">
-              <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900">
+              <Calendar className="h-16 w-16 text-slate-600 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-slate-200">
                 No hay doctores configurados
               </h3>
-              <p className="text-gray-500 mt-1">
+              <p className="text-slate-400 mt-1">
                 Agregue doctores en la sección de Clínicas para ver la agenda
               </p>
             </div>
