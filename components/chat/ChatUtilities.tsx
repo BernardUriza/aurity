@@ -55,7 +55,10 @@ export function ScrollToBottomButton({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [containerId, threshold]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     const container = document.getElementById(containerId);
     if (!container) return;
 
@@ -73,7 +76,7 @@ export function ScrollToBottomButton({
     <button
       onClick={scrollToBottom}
       className={`
-        fixed bottom-32 left-1/2 -translate-x-1/2
+        absolute bottom-4 left-1/2 -translate-x-1/2
         w-10 h-10
         bg-slate-800/90 backdrop-blur-sm
         hover:bg-slate-700/90

@@ -192,15 +192,18 @@ export function FIMessageBubble({
   // Get persona from metadata (fallback to general_assistant)
   const persona = message.metadata?.tone || 'general_assistant';
 
-  // Fetch personas to get real names from backend
+  // Fetch personas to get real names and voices from backend
   const { personas } = usePersonas();
 
   // Get style for persona (with fallback)
   const style = PERSONA_STYLES[persona as keyof typeof PERSONA_STYLES] || FALLBACK_STYLE;
 
-  // Get persona name from backend (single source of truth)
+  // Get persona data from backend (single source of truth)
   const personaData = personas.find(p => p.id === persona);
   const personaLabel = generatePersonaLabel(personaData?.name);
+
+  // Get voice for this persona (from backend config or message metadata)
+  const personaVoice = message.metadata?.voice || personaData?.voice;
 
   return (
     <div
@@ -249,7 +252,7 @@ export function FIMessageBubble({
           {/* Action buttons */}
           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
             <CopyButton content={message.content} size="sm" />
-            <SpeakButton content={message.content} size="sm" voice={message.metadata?.voice} />
+            <SpeakButton content={message.content} size="sm" voice={personaVoice} />
           </div>
         </div>
 

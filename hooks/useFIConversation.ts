@@ -8,6 +8,10 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { assistantAPI } from '@/lib/api/assistant';
 import { mergeMessages, areMessagesEqual } from '@/lib/chat/sync';
+
+/** Maximum messages to show initially (older messages available via pagination) */
+const INITIAL_MESSAGES_LIMIT = 3;
+
 import type {
   FIMessage,
   FIChatContext,
@@ -162,6 +166,9 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [paginationOffset, setPaginationOffset] = useState(0);
 
+  // Buffer for older messages from localStorage (not yet shown)
+  const olderMessagesBufferRef = useRef<FIMessage[]>([]);
+
   // WebSocket real-time sync (cross-device)
   // SOLID: Dependency Inversion - use IRealtimeSync interface
   // IMPORTANT: Only connect AFTER initial load completes to avoid race conditions
@@ -220,7 +227,23 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
         // Deduplicate immediately to prevent flicker on first render
         const deduped = mergeMessages(loaded, []);
         console.log('[Load] Loaded', loaded.length, '→ Deduped to', deduped.length);
-        setMessages(deduped);
+
+        // Limit initial display to last N messages (pagination for older)
+        if (deduped.length > INITIAL_MESSAGES_LIMIT) {
+          const visibleMessages = deduped.slice(-INITIAL_MESSAGES_LIMIT);
+          const olderMessages = deduped.slice(0, -INITIAL_MESSAGES_LIMIT);
+
+          console.log('[Load] Showing last', visibleMessages.length, '| Buffered', olderMessages.length, 'older messages');
+
+          olderMessagesBufferRef.current = olderMessages;
+          setMessages(visibleMessages);
+          setHasMoreMessages(true);
+        } else {
+          // All messages fit in initial view
+          olderMessagesBufferRef.current = [];
+          setMessages(deduped);
+          setHasMoreMessages(false); // No local buffer, check backend later
+        }
 
         // Save cleaned version back to storage
         if (deduped.length !== loaded.length) {
@@ -255,18 +278,31 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
 
         // Merge local storage + backend (dedup)
         setMessages(prevMessages => {
-          const merged = mergeMessages(prevMessages, backendMessages);
+          // Merge all messages (including buffered ones for complete dedup)
+          const allLocalMessages = [...olderMessagesBufferRef.current, ...prevMessages];
+          const merged = mergeMessages(allLocalMessages, backendMessages);
 
           // Only update if different (avoid unnecessary re-renders)
-          if (areMessagesEqual(prevMessages, merged)) {
+          if (areMessagesEqual(allLocalMessages, merged)) {
             return prevMessages;
           }
 
-          // Update storage with merged messages (IMessageStorage interface)
+          // Update storage with ALL merged messages (IMessageStorage interface)
           if (storageKey) {
             storage.save(storageKey, merged);
           }
 
+          // Apply limit: show only last N messages, buffer the rest
+          if (merged.length > INITIAL_MESSAGES_LIMIT) {
+            const visibleMessages = merged.slice(-INITIAL_MESSAGES_LIMIT);
+            const olderMessages = merged.slice(0, -INITIAL_MESSAGES_LIMIT);
+            olderMessagesBufferRef.current = olderMessages;
+            setHasMoreMessages(true);
+            return visibleMessages;
+          }
+
+          // All messages fit
+          olderMessagesBufferRef.current = [];
           return merged;
         });
       } catch (err) {
@@ -470,6 +506,9 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
     setLoading(false);
     setIsTyping(false);
     lastMessageRef.current = null;
+    olderMessagesBufferRef.current = []; // Clear pagination buffer
+    setHasMoreMessages(false);
+    setPaginationOffset(0);
 
     if (storageKey) {
       storage.clear(storageKey);
@@ -477,20 +516,48 @@ export function useFIConversation(options: UseFIConversationOptions = {}): UseFI
   }, [storageKey, storage]);
 
   /**
-   * Load older messages from backend (for infinite scroll)
-   * SOLID: Dependency Inversion - use IBackendSync interface
+   * Load older messages (for infinite scroll)
+   * First loads from local buffer, then from backend
    */
   const loadOlderMessages = useCallback(async (): Promise<void> => {
     const doctorId = context?.doctor_id;
 
-    if (loadingOlder || !hasMoreMessages || !doctorId) {
+    if (loadingOlder || !hasMoreMessages) {
       return;
     }
 
     setLoadingOlder(true);
 
     try {
-      // Load older messages (IBackendSync interface)
+      // STEP 1: Check local buffer first (messages from localStorage not yet shown)
+      if (olderMessagesBufferRef.current.length > 0) {
+        const bufferChunk = olderMessagesBufferRef.current.slice(-INITIAL_MESSAGES_LIMIT);
+        const remaining = olderMessagesBufferRef.current.slice(0, -INITIAL_MESSAGES_LIMIT);
+
+        console.log('[LoadOlder] From buffer:', bufferChunk.length, '| Remaining:', remaining.length);
+
+        // Prepend older messages from buffer
+        setMessages(prev => [...bufferChunk, ...prev]);
+
+        // Update buffer
+        olderMessagesBufferRef.current = remaining;
+
+        // If buffer exhausted, check if backend has more
+        if (remaining.length === 0 && doctorId) {
+          // Will check backend on next scroll
+          setHasMoreMessages(true);
+        }
+
+        return;
+      }
+
+      // STEP 2: Buffer exhausted, load from backend
+      if (!doctorId) {
+        setHasMoreMessages(false);
+        return;
+      }
+
+      // Load older messages from backend (IBackendSync interface)
       const result = await backendSync.loadOlder(doctorId, phase, paginationOffset, 50);
 
       // Prepend older messages to the start of the array

@@ -1,12 +1,15 @@
 /**
  * Timeline Event Configuration
  *
- * Unified configuration for medical events + audio chunks
+ * Unified configuration for medical events + audio chunks + chat messages
  * Supports: transcription, diarization, SOAP notes, audio playback, STT provider info
+ *
+ * Card: FI-PHIL-DOC-014 (Memoria Longitudinal Unificada)
+ * Updated: 2025-11-22 - Added chat message support
  */
 
 import React from 'react';
-import { Clock, Play, Pause, Zap, Radio, FileAudio, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Play, Pause, Zap, Radio, FileAudio, ChevronDown, ChevronUp, MessageCircle, User, Bot, Sparkles } from 'lucide-react';
 import type { TimelineConfig, TimelineEvent } from '@/components/audit/EventTimeline';
 
 export const timelineEventConfig: TimelineConfig = {
@@ -31,6 +34,26 @@ export const timelineEventConfig: TimelineConfig = {
   getColors: (event: TimelineEvent) => {
     const type = event.type.toLowerCase();
 
+    // Chat messages (user/assistant)
+    if (type === 'chat_user') {
+      return {
+        bg: 'bg-sky-500/10',
+        border: 'border-sky-500/30',
+        text: 'text-sky-400',
+        badge: 'bg-sky-500',
+      };
+    }
+
+    if (type === 'chat_assistant') {
+      return {
+        bg: 'bg-violet-500/10',
+        border: 'border-violet-500/30',
+        text: 'text-violet-400',
+        badge: 'bg-violet-500',
+      };
+    }
+
+    // Audio/Medical events
     if (type === 'transcription') {
       return {
         bg: 'bg-emerald-500/10',
@@ -334,4 +357,186 @@ export const timelineEventConfig: TimelineConfig = {
       });
     },
   },
+};
+
+// ============================================================================
+// Unified Timeline Config (Chat + Audio + Medical)
+// "No existen sesiones. Solo una conversación infinita"
+// ============================================================================
+
+export const unifiedTimelineConfig: TimelineConfig = {
+  title: 'Memoria Longitudinal',
+  emptyMessage: 'No hay eventos en tu memoria longitudinal',
+  showSearch: true,
+  showExport: true,
+  maxHeight: 'max-h-[700px]',
+
+  formatTimestamp: timelineEventConfig.formatTimestamp,
+  getColors: timelineEventConfig.getColors,
+
+  // Custom header that differentiates chat vs audio events
+  renderHeader: (event, isExpanded, toggleExpanded, actions) => {
+    const colors = unifiedTimelineConfig.getColors!(event);
+    const type = event.type.toLowerCase();
+    const isChat = type.startsWith('chat_');
+    const isUser = type === 'chat_user';
+
+    // For chat messages
+    if (isChat) {
+      const persona = event.metadata?.persona;
+
+      return (
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Role Icon */}
+            <div className={`p-2 rounded-full ${colors.bg} border ${colors.border}`}>
+              {isUser ? (
+                <User className={`h-4 w-4 ${colors.text}`} />
+              ) : (
+                <Bot className={`h-4 w-4 ${colors.text}`} />
+              )}
+            </div>
+
+            {/* Role Badge */}
+            <div className={`px-3 py-1 rounded-md ${colors.bg} border ${colors.border}`}>
+              <span className={`text-sm font-semibold ${colors.text}`}>
+                {isUser ? 'Tú' : 'Asistente'}
+              </span>
+            </div>
+
+            {/* Persona Badge (if assistant) */}
+            {!isUser && persona && (
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-violet-950/30 border border-violet-800 rounded-md">
+                <Sparkles className="h-3 w-3 text-violet-400" />
+                <span className="text-xs font-mono text-violet-300">
+                  {persona}
+                </span>
+              </div>
+            )}
+
+            {/* Timestamp */}
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/50 border border-slate-700 rounded-md">
+              <Clock className="h-3 w-3 text-slate-400" />
+              <span className="text-xs font-mono text-slate-400">
+                {unifiedTimelineConfig.formatTimestamp!(event.timestamp)}
+              </span>
+            </div>
+
+            {/* Chat indicator */}
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-800 border border-slate-700 rounded-md">
+              <MessageCircle className="h-3 w-3 text-slate-400" />
+              <span className="text-xs text-slate-400">chat</span>
+            </div>
+          </div>
+
+          {/* Expand/Collapse */}
+          <button
+            onClick={toggleExpanded}
+            className="p-1 hover:bg-slate-700/50 rounded transition-colors"
+            aria-label={isExpanded ? 'Contraer' : 'Expandir'}
+          >
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            )}
+          </button>
+        </div>
+      );
+    }
+
+    // For audio/transcription events - use original header
+    return timelineEventConfig.renderHeader!(event, isExpanded, toggleExpanded, actions);
+  },
+
+  // Content rendering for both chat and audio
+  renderContent: (event: TimelineEvent, isExpanded: boolean) => {
+    const type = event.type.toLowerCase();
+    const isChat = type.startsWith('chat_');
+
+    if (isChat) {
+      const preview = event.content.substring(0, 200);
+      const hasMore = event.content.length > 200;
+
+      return (
+        <div className="space-y-2">
+          <p className="text-white leading-relaxed whitespace-pre-wrap">
+            {isExpanded ? event.content : preview}
+            {!isExpanded && hasMore && '...'}
+          </p>
+
+          {/* Session info when expanded */}
+          {isExpanded && event.metadata?.session_id && (
+            <div className="pt-3 mt-3 border-t border-slate-700/50">
+              <div className="text-xs text-slate-500">
+                <span className="font-mono">session: {event.metadata.session_id.substring(0, 16)}...</span>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // For audio events - use original content renderer
+    return timelineEventConfig.renderContent!(event, isExpanded);
+  },
+
+  // Footer for chat messages
+  renderFooter: (event: TimelineEvent) => {
+    const type = event.type.toLowerCase();
+    const isChat = type.startsWith('chat_');
+
+    if (isChat) {
+      // Minimal footer for chat
+      return null;
+    }
+
+    // For audio events - use original footer
+    return timelineEventConfig.renderFooter!(event);
+  },
+
+  // Export unified timeline
+  formatExport: (events: TimelineEvent[]): string => {
+    const chatCount = events.filter(e => e.type.toLowerCase().startsWith('chat_')).length;
+    const audioCount = events.filter(e => e.type.toLowerCase() === 'transcription').length;
+
+    const header = `# Memoria Longitudinal Unificada
+Generated: ${new Date().toISOString()}
+Total Events: ${events.length}
+- Chat Messages: ${chatCount}
+- Audio Transcriptions: ${audioCount}
+
+---
+
+`;
+
+    const body = events
+      .map((event, idx) => {
+        const timestamp = unifiedTimelineConfig.formatTimestamp!(event.timestamp);
+        const type = event.type.toLowerCase();
+        const isChat = type.startsWith('chat_');
+        const label = isChat
+          ? (type === 'chat_user' ? '👤 Usuario' : '🤖 Asistente')
+          : `🎙️ ${event.type}`;
+
+        return `## ${label} - ${timestamp}
+${event.content}
+
+`;
+      })
+      .join('\n');
+
+    return header + body;
+  },
+
+  // Search filter for unified timeline
+  searchFilter: (event: TimelineEvent, query: string): boolean => {
+    const contentMatch = event.content.toLowerCase().includes(query);
+    const typeMatch = event.type.toLowerCase().includes(query);
+    const personaMatch = event.metadata?.persona?.toLowerCase().includes(query);
+
+    return contentMatch || typeMatch || personaMatch;
+  },
+
+  actions: timelineEventConfig.actions,
 };

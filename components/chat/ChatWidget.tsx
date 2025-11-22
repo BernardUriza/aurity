@@ -26,8 +26,8 @@ import { ChatWidgetHeader } from './ChatWidgetHeader';
 import { ChatWidgetMessages } from './ChatWidgetMessages';
 import { ChatWidgetInput } from './ChatWidgetInput';
 import { ChatToolbar, type ResponseMode, type PersonaType } from './ChatToolbar';
-import { ScrollToBottomButton } from './ChatUtilities';
 import { HistorySearch } from './HistorySearch';
+import { ChatStartScreen } from './ChatStartScreen';
 import { defaultChatConfig, type ChatConfig, CHAT_BREAKPOINTS } from '@/config/chat.config';
 
 export interface ChatWidgetProps {
@@ -36,7 +36,7 @@ export interface ChatWidgetProps {
 }
 
 export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
-  const { user } = useAuth0();
+  const { user, isAuthenticated, loginWithRedirect } = useAuth0();
 
   // Detect device breakpoints for responsive behavior
   const { isMobile, isTablet, isDesktop } = useBreakpoints(CHAT_BREAKPOINTS, {
@@ -46,6 +46,8 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   // View state
   const [viewMode, setViewMode] = useState<ChatViewMode>('normal');
   const [isOpen, setIsOpen] = useState(false);
+  const [conversationStarted, setConversationStarted] = useState(false);
+  const [isStartingConversation, setIsStartingConversation] = useState(false);
   const [message, setMessage] = useState('');
   const [responseMode, setResponseMode] = useState<ResponseMode>('explanatory');
   const [selectedPersona, setSelectedPersona] = useState<PersonaType>('general_assistant');
@@ -101,12 +103,33 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     await sendMessage(userMessage);
   };
 
-  // Handle opening widget
-  const handleOpen = async () => {
+  // Handle opening widget - just opens UI, does NOT call LLM
+  const handleOpen = () => {
     setIsOpen(true);
-    if (messages.length === 0) {
-      await getIntroduction();
+    // If user has existing messages, they already started a conversation
+    if (messages.length > 0) {
+      setConversationStarted(true);
     }
+  };
+
+  // Handle explicit conversation start (user clicks "Comenzar")
+  const handleStartConversation = async () => {
+    if (!isAuthenticated) return;
+
+    setIsStartingConversation(true);
+    try {
+      await getIntroduction();
+      setConversationStarted(true);
+    } finally {
+      setIsStartingConversation(false);
+    }
+  };
+
+  // Handle login redirect
+  const handleLogin = () => {
+    loginWithRedirect({
+      appState: { returnTo: window.location.pathname },
+    });
   };
 
   // Handle view mode changes
@@ -128,21 +151,6 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   };
 
   // Toolbar handlers
-  const handleAttach = () => {
-    console.log('Attach file clicked');
-    // TODO: Implement file attachment
-  };
-
-  const handleLanguage = () => {
-    console.log('Language clicked');
-    // TODO: Implement language selection
-  };
-
-  const handleFormatting = () => {
-    console.log('Formatting clicked');
-    // TODO: Implement text formatting
-  };
-
   const handleResponseModeToggle = () => {
     const newMode: ResponseMode = responseMode === 'explanatory' ? 'concise' : 'explanatory';
     setResponseMode(newMode);
@@ -191,7 +199,6 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
     recordingTime,
     audioLevel,
     isSilent,
-    liveTranscript,
     isTranscribing,
     startRecording: startVoiceRecording,
     stopRecording: stopVoiceRecording,
@@ -286,6 +293,10 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
   // ========================================================================
   // CHAT WIDGET (open)
   // ========================================================================
+
+  // Show start screen if conversation hasn't been explicitly started
+  const showStartScreen = !conversationStarted && messages.length === 0;
+
   return (
     <ChatWidgetContainer
       mode={viewMode}
@@ -304,45 +315,55 @@ export function ChatWidget({ config: customConfig }: ChatWidgetProps = {}) {
         onHistorySearch={() => setShowHistorySearch(true)}
       />
 
-      {/* Messages */}
-      <ChatWidgetMessages
-        messages={messages}
-        isTyping={isTyping}
-        loadingInitial={loadingInitial}
-        config={config}
-        userName={user?.name?.split(' ')[0]}
-        mode={viewMode}
-        onLoadOlder={loadOlderMessages}
-        loadingOlder={loadingOlder}
-        hasMoreMessages={hasMoreMessages}
-      />
+      {/* Start Screen - shown before conversation begins */}
+      {showStartScreen ? (
+        <ChatStartScreen
+          isAuthenticated={isAuthenticated}
+          userName={user?.name}
+          onStart={handleStartConversation}
+          onLogin={handleLogin}
+          isLoading={isStartingConversation}
+        />
+      ) : (
+        <>
+          {/* Messages */}
+          <ChatWidgetMessages
+            messages={messages}
+            isTyping={isTyping}
+            loadingInitial={loadingInitial}
+            config={config}
+            userName={user?.name?.split(' ')[0]}
+            mode={viewMode}
+            onLoadOlder={loadOlderMessages}
+            loadingOlder={loadingOlder}
+            hasMoreMessages={hasMoreMessages}
+          />
 
-      {/* Scroll to bottom */}
-      <ScrollToBottomButton containerId="chat-widget-messages" />
+          {/* Toolbar */}
+          <ChatToolbar
+            responseMode={responseMode}
+            selectedPersona={selectedPersona}
+            voiceRecording={voiceRecordingState}
+            showAttach={false}
+            showLanguage={false}
+            showFormatting={false}
+            onResponseModeToggle={handleResponseModeToggle}
+            onPersonaChange={handlePersonaChange}
+            onVoiceStart={handleVoiceStart}
+            onVoiceStop={handleVoiceStop}
+          />
 
-      {/* Toolbar */}
-      <ChatToolbar
-        responseMode={responseMode}
-        selectedPersona={selectedPersona}
-        voiceRecording={voiceRecordingState}
-        onAttach={handleAttach}
-        onLanguage={handleLanguage}
-        onFormatting={handleFormatting}
-        onResponseModeToggle={handleResponseModeToggle}
-        onPersonaChange={handlePersonaChange}
-        onVoiceStart={handleVoiceStart}
-        onVoiceStop={handleVoiceStop}
-      />
-
-      {/* Input */}
-      <ChatWidgetInput
-        message={message}
-        loading={loading}
-        placeholder={config.behavior.inputPlaceholder}
-        footer={config.footer}
-        onMessageChange={setMessage}
-        onSend={handleSend}
-      />
+          {/* Input */}
+          <ChatWidgetInput
+            message={message}
+            loading={loading}
+            placeholder={config.behavior.inputPlaceholder}
+            footer={config.footer}
+            onMessageChange={setMessage}
+            onSend={handleSend}
+          />
+        </>
+      )}
 
       {/* History Search Modal */}
       {showHistorySearch && (

@@ -226,9 +226,20 @@ export function SpeakButton({
     md: 'p-2',
   };
 
+  // Format voice name for display (e.g., "es-MX-DaliaNeural" → "Dalia")
+  const formatVoiceName = (voiceId: string): string => {
+    // Extract name from Azure voice ID format: "es-MX-DaliaNeural" → "Dalia"
+    const match = voiceId.match(/([A-Z][a-z]+)Neural$/);
+    if (match) return match[1];
+
+    // Fallback: capitalize first letter
+    return voiceId.charAt(0).toUpperCase() + voiceId.slice(1);
+  };
+
   // Tooltip text based on state
+  const voiceDisplay = voice ? formatVoiceName(voice) : null;
   const tooltipText = {
-    idle: 'Escuchar mensaje',
+    idle: voiceDisplay ? `🔊 Voz: ${voiceDisplay}` : 'Escuchar mensaje',
     loading: `Generando audio... ${progress}%`,
     playing: 'Detener audio',
   };

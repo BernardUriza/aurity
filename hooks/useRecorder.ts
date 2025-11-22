@@ -152,74 +152,114 @@ export function useRecorder(config: UseRecorderConfig): UseRecorderReturn {
   }, [onChunk, onError, timeSlice, sampleRate, channels, externalStream]);
 
   // Stop recording and capture full audio blob
+  // CRITICAL: Stops microphone IMMEDIATELY, then processes in background
   const stopRecording = useCallback(async () => {
     try {
-      // Stop timer
+      // ========================================================================
+      // STEP 1: IMMEDIATE CLEANUP (no awaits - synchronous)
+      // ========================================================================
+
+      // Stop timer immediately
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
       }
 
+      // Update UI state IMMEDIATELY (user sees recording stopped)
+      setIsRecording(false);
+
       // ========================================================================
-      // STOP CONTINUOUS RECORDER FIRST (for full audio blob)
+      // STEP 2: STOP MICROPHONE STREAM IMMEDIATELY (CRITICAL for browser indicator)
+      // ========================================================================
+      // This MUST happen before any await to release the microphone icon in browser
+      if (currentStreamRef.current) {
+        console.log('[Recorder] Stopping microphone stream IMMEDIATELY');
+        currentStreamRef.current.getTracks().forEach((track) => {
+          track.stop();
+          console.log(`[Recorder] Track stopped: ${track.kind} (${track.label})`);
+        });
+        currentStreamRef.current = null;
+      }
+
+      // ========================================================================
+      // STEP 3: STOP RECORDERS (can be async, microphone already released)
       // ========================================================================
       let fullBlob: Blob | null = null;
+
+      // Stop continuous recorder (for full audio blob)
       if (continuousRecorderRef.current) {
-        fullBlob = await continuousRecorderRef.current.stop();
-        console.log(
-          `[Continuous Recorder] Stopped - full audio blob: ${fullBlob.size} bytes (${(fullBlob.size / 1024 / 1024).toFixed(2)} MB)`
-        );
-
-        // Create local URL for immediate playback
-        if (fullAudioUrlRef.current) {
-          URL.revokeObjectURL(fullAudioUrlRef.current); // Clean up old URL
-        }
-        const audioUrl = URL.createObjectURL(fullBlob);
-        fullAudioUrlRef.current = audioUrl;
-        setFullAudioUrl(audioUrl);
-        setFullAudioBlob(fullBlob);
-
-        console.log(
-          `[Continuous Recorder] ✅ Audio completo disponible (${(fullBlob.size / 1024 / 1024).toFixed(2)} MB)`
-        );
-      }
-
-      // ========================================================================
-      // STOP CHUNKED RECORDER & PROCESS FINAL CHUNK
-      // ========================================================================
-      if (recorderRef.current) {
-        const lastChunk = await recorderRef.current.stop();
-
-        // Process final chunk if it has data (e.g., recording stopped before timeSlice)
-        if (lastChunk && lastChunk.size > 0) {
-          const finalChunkNumber = chunkNumberRef.current++;
+        try {
+          fullBlob = await continuousRecorderRef.current.stop();
           console.log(
-            `[Chunked Recorder] Processing final chunk ${finalChunkNumber} (${(lastChunk.size / 1024).toFixed(1)}KB)`
+            `[Continuous Recorder] Stopped - full audio blob: ${fullBlob?.size || 0} bytes`
           );
-          await onChunk(lastChunk, finalChunkNumber);
-        }
 
-        console.log('[Chunked Recorder] Stopped successfully');
+          if (fullBlob && fullBlob.size > 0) {
+            // Create local URL for immediate playback
+            if (fullAudioUrlRef.current) {
+              URL.revokeObjectURL(fullAudioUrlRef.current);
+            }
+            const audioUrl = URL.createObjectURL(fullBlob);
+            fullAudioUrlRef.current = audioUrl;
+            setFullAudioUrl(audioUrl);
+            setFullAudioBlob(fullBlob);
+          }
+        } catch (err) {
+          console.warn('[Continuous Recorder] Stop error (non-critical):', err);
+        }
+        continuousRecorderRef.current = null;
       }
 
-      // Stop media stream tracks
+      // Stop chunked recorder
+      if (recorderRef.current) {
+        try {
+          const lastChunk = await recorderRef.current.stop();
+
+          // Process final chunk in BACKGROUND (fire-and-forget)
+          // Don't await - user already sees recording as stopped
+          if (lastChunk && lastChunk.size > 0) {
+            const finalChunkNumber = chunkNumberRef.current++;
+            console.log(
+              `[Chunked Recorder] Processing final chunk ${finalChunkNumber} in background`
+            );
+            // Fire and forget - don't block the stop
+            // Handle both sync and async onChunk handlers
+            try {
+              const result = onChunk(lastChunk, finalChunkNumber);
+              if (result instanceof Promise) {
+                result.catch((err: Error) => {
+                  console.error('[Chunked Recorder] Final chunk processing failed:', err);
+                });
+              }
+            } catch (err) {
+              console.error('[Chunked Recorder] Final chunk processing failed:', err);
+            }
+          }
+        } catch (err) {
+          console.warn('[Chunked Recorder] Stop error (non-critical):', err);
+        }
+        recorderRef.current = null;
+      }
+
+      console.log('[Recorder] ✅ Recording stopped, microphone released');
+
+      return fullBlob;
+    } catch (err) {
+      console.error('[Recorder] Stop error:', err);
+
+      // Even on error, ensure microphone is released
       if (currentStreamRef.current) {
         currentStreamRef.current.getTracks().forEach((track) => track.stop());
         currentStreamRef.current = null;
       }
-
       setIsRecording(false);
 
-      // Return the full audio blob for immediate use (avoid stale closure issues)
-      return fullBlob;
-    } catch (err) {
-      console.error('[Recorder] Stop error:', err);
       if (onError) {
         onError(err instanceof Error ? err.message : 'Error al detener grabación');
       }
       return null;
     }
-  }, [onError]);
+  }, [onChunk, onError]);
 
   return {
     isRecording,

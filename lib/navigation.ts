@@ -51,11 +51,12 @@ export const NAV_ROUTES: NavRoute[] = [
   },
   {
     id: "timeline",
-    title: "Timeline",
-    description: "Conversación continua con navegación",
+    title: "Memoria Longitudinal",
+    description: "Chats + Consultas en un timeline unificado",
     href: "/timeline",
     icon: Clock,
     shortcut: "3",
+    badge: "Unificado",
   },
   {
     id: "policy",

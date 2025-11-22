@@ -39,8 +39,6 @@ export function mergeMessages(
     });
   };
 
-  console.log('[Merge] Local:', localMessages.length, 'Backend:', backendMessages.length);
-
   // Add backend messages first (source of truth)
   backendMessages.forEach(msg => {
     if (!isDuplicate(msg, deduped)) {
@@ -49,12 +47,12 @@ export function mergeMessages(
   });
 
   // Add local messages (only if not in backend)
+  let skippedCount = 0;
   localMessages.forEach(msg => {
     if (!isDuplicate(msg, deduped)) {
       deduped.push(msg);
     } else {
-      console.log('[Merge] Skipping duplicate:',
-        msg.metadata?.id || msg.content.substring(0, 50));
+      skippedCount++;
     }
   });
 
@@ -65,8 +63,11 @@ export function mergeMessages(
     return timeA - timeB;
   });
 
-  console.log('[Merge] Result:', deduped.length, 'messages (removed',
-    localMessages.length + backendMessages.length - deduped.length, 'duplicates)');
+  // Only log if there were actual changes (reduce spam)
+  if (skippedCount > 0 || backendMessages.length > 0) {
+    console.log(`[Merge] ${localMessages.length} local + ${backendMessages.length} backend → ${deduped.length} (skipped ${skippedCount} duplicates)`);
+  }
+
   return deduped;
 }
 
@@ -76,11 +77,10 @@ export function mergeMessages(
  */
 export function areMessagesEqual(a: FIMessage[], b: FIMessage[]): boolean {
   if (a.length !== b.length) {
-    console.log('[AreEqual] Different lengths:', a.length, 'vs', b.length);
     return false;
   }
 
-  const result = a.every((msg, idx) => {
+  return a.every((msg, idx) => {
     const other = b[idx];
     // Compare role + content only (timestamps can drift between client/server)
     return (
@@ -88,7 +88,4 @@ export function areMessagesEqual(a: FIMessage[], b: FIMessage[]): boolean {
       msg.content.trim() === other.content.trim()
     );
   });
-
-  console.log('[AreEqual] Result:', result);
-  return result;
 }

@@ -20,6 +20,7 @@ export interface PersonaOption {
   name: string;
   description: string;
   icon?: string; // Optional frontend-only icon mapping
+  voice?: string; // Azure TTS voice ID (e.g., "es-MX-DaliaNeural")
 }
 
 interface UsePersonasReturn {
@@ -72,6 +73,7 @@ export function usePersonas(): UsePersonasReturn {
         name: p.name,
         description: p.description,
         icon: PERSONA_ICON_MAP[p.id],
+        voice: p.voice, // Azure TTS voice from backend
       }));
 
       setPersonas(transformedPersonas);

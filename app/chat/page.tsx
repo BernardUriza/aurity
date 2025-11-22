@@ -18,7 +18,6 @@ import { ChatWidgetHeader } from '@/components/chat/ChatWidgetHeader';
 import { ChatWidgetMessages } from '@/components/chat/ChatWidgetMessages';
 import { ChatWidgetInput } from '@/components/chat/ChatWidgetInput';
 import { ChatToolbar, type ResponseMode, type PersonaType } from '@/components/chat/ChatToolbar';
-import { ScrollToBottomButton } from '@/components/chat/ChatUtilities';
 import { defaultChatConfig, type ChatConfig } from '@/config/chat.config';
 
 /**
@@ -103,6 +102,9 @@ export default function ChatPage() {
     sendMessage: sendMessageHook,
     getIntroduction,
     clearConversation,
+    loadOlderMessages,
+    hasMoreMessages,
+    loadingOlder,
   } = useFIConversation({
     phase: undefined,
     context: {
@@ -214,10 +216,10 @@ export default function ChatPage() {
           config={chatConfig}
           userName={user?.name?.split(' ')[0]}
           mode={viewMode}
+          onLoadOlder={loadOlderMessages}
+          loadingOlder={loadingOlder}
+          hasMoreMessages={hasMoreMessages}
         />
-
-        {/* Scroll to bottom */}
-        <ScrollToBottomButton containerId="chat-widget-messages" />
 
         {/* Toolbar */}
         <ChatToolbar
