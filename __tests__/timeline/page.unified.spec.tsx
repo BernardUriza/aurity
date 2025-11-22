@@ -6,8 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
 import TimelinePage from '@/app/timeline/page';
+import type { UnifiedEvent } from '@/lib/api/unified-timeline';
 
 // ============================================================================
 // Mocks
@@ -28,37 +30,39 @@ const mockRefresh = vi.fn();
 const mockSetEventType = vi.fn();
 const mockSetTimeRangePreset = vi.fn();
 
+const mockUseUnifiedTimeline = vi.fn(() => ({
+  events: [] as UnifiedEvent[],
+  stats: null,
+  isLoading: false,
+  isLoadingMore: false,
+  error: null,
+  hasMore: false,
+  total: 0,
+  chatCount: 0,
+  audioCount: 0,
+  filters: {
+    eventType: 'all' as const,
+    preset: null,
+    timeRange: { start: null, end: null },
+  },
+  setEventType: mockSetEventType,
+  setTimeRangePreset: mockSetTimeRangePreset,
+  setCustomTimeRange: vi.fn(),
+  loadMore: mockLoadMore,
+  refresh: mockRefresh,
+  isAuthenticated: true,
+  doctorId: 'test-user-123',
+}));
+
 vi.mock('@/hooks/useUnifiedTimeline', () => ({
-  useUnifiedTimeline: vi.fn(() => ({
-    events: [],
-    stats: null,
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    total: 0,
-    chatCount: 0,
-    audioCount: 0,
-    filters: {
-      eventType: 'all',
-      preset: null,
-      timeRange: { start: null, end: null },
-    },
-    setEventType: mockSetEventType,
-    setTimeRangePreset: mockSetTimeRangePreset,
-    setCustomTimeRange: vi.fn(),
-    loadMore: mockLoadMore,
-    refresh: mockRefresh,
-    isAuthenticated: true,
-    doctorId: 'test-user-123',
-  })),
+  useUnifiedTimeline: mockUseUnifiedTimeline,
 }));
 
 // Mock EventTimeline component
 vi.mock('@/components/audit/EventTimeline', () => ({
-  EventTimeline: ({ events }: { events: any[] }) => (
+  EventTimeline: ({ events }: { events: unknown[] }) => (
     <div data-testid="event-timeline">
-      {events.map((e, i) => (
+      {events.map((e: any, i: number) => (
         <div key={e.id || i} data-testid={`event-${i}`}>
           {e.content}
         </div>
@@ -69,7 +73,7 @@ vi.mock('@/components/audit/EventTimeline', () => ({
 
 // Mock TimelineFilters component
 vi.mock('@/components/timeline/TimelineFilters', () => ({
-  TimelineFilters: ({ onEventTypeChange, onPresetChange }: any) => (
+  TimelineFilters: ({ onEventTypeChange }: { onEventTypeChange: (type: string) => void }) => (
     <div data-testid="timeline-filters">
       <button onClick={() => onEventTypeChange('chat')} data-testid="filter-chat">
         Chat
@@ -77,6 +81,15 @@ vi.mock('@/components/timeline/TimelineFilters', () => ({
       <button onClick={() => onEventTypeChange('audio')} data-testid="filter-audio">
         Audio
       </button>
+    </div>
+  ),
+}));
+
+// Mock TimelineScheduler component
+vi.mock('@/components/timeline/TimelineScheduler', () => ({
+  TimelineScheduler: ({ events }: { events: unknown[] }) => (
+    <div data-testid="timeline-scheduler">
+      Scheduler with {events.length} events
     </div>
   ),
 }));
@@ -99,10 +112,8 @@ vi.mock('@/lib/timeline-config', () => ({
 // Test Helpers
 // ============================================================================
 
-const { useUnifiedTimeline } = await import('@/hooks/useUnifiedTimeline');
-
-function mockHookReturn(overrides: Partial<ReturnType<typeof useUnifiedTimeline>>) {
-  (useUnifiedTimeline as any).mockReturnValue({
+function mockHookReturn(overrides: Partial<ReturnType<typeof mockUseUnifiedTimeline>>) {
+  mockUseUnifiedTimeline.mockReturnValue({
     events: [],
     stats: null,
     isLoading: false,
@@ -113,7 +124,7 @@ function mockHookReturn(overrides: Partial<ReturnType<typeof useUnifiedTimeline>
     chatCount: 0,
     audioCount: 0,
     filters: {
-      eventType: 'all',
+      eventType: 'all' as const,
       preset: null,
       timeRange: { start: null, end: null },
     },
@@ -160,12 +171,12 @@ describe('TimelinePage (Unified)', () => {
   // --------------------------------------------------------------------------
 
   it('displays events when hook returns data', async () => {
-    const mockEvents = Array.from({ length: 20 }, (_, i) => ({
+    const mockEvents: UnifiedEvent[] = Array.from({ length: 20 }, (_, i) => ({
       id: `event-${i}`,
       timestamp: Date.now() / 1000 - i * 60,
-      event_type: i % 2 === 0 ? 'chat_user' : 'transcription',
+      event_type: (i % 2 === 0 ? 'chat_user' : 'transcription') as 'chat_user' | 'transcription',
       content: `Event content ${i}`,
-      source: i % 2 === 0 ? 'chat' : 'audio',
+      source: (i % 2 === 0 ? 'chat' : 'audio') as 'chat' | 'audio',
     }));
 
     mockHookReturn({
@@ -255,7 +266,7 @@ describe('TimelinePage (Unified)', () => {
   // --------------------------------------------------------------------------
 
   it('normalizes event_type to type for EventTimeline', async () => {
-    const mockEvents = [
+    const mockEvents: UnifiedEvent[] = [
       {
         id: 'e1',
         timestamp: Date.now() / 1000,
@@ -282,8 +293,9 @@ describe('TimelinePage (Unified)', () => {
   // --------------------------------------------------------------------------
 
   it('shows loading more indicator when fetching more', async () => {
+    const testEvent: UnifiedEvent = { id: 'e1', timestamp: 123, event_type: 'chat_user', content: 'Test', source: 'chat' };
     mockHookReturn({
-      events: [{ id: 'e1', timestamp: 123, event_type: 'chat_user', content: 'Test', source: 'chat' }],
+      events: [testEvent],
       isLoadingMore: true,
       hasMore: true,
       total: 100,
@@ -299,8 +311,9 @@ describe('TimelinePage (Unified)', () => {
   // --------------------------------------------------------------------------
 
   it('shows end indicator when no more events', async () => {
+    const testEvent: UnifiedEvent = { id: 'e1', timestamp: 123, event_type: 'chat_user', content: 'Test', source: 'chat' };
     mockHookReturn({
-      events: [{ id: 'e1', timestamp: 123, event_type: 'chat_user', content: 'Test', source: 'chat' }],
+      events: [testEvent],
       hasMore: false,
       total: 1,
     });

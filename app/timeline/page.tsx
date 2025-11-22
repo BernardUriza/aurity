@@ -5,20 +5,23 @@
  *
  * FI-PHIL-DOC-014: "No existen sesiones. Solo una conversación infinita"
  *
- * REFACTORED: Now uses useUnifiedTimeline hook for:
+ * Features:
+ * - Bryntum SchedulerPro visualization with Navigate drawer
  * - Pagination via backend /timeline/unified endpoint
  * - Event type filtering (all/chat/audio)
  * - Time range filtering (presets)
  * - Infinite scroll with IntersectionObserver
+ * - Dual view: Visual scheduler + detailed list
  *
- * Updated: 2025-11-22 - Migrated to unified hook architecture
+ * Updated: 2025-11-22 - Added TimelineScheduler with Bryntum SchedulerPro
  */
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { timelineHeader } from '@/config/page-headers';
 import { useUnifiedTimeline } from '@/hooks/useUnifiedTimeline';
 import { TimelineFilters } from '@/components/timeline/TimelineFilters';
+import { TimelineScheduler } from '@/components/timeline/TimelineScheduler';
 import { EventTimeline, type TimelineEvent } from '@/components/audit/EventTimeline';
 import { unifiedTimelineConfig } from '@/lib/timeline-config';
 import {
@@ -27,11 +30,17 @@ import {
   Loader2,
   RefreshCw,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  BarChart3,
+  List,
 } from 'lucide-react';
 
 // ============================================================================
 // Main Component
 // ============================================================================
+
+type ViewType = 'scheduler' | 'list' | 'both';
 
 export default function TimelinePage() {
   // Use unified timeline hook (replaces all legacy state management)
@@ -52,6 +61,10 @@ export default function TimelinePage() {
     refresh,
     isAuthenticated,
   } = useUnifiedTimeline();
+
+  // View mode: scheduler (Bryntum), list (EventTimeline), or both
+  const [viewType, setViewType] = useState<ViewType>('both');
+  const [schedulerExpanded, setSchedulerExpanded] = useState(true);
 
   // Sentinel ref for infinite scroll
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -162,14 +175,57 @@ export default function TimelinePage() {
   });
 
   const headerActions = (
-    <button
-      onClick={() => refresh()}
-      disabled={isLoading}
-      className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors disabled:opacity-50"
-    >
-      <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-      Refresh
-    </button>
+    <div className="flex items-center gap-2">
+      {/* View Mode Toggle */}
+      <div className="flex items-center bg-slate-800 rounded-lg p-0.5">
+        <button
+          onClick={() => setViewType('scheduler')}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+            viewType === 'scheduler'
+              ? 'bg-emerald-600 text-white'
+              : 'text-slate-400 hover:text-white hover:bg-slate-700'
+          }`}
+          title="Vista Scheduler"
+        >
+          <BarChart3 className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Visual</span>
+        </button>
+        <button
+          onClick={() => setViewType('list')}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+            viewType === 'list'
+              ? 'bg-emerald-600 text-white'
+              : 'text-slate-400 hover:text-white hover:bg-slate-700'
+          }`}
+          title="Vista Lista"
+        >
+          <List className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Lista</span>
+        </button>
+        <button
+          onClick={() => setViewType('both')}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+            viewType === 'both'
+              ? 'bg-emerald-600 text-white'
+              : 'text-slate-400 hover:text-white hover:bg-slate-700'
+          }`}
+          title="Ambas vistas"
+        >
+          <span className="hidden sm:inline">Ambas</span>
+          <span className="sm:hidden">2</span>
+        </button>
+      </div>
+
+      {/* Refresh Button */}
+      <button
+        onClick={() => refresh()}
+        disabled={isLoading}
+        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors disabled:opacity-50"
+      >
+        <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+        Refresh
+      </button>
+    </div>
   );
 
   // ============================================================================
@@ -222,6 +278,40 @@ export default function TimelinePage() {
             onPresetChange={setTimeRangePreset}
           />
 
+          {/* Bryntum SchedulerPro Visualization */}
+          {(viewType === 'scheduler' || viewType === 'both') && (
+            <div className="rounded-2xl overflow-hidden ring-1 ring-white/5 shadow-sm bg-slate-900">
+              {viewType === 'both' && (
+                <button
+                  onClick={() => setSchedulerExpanded(!schedulerExpanded)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-800/50 border-b border-slate-700 hover:bg-slate-800 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-emerald-400" />
+                    <span className="text-sm font-medium text-white">
+                      Visualización Timeline
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      (Bryntum SchedulerPro)
+                    </span>
+                  </div>
+                  {schedulerExpanded ? (
+                    <ChevronUp className="h-4 w-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                  )}
+                </button>
+              )}
+              {(viewType === 'scheduler' || schedulerExpanded) && (
+                <TimelineScheduler
+                  events={events}
+                  isLoading={isLoading}
+                  className="h-[400px]"
+                />
+              )}
+            </div>
+          )}
+
           {/* Error State */}
           {error && (
             <div className="flex items-center gap-3 p-4 bg-red-950/30 border border-red-700/30 rounded-xl">
@@ -250,16 +340,29 @@ export default function TimelinePage() {
             </div>
           )}
 
-          {/* Unified Timeline - All Events */}
-          {timelineEvents.length > 0 && (
-            <EventTimeline
-              events={timelineEvents}
-              config={unifiedTimelineConfig}
-              isLoading={false}
-              error={null}
-              onRefresh={refresh}
-              className="rounded-2xl ring-1 ring-white/5 shadow-sm"
-            />
+          {/* Unified Timeline - All Events (List View) */}
+          {(viewType === 'list' || viewType === 'both') && timelineEvents.length > 0 && (
+            <div className="rounded-2xl overflow-hidden ring-1 ring-white/5 shadow-sm">
+              {viewType === 'both' && (
+                <div className="flex items-center gap-2 px-4 py-3 bg-slate-800/50 border-b border-slate-700">
+                  <List className="h-4 w-4 text-sky-400" />
+                  <span className="text-sm font-medium text-white">
+                    Lista de Eventos
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    ({timelineEvents.length} eventos)
+                  </span>
+                </div>
+              )}
+              <EventTimeline
+                events={timelineEvents}
+                config={unifiedTimelineConfig}
+                isLoading={false}
+                error={null}
+                onRefresh={refresh}
+                className=""
+              />
+            </div>
           )}
 
           {/* Infinite Scroll Sentinel */}
