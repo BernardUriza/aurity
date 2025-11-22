@@ -94,3 +94,117 @@ export const spacing = {
     legalDisclaimer: 'mt-12', // 48px (significant separation)
   },
 };
+
+// ============================================================================
+// FI RECEPTIONIST CONFIGURATION
+// ============================================================================
+
+/**
+ * Receptionist Empty State Configuration
+ * For patient check-in flow after QR scan
+ */
+export const receptionistEmptyStateConfig = {
+  emoji: '🏥',
+  welcomeTitle: (patientName?: string) =>
+    patientName ? `¡Hola ${patientName}! 👋` : '¡Bienvenido! 👋',
+  welcomeSubtitle: 'Soy el asistente virtual de la clínica. Puedo ayudarte con:',
+  features: [
+    {
+      icon: '✓',
+      text: 'Check-in para tu cita programada',
+    },
+    {
+      icon: '✓',
+      text: 'Información sobre tiempos de espera',
+    },
+    {
+      icon: '✓',
+      text: 'Pagos y documentos pendientes',
+    },
+    {
+      icon: '✓',
+      text: 'Preguntas sobre preparación para tu cita',
+    },
+  ],
+  ctaText: 'Escribe tu mensaje o selecciona una opción...',
+};
+
+/**
+ * Receptionist Quick Actions
+ * Pre-defined actions for common patient requests
+ */
+export const receptionistQuickActions = [
+  {
+    id: 'checkin',
+    label: 'Hacer check-in',
+    icon: '✅',
+    message: 'Quiero hacer check-in para mi cita',
+  },
+  {
+    id: 'wait_time',
+    label: '¿Cuánto tiempo de espera?',
+    icon: '⏱️',
+    message: '¿Cuánto tiempo tengo que esperar?',
+  },
+  {
+    id: 'pay_copay',
+    label: 'Pagar copago',
+    icon: '💳',
+    message: 'Quiero pagar mi copago',
+  },
+  {
+    id: 'reschedule',
+    label: 'Reagendar cita',
+    icon: '📅',
+    message: 'Necesito reagendar mi cita',
+  },
+];
+
+/**
+ * Receptionist Intent Responses
+ * Template responses for detected intents
+ */
+export const receptionistIntentResponses = {
+  checkin_success: (patientName: string, position: number, waitMinutes: number) =>
+    `¡Listo ${patientName}! Tu check-in está completo. ` +
+    `Eres el número ${position} en la fila. ` +
+    `Tiempo estimado de espera: ${waitMinutes} minutos. ` +
+    `Te llamaremos por tu nombre cuando sea tu turno.`,
+
+  checkin_pending_payment: (amount: number, currency: string) =>
+    `Antes de completar el check-in, tienes un copago pendiente de ${currency} ${amount.toFixed(2)}. ` +
+    `¿Deseas pagarlo ahora?`,
+
+  checkin_pending_consent: (documentName: string) =>
+    `Necesitamos tu firma en el documento "${documentName}" antes de la consulta. ` +
+    `¿Puedes revisarlo y firmarlo?`,
+
+  wait_time: (position: number, waitMinutes: number, doctorName: string) =>
+    `Actualmente hay ${position - 1} pacientes antes de ti. ` +
+    `${doctorName} estará contigo en aproximadamente ${waitMinutes} minutos. ` +
+    `Te avisaremos cuando sea tu turno.`,
+
+  no_appointment: () =>
+    `No encontré una cita programada para hoy con tu información. ` +
+    `¿Podrías verificar tu código de check-in o CURP?`,
+
+  reschedule_info: () =>
+    `Para reagendar tu cita, puedo mostrarte los horarios disponibles ` +
+    `o conectarte con la recepción. ¿Qué prefieres?`,
+
+  generic_help: () =>
+    `Estoy aquí para ayudarte. Puedes preguntarme sobre:\n` +
+    `• Tu cita y tiempo de espera\n` +
+    `• Pagos pendientes\n` +
+    `• Documentos por firmar\n` +
+    `• Preparación para tu consulta`,
+};
+
+/**
+ * Receptionist Loading State
+ */
+export const receptionistLoadingConfig = {
+  loadingText: 'Buscando tu información...',
+  processingPayment: 'Procesando pago...',
+  updatingCheckin: 'Actualizando check-in...',
+};

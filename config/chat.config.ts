@@ -160,6 +160,21 @@ export const personaStyles: Record<string, PersonaStyle> = {
     labelColor: 'text-purple-300',
   },
 
+  // FI Receptionist - Patient check-in assistant (indigo)
+  fi_receptionist: {
+    border: 'border-indigo-600/60',
+    bg: 'bg-indigo-950/20',
+    glow: 'shadow-indigo-500/10',
+    icon: '🏥',
+    label: 'FI RECEPTIONIST',
+    labelColor: 'text-indigo-300',
+    badge: {
+      text: 'CHECK-IN',
+      bg: 'bg-indigo-500/20',
+      textColor: 'text-indigo-400',
+    },
+  },
+
   // System Messages - Technical theme (amber)
   system: {
     border: 'border-amber-600/60',
@@ -418,6 +433,45 @@ export const clinicalChatConfig: ChatConfig = {
     },
   },
   footer: 'HIPAA Compliant · AES-256 Encrypted',
+};
+
+/**
+ * FI Receptionist configuration (patient check-in flow)
+ * Used in waiting room QR check-in and kiosk mode
+ */
+export const receptionistChatConfig: ChatConfig = {
+  ...defaultChatConfig,
+  title: 'FI Receptionist',
+  subtitle: 'Tu asistente de check-in',
+  theme: {
+    ...defaultTheme,
+    background: {
+      header: 'bg-gradient-to-r from-indigo-700 to-purple-700',
+      body: 'bg-slate-950',
+      input: 'bg-slate-800',
+    },
+    accent: {
+      from: 'from-indigo-600',
+      to: 'to-purple-600',
+    },
+    text: {
+      ...defaultTheme.text,
+      accent: 'text-indigo-300',
+    },
+  },
+  behavior: {
+    ...defaultBehavior,
+    inputPlaceholder: '¿En qué puedo ayudarte?',
+    groupMessages: true,
+    showDayDividers: false, // Single session, no need for day dividers
+  },
+  footer: '100% Local · Datos protegidos',
+  dimensions: {
+    width: '100%',
+    height: '100%',
+    minHeight: '300px',
+    maxHeight: '100vh',
+  },
 };
 
 // ============================================================================
