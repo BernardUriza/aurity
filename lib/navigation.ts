@@ -17,6 +17,7 @@ import {
   Brain,
   Building2,
   CalendarDays,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -114,6 +115,15 @@ export const NAV_ROUTES: NavRoute[] = [
     icon: CalendarDays,
     shortcut: "0",
     badge: "Admin",
+  },
+  {
+    id: "fi-receptionist",
+    title: "FI Receptionist",
+    description: "Asistente de check-in conversacional",
+    href: "/checkin/chat?clinic=demo",
+    icon: MessageSquare,
+    shortcut: "R",
+    badge: "Demo",
   },
 ];
 
